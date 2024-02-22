@@ -107,7 +107,7 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
                 possibleTask = true;
                 //console.log("Valid match");
                 let distance: number = creepDistances[creepIndex][distanceIndex]
-                console.log("chosen distance", distance, "from", creepDistances[creepIndex]);
+                //console.log("chosen distance", distance, "from", creepDistances[creepIndex]);
                 let newElement: [number, number] = [creepIndex, distance];
                 taskCreeps[taskIndex].push(newElement);
                 creepFree[creepIndex] = false;

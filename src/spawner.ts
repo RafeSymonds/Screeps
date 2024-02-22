@@ -2,16 +2,16 @@ import * as priorities from "./priorities";
 
 export function spawnCreepInRoom(room: Room)
 {
-    if (room.memory.harvesterCreepCount < 2)
+    if (room.memory.harvesterCreepCount < room.memory.harvesterLimit && room.memory.harvesterCreepCount < room.memory.transporterCreepCount * 2.5 + 1)
     {
         spawnHarvester(room);
     }
-    if (room.memory.harvesterCreepCount > room.memory.transporterCreepCount)
+    else if (room.memory.harvesterCreepCount / 2.5 + 1 > room.memory.transporterCreepCount)
     {
         //spawn transporter
         spawnTransporter(room);
     }
-    if (room.memory.workerCreepCount < 8)
+    else if (room.memory.workerCreepCount < 8)
     {
         //spawn worker
         spawnWorker(room);
@@ -52,7 +52,7 @@ export function spawnTransporter(room: Room)
     let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
     let taskTypes: priorities.TaskType = priorities.TaskType.transport;
     let taskIDs: string[] = [];
-    if (spawns[0].spawnCreep([CARRY, CARRY, MOVE, MOVE], 'Transporter' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: 0, roomName: room.name } }) === OK)
+    if (spawns[0].spawnCreep([CARRY, MOVE], 'Transporter' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: 0, roomName: room.name } }) === OK)
     {
         room.memory.transporterCreepCount += 1;
         setValueLeftAfterSpawning(room);
@@ -66,8 +66,14 @@ export function spawnHarvester(room: Room)
     let taskTypes: priorities.TaskType = priorities.TaskType.harvest;
     let taskIDs: string[] = [];
 
-    let bodyParts: BodyPartConstant[] = [MOVE, WORK, WORK, WORK, WORK, WORK];
+    let bodyParts: BodyPartConstant[] = [MOVE, WORK, WORK];
 
+    let energy: number = room.energyAvailable - 250;
+    while (energy >= 100 && bodyParts.length < 6)
+    {
+        bodyParts.push(WORK);
+        energy -= 100;
+    }
 
     if (spawns[0].spawnCreep(bodyParts, 'Harvester' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: 0, roomName: room.name } }) === OK)
     {

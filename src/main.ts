@@ -39,6 +39,7 @@ declare global
     workerCreepCount: number;
     transporterCreepCount: number;
     harvesterCreepCount: number;
+    harvesterLimit: number;
     sourceContainerTasks: { [taskId: string]: priorities.CollectEnergyTask };
     baseCenter: [number, number];
   }
@@ -68,27 +69,29 @@ export const loop = ErrorMapper.wrapLoop(() =>
     {
       let creepMemory: CreepMemory = Memory.creeps[name];
       let room: Room = Game.rooms[creepMemory.roomName];
-      if (creepMemory.role === priorities.TaskType.work)
+      if (room)
       {
-        room.memory.workerCreepCount -= 1;
-      }
-      else if (Memory.creeps[name].role === priorities.TaskType.transport)
-      {
-        room.memory.transporterCreepCount -= 1;
-      }
-      else if (Memory.creeps[name].role === priorities.TaskType.harvest)
-      {
-        room.memory.harvesterCreepCount -= 1;
-      }
+        if (creepMemory.role === priorities.TaskType.work)
+        {
+          room.memory.workerCreepCount -= 1;
+        }
+        else if (Memory.creeps[name].role === priorities.TaskType.transport)
+        {
+          room.memory.transporterCreepCount -= 1;
+        }
+        else if (Memory.creeps[name].role === priorities.TaskType.harvest)
+        {
+          room.memory.harvesterCreepCount -= 1;
+        }
 
-      for (let taskIndex = 0; taskIndex < creepMemory.taskID.length; taskIndex++)
-      {
-        priorities.Task.updateValueLeftFromDeath(room.memory.tasks[creepMemory.taskID[taskIndex]], creepMemory, room);
+        for (let taskIndex = 0; taskIndex < creepMemory.taskID.length; taskIndex++)
+        {
+          priorities.Task.updateValueLeftFromDeath(room.memory.tasks[creepMemory.taskID[taskIndex]], creepMemory, room);
+        }
       }
-
       delete Memory.creeps[name];
-
     }
+
   }
 
   const gameRooms: [string, Room][] = Object.entries(Game.rooms);
@@ -104,6 +107,7 @@ export const loop = ErrorMapper.wrapLoop(() =>
       room.memory.harvesterCreepCount = 0;
       room.memory.sourceContainerTasks = {};
       room.memory.baseCenter = [0, 0];
+      room.memory.harvesterLimit = 0;
       let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
       if (spawns.length > 0)
       {
@@ -122,6 +126,7 @@ export const loop = ErrorMapper.wrapLoop(() =>
 
 
     priorities.createTasks(room);
+
     let creeps: Creep[] = room.find(FIND_MY_CREEPS);
     let tasks: { [taskId: string]: priorities.Task } = room.memory.tasks;
 
@@ -139,11 +144,15 @@ export const loop = ErrorMapper.wrapLoop(() =>
 
       if (creep.memory.taskID && creep.memory.taskID.length > 0)
       {
-        creepLogic.processCreepActions(creep, tasks[creep.memory.taskID[0]], room);
-      }
-      else
-      {
-        creepLogic.processCreepActions(creep, null, room);
+        let taskID: string = creep.memory.taskID[0];
+        if (taskID in room.memory.tasks)
+        {
+          creepLogic.processCreepActions(creep, tasks[taskID], room);
+        }
+        else
+        {
+          creep.memory.taskID.pop();
+        }
       }
     });
   });
