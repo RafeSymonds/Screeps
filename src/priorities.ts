@@ -46,17 +46,21 @@ export class Task
         {
             return HarvestTask.getPosition(task as HarvestTask);
         }
-        if (task.workType === WorkType.upgradeController)
+        else if (task.workType === WorkType.upgradeController)
         {
             return UpgradeControllerTask.getPosition(task as UpgradeControllerTask);
         }
-        if (task.type === TaskType.transport)
+        else if (task.type === TaskType.transport)
         {
             return TransportTask.getPosition(task as TransportTask);
         }
-        if (task.workType === WorkType.build)
+        else if (task.workType === WorkType.build)
         {
             return BuildTask.getPosition(task as BuildTask);
+        }
+        else if (task.type === TaskType.collect)
+        {
+            return CollectEnergyTask.getPosition(task as CollectEnergyTask);
         }
         return null;
     }
@@ -67,20 +71,21 @@ export class Task
             HarvestTask.action(task as HarvestTask, creep, room);
             return;
         }
-        if (task.workType === WorkType.upgradeController)
+        else if (task.workType === WorkType.upgradeController)
         {
             UpgradeControllerTask.action(task as UpgradeControllerTask, creep, room);
-            return;
         }
-        if (task.type === TaskType.transport)
+        else if (task.type === TaskType.transport)
         {
             TransportTask.action(task as TransportTask, creep, room);
-            return;
         }
-        if (task.workType === WorkType.build)
+        else if (task.workType === WorkType.build)
         {
             BuildTask.action(task as BuildTask, creep, room);
-            return;
+        }
+        else if (task.type === TaskType.collect)
+        {
+            CollectEnergyTask.action(task as CollectEnergyTask, creep, room);
         }
     }
     public static getID(task: Task): string | null
@@ -89,17 +94,21 @@ export class Task
         {
             return HarvestTask.getID(task as HarvestTask);
         }
-        if (task.workType === WorkType.upgradeController)
+        else if (task.workType === WorkType.upgradeController)
         {
             return UpgradeControllerTask.getID(task as UpgradeControllerTask);
         }
-        if (task.type === TaskType.transport)
+        else if (task.type === TaskType.transport)
         {
             return TransportTask.getID(task as TransportTask);
         }
-        if (task.workType === WorkType.build)
+        else if (task.workType === WorkType.build)
         {
             return BuildTask.getID(task as BuildTask);
+        }
+        else if (task.type === TaskType.collect)
+        {
+            return CollectEnergyTask.getID(task as CollectEnergyTask);
         }
         return null;
     }
@@ -120,6 +129,10 @@ export class Task
         else if (task.workType === WorkType.build)
         {
             BuildTask.taskAssignCreep(task as BuildTask, creep, room);
+        }
+        else if (task.type === TaskType.collect)
+        {
+            CollectEnergyTask.taskAssignCreep(task as CollectEnergyTask, creep, room);
         }
     }
     public static tempTaskAssignCreep(task: Task, creep: Creep, room: Room)
@@ -159,32 +172,37 @@ export class Task
         {
             BuildTask.tempUnassignCreep(task as BuildTask, creep, room);
         }
+        else if (task.type === TaskType.collect)
+        {
+            CollectEnergyTask.tempUnassignCreep(task as CollectEnergyTask, creep, room);
+        }
     }
     public static checkCreepMatches(task: Task, creep: Creep, room: Room): boolean
     {
-        if (creep.memory.role === task.type)
-        {
-            if (task.workType === WorkType.build || task.type === TaskType.transport || task.workType === WorkType.upgradeController || task.workType === WorkType.repair)
-            {
-                return creep.store[RESOURCE_ENERGY] > creep.store.getCapacity() / 2;
-            }
-            else if (task.workType === WorkType.harvest)
-            {
-                return creep.store[RESOURCE_ENERGY] <= creep.store.getCapacity() / 2;
-            }
-        }
-        if (task.type === TaskType.collect)
-        {
-            //return true;
-        }
-        if (task.type === TaskType.transport && room.controller?.level as number < 3)
-        {
-            return creep.store[RESOURCE_ENERGY] > creep.store.getCapacity() / 2;
-        }
         if (task.workType === WorkType.harvest && creep.memory.role === TaskType.harvest)
         {
             return true;
         }
+        else if (creep.memory.role === task.type)
+        {
+            if (task.workType === WorkType.build || task.type === TaskType.transport || task.workType === WorkType.upgradeController || task.workType === WorkType.repair)
+            {
+                return creep.store[RESOURCE_ENERGY] >= creep.store.getCapacity() / 2;
+            }
+            else if (task.workType === WorkType.harvest)
+            {
+                return creep.store[RESOURCE_ENERGY] < creep.store.getCapacity() / 2;
+            }
+        }
+        else if (task.type === TaskType.collect && creep.store.getCapacity() > 0)
+        {
+            return creep.store[RESOURCE_ENERGY] < creep.store.getCapacity() / 2;
+        }
+        else if (task.type === TaskType.transport && (room.controller?.level as number < 3 || room.memory.transporterCreepCount < 2))
+        {
+            return creep.store[RESOURCE_ENERGY] >= creep.store.getCapacity() / 2;
+        }
+
 
         return false;
     }
@@ -214,6 +232,21 @@ export class Task
         {
             BuildTask.updateValueLeft(task as BuildTask, room);
         }
+        else if (task.type === TaskType.collect)
+        {
+            CollectEnergyTask.updateValueLeft(task as CollectEnergyTask, room);
+        }
+    }
+    public static updateValueLeftFromDeath(task: Task, creepMemory: CreepMemory, room: Room)
+    {
+        if (task.type === TaskType.harvest)
+        {
+            task.valueLeft += 1;
+        }
+        else
+        {
+            this.updateValueLeft(task, room);
+        }
     }
 }
 
@@ -223,7 +256,6 @@ export class TransportTask extends Task
     constructor(priority: number, structureID: Id<AnyStoreStructure>)
     {
         let valueLeft: number = 100;
-        console.log(valueLeft);
         super(TaskType.transport, WorkType.none, valueLeft, priority);
         this.structureID = structureID;
     }
@@ -278,7 +310,6 @@ export class TransportTask extends Task
         if (structure)
         {
             task.valueLeft = structure.store.getFreeCapacity(RESOURCE_ENERGY) as number;
-            console.log(task.valueLeft);
             room.memory.tasks[task.structureID].valueLeft = task.valueLeft;
         }
     }
@@ -288,10 +319,23 @@ export class HarvestTask extends Task
 {
     sourceID: Id<Source>;
     containerID: Id<StructureContainer> | null;
-    constructor(priority: number, sourceID: Id<Source>, containerID: Id<StructureContainer> | null = null)
+    constructor(sourceID: Id<Source>, containerID: Id<StructureContainer> | null = null)
     {
-        let valueLeft = 5;
-        super(TaskType.work, WorkType.harvest, valueLeft, priority);
+        let source: Source | null = Game.getObjectById(sourceID);
+        let valueLeft = 9;
+        if (source)
+        {
+            //get nearby tiles and check if a creep can mine there
+            let terrain = source.room.lookForAtArea(LOOK_TERRAIN, source.pos.y - 1, source.pos.x - 1, source.pos.y + 1, source.pos.x + 1, true);
+            terrain.forEach(terrainItem =>
+            {
+                if (terrainItem.terrain === "wall")
+                {
+                    valueLeft -= 1;
+                }
+            });
+        }
+        super(TaskType.work, WorkType.harvest, valueLeft, 10);
         this.sourceID = sourceID;
         this.containerID = containerID;
     }
@@ -315,7 +359,7 @@ export class HarvestTask extends Task
             let container: StructureContainer | null = Game.getObjectById(task.containerID);
             if (container)
             {
-                if (container.pos === creep.pos)
+                if (container.pos.isEqualTo(creep.pos))
                 {
                     let source: Source | null = Game.getObjectById(task.sourceID);
                     if (source)
@@ -368,8 +412,7 @@ export class HarvestTask extends Task
     }
     public static updateValueLeft(task: HarvestTask, room: Room): void
     {
-        task.valueLeft += 1;
-        room.memory.tasks[task.sourceID].valueLeft = task.valueLeft;
+
     }
 }
 
@@ -513,7 +556,7 @@ export class CollectEnergyTask extends Task
         {
             valueLeft = structure.store[RESOURCE_ENERGY];
         }
-        super(TaskType.collect, WorkType.none, valueLeft, 10);
+        super(TaskType.collect, WorkType.none, valueLeft, 3);
         this.structureID = structureID;
     }
     public static getPosition(task: CollectEnergyTask): RoomPosition | null
@@ -531,7 +574,7 @@ export class CollectEnergyTask extends Task
     public static action(task: CollectEnergyTask, creep: Creep, room: Room)
     {
         let structure: AnyStoreStructure | null = Game.getObjectById(task.structureID);
-        if (structure && structure.store[RESOURCE_ENERGY] > 0)
+        if (structure && structure.store[RESOURCE_ENERGY] > 0 && creep.store.getFreeCapacity() > 0)
         {
             let enegyToTransfer = Math.min(creep.store.getFreeCapacity(), structure.store[RESOURCE_ENERGY] as number);
             if (creep.withdraw(structure, RESOURCE_ENERGY, enegyToTransfer) === ERR_NOT_IN_RANGE)
@@ -571,8 +614,6 @@ export class CollectEnergyTask extends Task
             task.valueLeft = structure.store[RESOURCE_ENERGY];
             room.memory.tasks[task.structureID].valueLeft = task.valueLeft;
         }
-
-
     }
 }
 
@@ -620,7 +661,6 @@ export function createTasks(room: Room): void
                     newTask = new TransportTask(priority, structure.id as Id<AnyStoreStructure>)
                     console.log("transport task with a value of " + newTask.valueLeft);
                     room.memory.tasks[structure.id] = newTask;
-                    Task.updateValueLeft(newTask, room);
                 }
             }
             else
@@ -639,9 +679,7 @@ export function createTasks(room: Room): void
                     }
                 }
             }
-
         }
-
     });
 
     const sources: Source[] = room.find(FIND_SOURCES);
@@ -649,7 +687,7 @@ export function createTasks(room: Room): void
     {
         if (!(source.id in room.memory.tasks))
         {
-            let newTask = new HarvestTask(5, source.id);
+            let newTask = new HarvestTask(source.id);
             room.memory.tasks[source.id] = newTask;
         }
     });
@@ -662,3 +700,11 @@ export function createTasks(room: Room): void
     });
 }
 
+export function updatePriorities(room: Room)
+{
+    let tasks: [string, Task][] = Object.entries(room.memory.tasks);
+    tasks.forEach(task =>
+    {
+        Task.updateValueLeft(task[1], room);
+    });
+}

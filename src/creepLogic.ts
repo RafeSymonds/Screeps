@@ -5,7 +5,16 @@ import * as priorities from "./priorities";
 import * as binaryPriorityQueue from "./binaryPriorityQueue"
 
 
-const lessThanComparator: binaryPriorityQueue.LessThanComparator<[number, number]> = (a, b) => a[1] - b[1];
+const lessThanComparator: binaryPriorityQueue.LessThanComparator<[number, number]> = (a, b) =>
+{
+
+    if (!a || !b)
+    {
+        console.log("invalid element in PQ");
+    }
+    return a[1] - b[1];
+
+};
 
 export function assignCreeps(room: Room, roomTasks: { [taskId: string]: priorities.Task }, creeps: Creep[])
 {
@@ -22,9 +31,7 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
     let tasks: [string, priorities.Task][] = [];
     let taskCreeps: binaryPriorityQueue.PriorityQueue<[number, number]>[] = [];
     let creepDistances: number[][] = [];
-    let taskIndexForDistances: number[][] = [];
-
-
+    let taskIndexForDistances: [number, number][][] = [];
 
     allTasks.forEach(task =>
     {
@@ -34,7 +41,6 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
             taskCreeps.push(new binaryPriorityQueue.PriorityQueue(lessThanComparator));
         }
     });
-    tasks.sort((a, b) => a[1].priority - b[1].priority);
 
     if (creeps.length === 0 || tasks.length === 0)
     {
@@ -52,8 +58,9 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
                 let taskPosition: RoomPosition | null = priorities.Task.getPosition(tasks[taskIndex][1]);
                 if (taskPosition)
                 {
-                    creepDistances[creepIndex].push(positionCalculations.distance(taskPosition, creeps[creepIndex].pos) * (tasks[taskIndex][1].priority + 1) / 2);
-                    taskIndexForDistances[creepIndex].push(taskIndex);
+                    let distance: number = positionCalculations.distance(taskPosition, creeps[creepIndex].pos) * (tasks[taskIndex][1].priority + 1) / 2
+                    creepDistances[creepIndex].push(distance);
+                    taskIndexForDistances[creepIndex].push([taskIndexForDistances[creepIndex].length, taskIndex]);
                 }
             }
         }
@@ -71,7 +78,7 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
         }
         else
         {
-            taskIndexForDistances[creepIndex].sort((a, b) => creepDistances[creepIndex][a] - creepDistances[creepIndex][b]);
+            taskIndexForDistances[creepIndex].sort((a, b) => creepDistances[creepIndex][a[0]] - creepDistances[creepIndex][b[0]]);
         }
     }
 
@@ -93,13 +100,16 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
         for (let distanceTaskIndex = 0; distanceTaskIndex < taskIndexForDistances[creepIndex].length; distanceTaskIndex++)
         {
             //console.log("first check");
-            let taskIndex = taskIndexForDistances[creepIndex][distanceTaskIndex];
-
+            let taskIndex = taskIndexForDistances[creepIndex][distanceTaskIndex][1];
+            let distanceIndex = taskIndexForDistances[creepIndex][distanceTaskIndex][0];
             if (tasks[taskIndex][1].valueLeft > 0)
             {
                 possibleTask = true;
                 //console.log("Valid match");
-                taskCreeps[taskIndex].push([creepIndex, creepDistances[creepIndex][distanceTaskIndex]]);
+                let distance: number = creepDistances[creepIndex][distanceIndex]
+                console.log("chosen distance", distance, "from", creepDistances[creepIndex]);
+                let newElement: [number, number] = [creepIndex, distance];
+                taskCreeps[taskIndex].push(newElement);
                 creepFree[creepIndex] = false;
                 freeCount--;
                 tempAssignCreepToTask(tasks[taskIndex][1], creeps[creepIndex], room);
@@ -108,7 +118,7 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
             else
             {
                 let otherCreepIndexDistance: [number, number] = taskCreeps[taskIndex].top();
-                let distance: number = creepDistances[creepIndex][distanceTaskIndex]
+                let distance: number = creepDistances[creepIndex][distanceIndex]
                 if (distance < otherCreepIndexDistance[1])
                 {
                     possibleTask = true;

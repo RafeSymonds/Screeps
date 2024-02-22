@@ -1,4 +1,3 @@
-import { worker } from "cluster";
 import * as priorities from "./priorities";
 
 export function spawnCreepInRoom(room: Room)
@@ -53,7 +52,7 @@ export function spawnTransporter(room: Room)
     let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
     let taskTypes: priorities.TaskType = priorities.TaskType.transport;
     let taskIDs: string[] = [];
-    if (spawns[0].spawnCreep([CARRY, MOVE], 'Transporter' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: 0, roomName: room.name } }) === OK)
+    if (spawns[0].spawnCreep([CARRY, CARRY, MOVE, MOVE], 'Transporter' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: 0, roomName: room.name } }) === OK)
     {
         room.memory.transporterCreepCount += 1;
         setValueLeftAfterSpawning(room);

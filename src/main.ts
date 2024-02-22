@@ -83,7 +83,7 @@ export const loop = ErrorMapper.wrapLoop(() =>
 
       for (let taskIndex = 0; taskIndex < creepMemory.taskID.length; taskIndex++)
       {
-        priorities.Task.updateValueLeft(room.memory.tasks[creepMemory.taskID[taskIndex]], room);
+        priorities.Task.updateValueLeftFromDeath(room.memory.tasks[creepMemory.taskID[taskIndex]], creepMemory, room);
       }
 
       delete Memory.creeps[name];
@@ -118,9 +118,18 @@ export const loop = ErrorMapper.wrapLoop(() =>
     }
 
 
+
+
+
     priorities.createTasks(room);
     let creeps: Creep[] = room.find(FIND_MY_CREEPS);
     let tasks: { [taskId: string]: priorities.Task } = room.memory.tasks;
+
+    if (Game.time % 20 === 0)
+    {
+      priorities.updatePriorities(room);
+    }
+
 
     spawner.spawnCreepInRoom(room);
 
