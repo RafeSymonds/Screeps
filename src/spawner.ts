@@ -1,17 +1,17 @@
-import * as priorities from "./priorities";
+import * as priorities from "./prioritiesNew";
 
 export function spawnCreepInRoom(room: Room)
 {
-    if (room.memory.harvesterCreepCount < room.memory.harvesterLimit && room.memory.harvesterCreepCount < room.memory.transporterCreepCount * 2.5 + 1)
+    if (global.roomMemory[room.name].harvesterCreepCount < global.roomMemory[room.name].harvesterLimit && global.roomMemory[room.name].harvesterCreepCount < global.roomMemory[room.name].transporterCreepCount * 2.5 + 1)
     {
         spawnHarvester(room);
     }
-    else if (room.memory.harvesterCreepCount / 2.5 + 1 > room.memory.transporterCreepCount)
+    else if (global.roomMemory[room.name].harvesterCreepCount / 2.5 + 1 > global.roomMemory[room.name].transporterCreepCount)
     {
         //spawn transporter
         spawnTransporter(room);
     }
-    else if (room.memory.workerCreepCount < 8)
+    else if (global.roomMemory[room.name].workerCreepCount < 8)
     {
         //spawn worker
         spawnWorker(room);
@@ -41,7 +41,7 @@ export function spawnWorker(room: Room)
 
     if (spawns[0].spawnCreep(bodyParts, 'Worker' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: 0, roomName: room.name } }) === OK)
     {
-        room.memory.workerCreepCount += 1;
+        global.roomMemory[room.name].workerCreepCount += 1;
         setValueLeftAfterSpawning(room);
     }
 
@@ -54,7 +54,7 @@ export function spawnTransporter(room: Room)
     let taskIDs: string[] = [];
     if (spawns[0].spawnCreep([CARRY, MOVE], 'Transporter' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: 0, roomName: room.name } }) === OK)
     {
-        room.memory.transporterCreepCount += 1;
+        global.roomMemory[room.name].transporterCreepCount += 1;
         setValueLeftAfterSpawning(room);
     }
 
@@ -77,7 +77,7 @@ export function spawnHarvester(room: Room)
 
     if (spawns[0].spawnCreep(bodyParts, 'Harvester' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: 0, roomName: room.name } }) === OK)
     {
-        room.memory.harvesterCreepCount += 1;
+        global.roomMemory[room.name].harvesterCreepCount += 1;
         setValueLeftAfterSpawning(room);
     }
 }
@@ -88,12 +88,12 @@ export function setValueLeftAfterSpawning(room: Room)
 
     spawns.forEach(spawn =>
     {
-        room.memory.tasks[spawn.id].valueLeft = spawn.store.getCapacity(RESOURCE_ENERGY);
+        global.roomMemory[room.name].tasks[spawn.id].valueLeft = spawn.store.getCapacity(RESOURCE_ENERGY);
     });
 
     let extensions: StructureExtension[] = room.find(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_EXTENSION } });
     extensions.forEach(extension =>
     {
-        room.memory.tasks[extension.id].valueLeft = extension.store.getCapacity(RESOURCE_ENERGY);
+        global.roomMemory[room.name].tasks[extension.id].valueLeft = extension.store.getCapacity(RESOURCE_ENERGY);
     });
 }

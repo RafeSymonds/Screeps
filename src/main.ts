@@ -1,13 +1,16 @@
 import { ErrorMapper } from "utils/ErrorMapper";
 
-import * as priorities from "./priorities";
+import * as priorities from "./prioritiesNew";
 import * as creepLogic from "./creepLogic";
 import * as spawner from "./spawner";
 import * as buildBase from "./buildBase";
 import { memoize } from "lodash";
+import { globalAgent } from "http";
+import { privateEncrypt } from "crypto";
 
 declare global
 {
+
   /*
     Example types, expand on these or remove them and add your own.
     Note: Values, properties defined here do no fully *exist* by this type definiton alone.
@@ -43,24 +46,47 @@ declare global
     sourceContainerTasks: { [taskId: string]: priorities.CollectEnergyTask };
     baseCenter: [number, number];
   }
+  var roomMemory: { [roomName: string]: RoomMemory };
+
 }
 
-
-
 // Syntax for adding proprties to `global` (ex "global.log")
-namespace NodeJS
+declare namespace NodeJS
 {
   interface Global
   {
     log: any;
+
   }
 }
-
 
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() =>
 {
+  const gameRooms: [string, Room][] = Object.entries(Game.rooms);
+
+  if (global.roomMemory == null)
+  {
+    global.roomMemory = {};
+    gameRooms.forEach(([roomName, room]) =>
+    {
+      global.roomMemory[roomName] =
+      {
+        tasks: {},
+        energyLocations: {},
+        workerCreepCount: 0,
+        transporterCreepCount: 0,
+        harvesterCreepCount: 0,
+        sourceContainerTasks: {},
+        baseCenter: [0, 0],
+        harvesterLimit: 0,
+      }
+      priorities.setUpTasks(room);
+
+    });
+    // need to recreate memory
+  }
   //console.log(`Current game tick is ${Game.time}`);
   // Automatically delete memory of missing creeps
   for (const name in Memory.creeps)
@@ -73,88 +99,75 @@ export const loop = ErrorMapper.wrapLoop(() =>
       {
         if (creepMemory.role === priorities.TaskType.work)
         {
-          room.memory.workerCreepCount -= 1;
+          global.roomMemory[room.name].workerCreepCount -= 1;
         }
-        else if (Memory.creeps[name].role === priorities.TaskType.transport)
+        else if (creepMemory.role === priorities.TaskType.transport)
         {
-          room.memory.transporterCreepCount -= 1;
+          global.roomMemory[room.name].transporterCreepCount -= 1;
         }
-        else if (Memory.creeps[name].role === priorities.TaskType.harvest)
+        else if (creepMemory.role === priorities.TaskType.harvest)
         {
-          room.memory.harvesterCreepCount -= 1;
+          global.roomMemory[room.name].harvesterCreepCount -= 1;
         }
 
         for (let taskIndex = 0; taskIndex < creepMemory.taskID.length; taskIndex++)
         {
-          priorities.Task.updateValueLeftFromDeath(room.memory.tasks[creepMemory.taskID[taskIndex]], creepMemory, room);
+          global.roomMemory[room.name].tasks[creepMemory.taskID[taskIndex]].updateValueLeftFromDeath(creepMemory);
         }
       }
       delete Memory.creeps[name];
     }
-
   }
 
-  const gameRooms: [string, Room][] = Object.entries(Game.rooms);
+
+
 
   gameRooms.forEach(([roomName, room]) =>
   {
-    if (room.controller?.my && !room.memory.tasks)
+    if (global.roomMemory[roomName])
     {
-      room.memory.tasks = {};
-      room.memory.energyLocations = {};
-      room.memory.workerCreepCount = 0;
-      room.memory.transporterCreepCount = 0;
-      room.memory.harvesterCreepCount = 0;
-      room.memory.sourceContainerTasks = {};
-      room.memory.baseCenter = [0, 0];
-      room.memory.harvesterLimit = 0;
-      let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
-      if (spawns.length > 0)
+      //everyr 40 ticks plan base
+      if (Game.time % 40 === 0)
       {
-        room.memory.baseCenter = [spawns[0].pos.x, spawns[0].pos.y + 2];
+        buildBase.buildBase(room);
       }
-    }
-
-    //everyr 40 ticks plan base
-    if (Game.time % 40 === 0)
-    {
-      buildBase.buildBase(room);
-    }
 
 
 
 
 
-    priorities.createTasks(room);
+      priorities.setUpTasks(room);
 
-    let creeps: Creep[] = room.find(FIND_MY_CREEPS);
-    let tasks: { [taskId: string]: priorities.Task } = room.memory.tasks;
+      let creeps: Creep[] = room.find(FIND_MY_CREEPS);
+      let tasks: { [taskId: string]: priorities.Task } = global.roomMemory[room.name].tasks;
 
-    if (Game.time % 20 === 0)
-    {
-      priorities.updatePriorities(room);
-    }
-
-
-    spawner.spawnCreepInRoom(room);
-
-    creepLogic.assignCreeps(room, tasks, creeps.filter(creep => { return creep.memory.taskID && creep.memory.taskID.length === 0; }));
-    creeps.forEach(creep =>
-    {
-
-      if (creep.memory.taskID && creep.memory.taskID.length > 0)
+      if (Game.time % 20 === 0)
       {
-        let taskID: string = creep.memory.taskID[0];
-        if (taskID in room.memory.tasks)
-        {
-          creepLogic.processCreepActions(creep, tasks[taskID], room);
-        }
-        else
-        {
-          creep.memory.taskID.pop();
-        }
+        priorities.updatePriorities(room);
       }
-    });
+
+
+      spawner.spawnCreepInRoom(room);
+
+      creepLogic.assignCreeps(room, tasks, creeps.filter(creep => { return creep.memory.taskID && creep.memory.taskID.length === 0; }));
+      creeps.forEach(creep =>
+      {
+
+        if (creep.memory.taskID && creep.memory.taskID.length > 0)
+        {
+          let taskID: string = creep.memory.taskID[0];
+          if (taskID in global.roomMemory[room.name].tasks)
+          {
+            creepLogic.processCreepActions(creep, tasks[taskID], room);
+          }
+          else
+          {
+            creep.memory.taskID.pop();
+          }
+        }
+      });
+
+    }
   });
   //console.log(Game.cpu.getUsed());
 });

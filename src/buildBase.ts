@@ -4,7 +4,7 @@ export function buildBase(room: Room)
 
     if (controller)
     {
-        let center: [number, number] = room.memory.baseCenter;
+        let center: [number, number] = global.roomMemory[room.name].baseCenter;
         if (controller.level >= 2)
         {
             createExtensionsAroundPoint(center[0] + 2, center[1] - 3, room);

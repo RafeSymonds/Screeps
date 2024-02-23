@@ -1,7 +1,7 @@
 import { all, min, object } from "lodash";
 import * as positionCalculations from "./positionCalculations";
 
-import * as priorities from "./priorities";
+import * as priorities from "./prioritiesNew";
 import * as binaryPriorityQueue from "./binaryPriorityQueue"
 
 
@@ -23,8 +23,6 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
     {
         return;
     }
-
-
 
     let allTasks: [string, priorities.Task][] = Object.entries(roomTasks);
 
@@ -53,9 +51,9 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
         taskIndexForDistances.push([]);
         for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++)
         {
-            if (priorities.Task.checkCreepMatches(tasks[taskIndex][1], creeps[creepIndex], room))
+            if (tasks[taskIndex][1].checkCreepMatches(creeps[creepIndex]))
             {
-                let taskPosition: RoomPosition | null = priorities.Task.getPosition(tasks[taskIndex][1]);
+                let taskPosition: RoomPosition | null = tasks[taskIndex][1].getPosition();
                 if (taskPosition)
                 {
                     let distance: number = positionCalculations.distance(taskPosition, creeps[creepIndex].pos) * (tasks[taskIndex][1].priority + 1) / 2
@@ -112,7 +110,7 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
                 taskCreeps[taskIndex].push(newElement);
                 creepFree[creepIndex] = false;
                 freeCount--;
-                tempAssignCreepToTask(tasks[taskIndex][1], creeps[creepIndex], room);
+                assignCreepToTask(tasks[taskIndex][1], creeps[creepIndex], room);
                 break;
             }
             else
@@ -123,7 +121,7 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
                 {
                     possibleTask = true;
                     unassignTempCreepToTask(tasks[taskIndex][1], creeps[otherCreepIndexDistance[0]], room);
-                    tempAssignCreepToTask(tasks[taskIndex][1], creeps[creepIndex], room);
+                    assignCreepToTask(tasks[taskIndex][1], creeps[creepIndex], room);
 
                     taskCreeps[taskIndex].pop();
                     creepFree[otherCreepIndexDistance[0]] = true;
@@ -140,35 +138,16 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
             freeCount--;
         }
     }
-
-    tasks.forEach(task =>
-    {
-        priorities.Task.updateMemory(task[1], room);
-    });
 }
 
 export function assignCreepToTask(task: priorities.Task, creep: Creep, room: Room)
 {
-    let taskID: string | null = priorities.Task.getID(task);
+    let taskID: string | null = task.getID();
     if (taskID)
     {
         creep.memory.taskID.push(taskID);
 
-        priorities.Task.taskAssignCreep(task, creep, room);
-
-        creep.memory.workAmountLeft = 0;
-    }
-}
-
-// does not update memory
-export function tempAssignCreepToTask(task: priorities.Task, creep: Creep, room: Room)
-{
-    let taskID: string | null = priorities.Task.getID(task);
-    if (taskID)
-    {
-        creep.memory.taskID.push(taskID);
-
-        priorities.Task.tempTaskAssignCreep(task, creep, room);
+        task.taskAssignCreep(creep);
 
         creep.memory.workAmountLeft = 0;
     }
@@ -180,7 +159,7 @@ export function unassignTempCreepToTask(task: priorities.Task, creep: Creep, roo
     {
         creep.memory.taskID.pop();
 
-        priorities.Task.tempUnassignCreep(task, creep, room);
+        task.unassignCreep(creep);
 
         creep.memory.workAmountLeft = 1;
     }
@@ -190,7 +169,7 @@ export function processCreepActions(creep: Creep, task: priorities.Task | null, 
 {
     if (task)
     {
-        priorities.Task.action(task, creep, room);
+        task.action(creep);
     }
     else
     {
