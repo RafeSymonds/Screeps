@@ -83,7 +83,7 @@ export const loop = ErrorMapper.wrapLoop(() =>
         harvesterLimit: 0,
       }
       priorities.setUpTasks(room);
-
+      priorities.assignAllCreeps(room);
     });
     // need to recreate memory
   }
@@ -95,8 +95,10 @@ export const loop = ErrorMapper.wrapLoop(() =>
     {
       let creepMemory: CreepMemory = Memory.creeps[name];
       let room: Room = Game.rooms[creepMemory.roomName];
+      console.log("deleting creep memory in ", room)
       if (room)
       {
+        console.log("valid room");
         if (creepMemory.role === priorities.TaskType.work)
         {
           global.roomMemory[room.name].workerCreepCount -= 1;
@@ -112,6 +114,7 @@ export const loop = ErrorMapper.wrapLoop(() =>
 
         for (let taskIndex = 0; taskIndex < creepMemory.taskID.length; taskIndex++)
         {
+          console.log("removing creep from task")
           global.roomMemory[room.name].tasks[creepMemory.taskID[taskIndex]].updateValueLeftFromDeath(creepMemory);
         }
       }
@@ -147,7 +150,7 @@ export const loop = ErrorMapper.wrapLoop(() =>
       }
 
 
-      spawner.spawnCreepInRoom(room);
+
 
       creepLogic.assignCreeps(room, tasks, creeps.filter(creep => { return creep.memory.taskID && creep.memory.taskID.length === 0; }));
       creeps.forEach(creep =>
@@ -166,8 +169,9 @@ export const loop = ErrorMapper.wrapLoop(() =>
           }
         }
       });
-
+      spawner.spawnCreepInRoom(room);
     }
+    room.memory = global.roomMemory[roomName];
   });
   //console.log(Game.cpu.getUsed());
 });

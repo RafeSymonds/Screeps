@@ -19,12 +19,13 @@ const lessThanComparator: binaryPriorityQueue.LessThanComparator<[number, number
 export function assignCreeps(room: Room, roomTasks: { [taskId: string]: priorities.Task }, creeps: Creep[])
 {
 
-    if (roomTasks === undefined || Object.keys(roomTasks).length === 0)
+    let allTasks: [string, priorities.Task][] = Object.entries(roomTasks);
+    if (roomTasks === undefined || allTasks.length === 0)
     {
         return;
     }
 
-    let allTasks: [string, priorities.Task][] = Object.entries(roomTasks);
+
 
     let tasks: [string, priorities.Task][] = [];
     let taskCreeps: binaryPriorityQueue.PriorityQueue<[number, number]>[] = [];
@@ -58,7 +59,7 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
                 {
                     let distance: number = positionCalculations.distance(taskPosition, creeps[creepIndex].pos) * (tasks[taskIndex][1].priority + 1) / 2
                     creepDistances[creepIndex].push(distance);
-                    taskIndexForDistances[creepIndex].push([taskIndexForDistances[creepIndex].length, taskIndex]);
+                    taskIndexForDistances[creepIndex].push([taskIndexForDistances[creepIndex].length - 1, taskIndex]);
                 }
             }
         }
@@ -107,10 +108,13 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
                 let distance: number = creepDistances[creepIndex][distanceIndex]
                 //console.log("chosen distance", distance, "from", creepDistances[creepIndex]);
                 let newElement: [number, number] = [creepIndex, distance];
-                taskCreeps[taskIndex].push(newElement);
-                creepFree[creepIndex] = false;
-                freeCount--;
-                assignCreepToTask(tasks[taskIndex][1], creeps[creepIndex], room);
+                if (newElement)
+                {
+                    taskCreeps[taskIndex].push(newElement);
+                    creepFree[creepIndex] = false;
+                    freeCount--;
+                    assignCreepToTask(tasks[taskIndex][1], creeps[creepIndex], room);
+                }
                 break;
             }
             else

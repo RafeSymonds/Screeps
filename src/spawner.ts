@@ -2,11 +2,11 @@ import * as priorities from "./prioritiesNew";
 
 export function spawnCreepInRoom(room: Room)
 {
-    if (global.roomMemory[room.name].harvesterCreepCount < global.roomMemory[room.name].harvesterLimit && global.roomMemory[room.name].harvesterCreepCount < global.roomMemory[room.name].transporterCreepCount * 2.5 + 1)
+    if (global.roomMemory[room.name].harvesterCreepCount < global.roomMemory[room.name].harvesterLimit && global.roomMemory[room.name].harvesterCreepCount < global.roomMemory[room.name].transporterCreepCount * 2 + 1)
     {
         spawnHarvester(room);
     }
-    else if (global.roomMemory[room.name].harvesterCreepCount / 2.5 + 1 > global.roomMemory[room.name].transporterCreepCount)
+    else if (global.roomMemory[room.name].harvesterCreepCount * 2 + 1 > global.roomMemory[room.name].transporterCreepCount)
     {
         //spawn transporter
         spawnTransporter(room);

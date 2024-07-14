@@ -1,6 +1,6 @@
 import * as position from "./positionCalculations";
 import { strict } from "assert";
-import { forEach, take, words } from "lodash";
+import { drop, forEach, take, words } from "lodash";
 import { worker } from "cluster";
 import { createPrivateKey } from "crypto";
 
@@ -18,6 +18,7 @@ export enum TaskType
     transport,
     collect,
     harvest,
+    dropResource
 }
 
 export enum WorkType
@@ -151,7 +152,7 @@ export class TransportTask extends Task
         let structure: AnyStoreStructure | null = Game.getObjectById(this.structureID);
         if (structure)
         {
-            return creep.store.getCapacity() > 0 && creep.store[RESOURCE_ENERGY] >= creep.store.getCapacity() / 2 && creep.memory.role === TaskType.transport;
+            return creep.store.getCapacity() > 0 && (creep.store[RESOURCE_ENERGY] >= creep.store.getCapacity() / 2 || creep.store[RESOURCE_ENERGY] >= this.valueLeft) && creep.memory.role === TaskType.transport;
         }
         return false;
     }
@@ -178,11 +179,10 @@ export class HarvestTask extends Task
             });
             global.roomMemory[source.room.name].harvesterLimit += valueLeft;
         }
+        console.log("value left in source", valueLeft);
         super(TaskType.work, WorkType.harvest, valueLeft, 10);
         this.sourceID = sourceID;
         this.containerID = containerID;
-
-
     }
 
     public getPosition(): RoomPosition | null
@@ -248,8 +248,6 @@ export class HarvestTask extends Task
                 creep.memory.taskID.pop();
             }
         }
-
-
     }
     public getID(): string
     {
@@ -257,11 +255,12 @@ export class HarvestTask extends Task
     }
     public taskAssignCreep(creep: Creep)
     {
-        this.valueLeft = -1;
+        this.valueLeft--;
+        console.log("assigning creep to task", this.valueLeft);
     }
     public unassignCreep(creep: Creep)
     {
-        this.valueLeft += 1;
+        this.valueLeft++;
     }
     public updateValueLeft(): void
     {
@@ -275,6 +274,10 @@ export class HarvestTask extends Task
             return ((creep.memory.role === TaskType.work && creep.store[RESOURCE_ENERGY] < creep.store.getCapacity() / 2) || creep.memory.role === TaskType.harvest);
         }
         return false;
+    }
+    public updateValueLeftFromDeath(creepMemory: CreepMemory)
+    {
+        this.valueLeft++;
     }
 }
 
@@ -579,13 +582,79 @@ export class CollectDroppedResource extends Task
     }
 }
 
+export class DropResourceTask extends Task
+{
+    dropLocation: RoomPosition;
+    constructor(dropLocation: RoomPosition)
+    {
+        super(TaskType.transport, WorkType.none, 100, 20);
+        this.dropLocation = dropLocation;
+    }
+    public getPosition(): RoomPosition | null
+    {
+        return this.dropLocation;
+    }
+    public action(creep: Creep)
+    {
+
+        if (creep.store.getFreeCapacity() > 0)
+        {
+            if (creep.pos.isEqualTo(this.dropLocation))
+            {
+                creep.drop(RESOURCE_ENERGY);
+                creep.memory.taskID.pop();
+            }
+            else
+            {
+                creep.moveTo(this.dropLocation);
+            }
+        }
+        else
+        {
+            creep.memory.taskID.pop();
+        }
+    }
+    public getID(): string | null
+    {
+        return this.dropLocation.roomName + "" + this.dropLocation.x + "" + this.dropLocation.y;
+    }
+    public taskAssignCreep(creep: Creep)
+    {
+
+    }
+    public unassignCreep(creep: Creep)
+    {
+
+    }
+    public updateValueLeft(): void
+    {
+
+    }
+    public checkCreepMatches(creep: Creep): boolean
+    {
+        return creep.memory.role === TaskType.transport && creep.store.getCapacity() > 0 && creep.store[RESOURCE_ENERGY] >= creep.store.getCapacity() / 2;
+    }
+}
+
 export function setUpTasks(room: Room): void
 {
+    let containerCount: number = 0;
+
     let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
     if (spawns.length > 0)
     {
         global.roomMemory[room.name].baseCenter = [spawns[0].pos.x, spawns[0].pos.y + 2];
     }
+
+    const sources: Source[] = room.find(FIND_SOURCES);
+    sources.forEach(source =>
+    {
+        if (!(source.id in global.roomMemory[room.name].tasks))
+        {
+            let newTask = new HarvestTask(source.id);
+            global.roomMemory[room.name].tasks[source.id] = newTask;
+        }
+    });
 
 
 
@@ -601,6 +670,7 @@ export function setUpTasks(room: Room): void
             {
                 case STRUCTURE_CONTAINER:
                     priority = -1;
+                    containerCount++;
                     break;
                 case STRUCTURE_EXTENSION:
                     priority = 3;
@@ -654,15 +724,10 @@ export function setUpTasks(room: Room): void
         }
     });
 
-    const sources: Source[] = room.find(FIND_SOURCES);
-    sources.forEach(source =>
+    if (containerCount >= 2)
     {
-        if (!(source.id in global.roomMemory[room.name].tasks))
-        {
-            let newTask = new HarvestTask(source.id);
-            global.roomMemory[room.name].tasks[source.id] = newTask;
-        }
-    });
+        global.roomMemory[room.name].harvesterLimit = 2;
+    }
 
     const constructionSites: ConstructionSite[] = room.find(FIND_CONSTRUCTION_SITES);
     constructionSites.forEach(constructionSite =>
@@ -684,27 +749,45 @@ export function setUpTasks(room: Room): void
         }
     });
 
+
+
+    //setup resource drop
+    //let dropLocationTask = new DropResourceTask();
+
+}
+
+export function assignAllCreeps(room: Room)
+{
     let creeps: Creep[] = room.find(FIND_MY_CREEPS);
     creeps.forEach(creep =>
     {
-        let task: Task = global.roomMemory[room.name].tasks[creep.memory.taskID[0]];
-        if (task !== undefined)
+        if (creep.memory.taskID)
         {
-            task.taskAssignCreep(creep);
-        }
-        if (creep.memory.role === TaskType.harvest)
-        {
-            global.roomMemory[room.name].harvesterCreepCount++;
-        }
-        else if (creep.memory.role === TaskType.work)
-        {
-            global.roomMemory[room.name].workerCreepCount++;
-        }
-        else if (creep.memory.role === TaskType.transport)
-        {
-            global.roomMemory[room.name].transporterCreepCount++;
+            if (creep.memory.taskID.length > 0)
+            {
+                let task: Task = global.roomMemory[room.name].tasks[creep.memory.taskID[0]];
+                if (task !== undefined)
+                {
+                    task.taskAssignCreep(creep);
+                }
+            }
+            if (creep.memory.role === TaskType.harvest)
+            {
+                global.roomMemory[room.name].harvesterCreepCount++;
+
+            }
+            else if (creep.memory.role === TaskType.work)
+            {
+                global.roomMemory[room.name].workerCreepCount++;
+            }
+            else if (creep.memory.role === TaskType.transport)
+            {
+                global.roomMemory[room.name].transporterCreepCount++;
+            }
         }
     });
+    console.log(global.roomMemory[room.name].harvesterCreepCount);
+    console.log(global.roomMemory[room.name].harvesterLimit);
 }
 
 export function updatePriorities(room: Room)
