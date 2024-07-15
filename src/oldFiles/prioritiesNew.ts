@@ -1,4 +1,4 @@
-import * as position from "./positionCalculations";
+import * as position from "../positionCalculations";
 import { strict } from "assert";
 import { drop, forEach, take, words } from "lodash";
 import { worker } from "cluster";
@@ -10,7 +10,7 @@ declare global
 
 }
 
-
+/*
 
 export enum TaskType
 {
@@ -798,3 +798,5 @@ export function updatePriorities(room: Room)
         task[1].updateValueLeft();
     });
 }
+
+*/

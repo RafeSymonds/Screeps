@@ -1,4 +1,4 @@
-import * as priorities from "./prioritiesNew";
+import * as GeneralTask from "./Tasks/generalTask";
 
 export function spawnCreepInRoom(room: Room)
 {
@@ -21,7 +21,7 @@ export function spawnCreepInRoom(room: Room)
 export function spawnWorker(room: Room)
 {
     let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
-    let taskTypes: priorities.TaskType = priorities.TaskType.work;
+    let taskTypes: GeneralTask.TaskType = GeneralTask.TaskType.work;
     let taskIDs: string[] = [];
     let bodyParts: BodyPartConstant[] = [WORK, CARRY, MOVE, MOVE];
 
@@ -50,7 +50,7 @@ export function spawnWorker(room: Room)
 export function spawnTransporter(room: Room)
 {
     let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
-    let taskTypes: priorities.TaskType = priorities.TaskType.transport;
+    let taskTypes: GeneralTask.TaskType = GeneralTask.TaskType.transport;
     let taskIDs: string[] = [];
     if (spawns[0].spawnCreep([CARRY, MOVE], 'Transporter' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: 0, roomName: room.name } }) === OK)
     {
@@ -63,7 +63,7 @@ export function spawnTransporter(room: Room)
 export function spawnHarvester(room: Room)
 {
     let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
-    let taskTypes: priorities.TaskType = priorities.TaskType.harvest;
+    let taskTypes: GeneralTask.TaskType = GeneralTask.TaskType.harvest;
     let taskIDs: string[] = [];
 
     let bodyParts: BodyPartConstant[] = [MOVE, WORK, WORK];
@@ -88,12 +88,12 @@ export function setValueLeftAfterSpawning(room: Room)
 
     spawns.forEach(spawn =>
     {
-        global.roomMemory[room.name].tasks[spawn.id].valueLeft = spawn.store.getCapacity(RESOURCE_ENERGY);
+        global.roomMemory[room.name].tasks[spawn.id].updateValueLeft()
     });
 
     let extensions: StructureExtension[] = room.find(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_EXTENSION } });
     extensions.forEach(extension =>
     {
-        global.roomMemory[room.name].tasks[extension.id].valueLeft = extension.store.getCapacity(RESOURCE_ENERGY);
+        global.roomMemory[room.name].tasks[extension.id].updateValueLeft()
     });
 }

@@ -1,13 +1,13 @@
 import { all, min, object } from "lodash";
 import * as positionCalculations from "./positionCalculations";
 
-import * as priorities from "./oldFiles/prioritiesNew";
 import * as binaryPriorityQueue from "./binaryPriorityQueue"
+
+import * as GeneralTask from "./Tasks/generalTask"
 
 
 const lessThanComparator: binaryPriorityQueue.LessThanComparator<[number, number]> = (a, b) =>
 {
-
     if (!a || !b)
     {
         console.log("invalid element in PQ");
@@ -16,25 +16,23 @@ const lessThanComparator: binaryPriorityQueue.LessThanComparator<[number, number
 
 };
 
-export function assignCreeps(room: Room, roomTasks: { [taskId: string]: priorities.Task }, creeps: Creep[])
+export function assignCreeps(room: Room, roomTasks: { [taskId: string]: GeneralTask.Task }, creeps: Creep[])
 {
 
-    let allTasks: [string, priorities.Task][] = Object.entries(roomTasks);
+    let allTasks: [string, GeneralTask.Task][] = Object.entries(roomTasks);
     if (roomTasks === undefined || allTasks.length === 0)
     {
         return;
     }
 
-
-
-    let tasks: [string, priorities.Task][] = [];
+    let tasks: [string, GeneralTask.Task][] = [];
     let taskCreeps: binaryPriorityQueue.PriorityQueue<[number, number]>[] = [];
     let creepDistances: number[][] = [];
     let taskIndexForDistances: [number, number][][] = [];
 
     allTasks.forEach(task =>
     {
-        if (task[1].valueLeft > 0)
+        if (task[1].hasValueLeft())
         {
             tasks.push(task);
             taskCreeps.push(new binaryPriorityQueue.PriorityQueue(lessThanComparator));
@@ -101,7 +99,7 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
             //console.log("first check");
             let taskIndex = taskIndexForDistances[creepIndex][distanceTaskIndex][1];
             let distanceIndex = taskIndexForDistances[creepIndex][distanceTaskIndex][0];
-            if (tasks[taskIndex][1].valueLeft > 0)
+            if (tasks[taskIndex][1].hasValueLeft())
             {
                 possibleTask = true;
                 //console.log("Valid match");
@@ -144,39 +142,27 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: prioriti
     }
 }
 
-export function assignCreepToTask(task: priorities.Task, creep: Creep, room: Room)
+export function assignCreepToTask(task: GeneralTask.Task, creep: Creep, room: Room)
 {
     let taskID: string | null = task.getID();
     if (taskID)
     {
         creep.memory.taskID.push(taskID);
 
-        task.taskAssignCreep(creep);
+        task.taskAssignCreep(creep.name);
 
         creep.memory.workAmountLeft = 0;
     }
 }
 
-export function unassignTempCreepToTask(task: priorities.Task, creep: Creep, room: Room)
+export function unassignTempCreepToTask(task: GeneralTask.Task, creep: Creep, room: Room)
 {
     if (task)
     {
         creep.memory.taskID.pop();
 
-        task.unassignCreep(creep);
+        task.unassignCreep(creep.name);
 
         creep.memory.workAmountLeft = 1;
-    }
-}
-
-export function processCreepActions(creep: Creep, task: priorities.Task | null, room: Room)
-{
-    if (task)
-    {
-        task.action(creep);
-    }
-    else
-    {
-        creep.memory.taskID.pop();
     }
 }
