@@ -52,7 +52,7 @@ export class DropResourceTask extends GeneralTask.Task
     }
     public taskAssignCreep(creepName: string)
     {
-
+        super.taskAssignCreep(creepName);
     }
     public unassignCreep(creepName: string)
     {

@@ -42,9 +42,9 @@ export class CollectEnergyTask extends GeneralTask.Task
         {
             let creep: Creep = Game.creeps[creepName];
 
-            if (creep.store.getFreeCapacity() > 0)
+            if (creep.store.getFreeCapacity() > 0 && structure)
             {
-                let enegyToTransfer = Math.min(creep.store.getFreeCapacity(), structure.store.getUsedCapacity() as number);
+                let enegyToTransfer = Math.min(creep.store.getFreeCapacity(), structure!.store.getUsedCapacity() as number);
 
                 if (creep.withdraw(structure, RESOURCE_ENERGY, enegyToTransfer) === ERR_NOT_IN_RANGE)
                 {
@@ -63,6 +63,8 @@ export class CollectEnergyTask extends GeneralTask.Task
     }
     public taskAssignCreep(creepName: string)
     {
+        super.taskAssignCreep(creepName);
+
         let creep: Creep = Game.creeps[creepName];
         this.valueLeft = Math.max(this.valueLeft - creep.store.getFreeCapacity(), 0);
     }

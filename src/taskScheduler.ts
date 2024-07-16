@@ -4,7 +4,14 @@ import * as positionCalculations from "./positionCalculations";
 import * as binaryPriorityQueue from "./binaryPriorityQueue"
 
 import * as GeneralTask from "./Tasks/generalTask"
-
+import { BuildTask } from "Tasks/buildTask";
+import { CollectDroppedResource } from "Tasks/collectDroppedResource";
+import { CollectEnergyTask } from "Tasks/collectEnergyTask";
+import { DropResourceTask } from "Tasks/dropResourceTask";
+import { HarvestTask } from "Tasks/harvestTask";
+import { TransportTask } from "Tasks/transportTask";
+import { UpgradeControllerTask } from "Tasks/upgradeControllerTask";
+import { createPrivateKey, privateEncrypt } from "crypto";
 
 const lessThanComparator: binaryPriorityQueue.LessThanComparator<[number, number]> = (a, b) =>
 {
@@ -39,6 +46,9 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: GeneralT
         }
     });
 
+    console.log(creeps);
+    console.log(tasks);
+
     if (creeps.length === 0 || tasks.length === 0)
     {
         return;
@@ -53,15 +63,20 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: GeneralT
             if (tasks[taskIndex][1].checkCreepMatches(creeps[creepIndex]))
             {
                 let taskPosition: RoomPosition | null = tasks[taskIndex][1].getPosition();
+
                 if (taskPosition)
                 {
                     let distance: number = positionCalculations.distance(taskPosition, creeps[creepIndex].pos) * (tasks[taskIndex][1].priority + 1) / 2
                     creepDistances[creepIndex].push(distance);
-                    taskIndexForDistances[creepIndex].push([taskIndexForDistances[creepIndex].length - 1, taskIndex]);
+
+                    taskIndexForDistances[creepIndex].push([taskIndexForDistances[creepIndex].length, taskIndex]);
+
                 }
             }
         }
     }
+
+    console.log(creepDistances, taskIndexForDistances);
 
     let freeCount: number = creeps.length;
     let creepFree: boolean[] = Array.from({ length: creeps.length }, () => true);
@@ -79,12 +94,13 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: GeneralT
         }
     }
 
-    while (freeCount > Math.max(creeps.length - tasks.length, 0))
+    while (freeCount > 0)
     {
+        console.log("Free creep cout: ", freeCount);
         let creepIndex: number = 0;
         for (; creepIndex < creeps.length; creepIndex++)
         {
-            if (creepFree[creepIndex])
+            if (creeps[creepIndex].memory.workAmountLeft > 0)
             {
                 break;
             }
@@ -93,12 +109,18 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: GeneralT
         {
             break;
         }
+
+        console.log("starting to find best task", taskIndexForDistances[creepIndex]);
+
         let possibleTask: boolean = false;
         for (let distanceTaskIndex = 0; distanceTaskIndex < taskIndexForDistances[creepIndex].length; distanceTaskIndex++)
         {
             //console.log("first check");
             let taskIndex = taskIndexForDistances[creepIndex][distanceTaskIndex][1];
             let distanceIndex = taskIndexForDistances[creepIndex][distanceTaskIndex][0];
+
+            console.log(tasks[taskIndex][1].getID());
+
             if (tasks[taskIndex][1].hasValueLeft())
             {
                 possibleTask = true;
@@ -144,6 +166,7 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: GeneralT
 
 export function assignCreepToTask(task: GeneralTask.Task, creep: Creep, room: Room)
 {
+    console.log("Assigning creep to task");
     let taskID: string | null = task.getID();
     if (taskID)
     {
@@ -157,12 +180,131 @@ export function assignCreepToTask(task: GeneralTask.Task, creep: Creep, room: Ro
 
 export function unassignTempCreepToTask(task: GeneralTask.Task, creep: Creep, room: Room)
 {
+    console.log("unassigning creep to task");
     if (task)
     {
-        creep.memory.taskID.pop();
-
         task.unassignCreep(creep.name);
 
         creep.memory.workAmountLeft = 1;
     }
+}
+
+
+export function setUpTasks(room: Room): void
+{
+    let containerCount: number = 0;
+
+    let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
+    if (spawns.length > 0)
+    {
+        global.roomMemory[room.name].baseCenter = [spawns[0].pos.x, spawns[0].pos.y + 2];
+    }
+
+    const sources: Source[] = room.find(FIND_SOURCES);
+    sources.forEach(source =>
+    {
+        if (!(source.id in global.roomMemory[room.name].tasks))
+        {
+            let newTask = new HarvestTask(source.id);
+            global.roomMemory[room.name].tasks[source.id] = newTask;
+        }
+    });
+
+
+
+    const structures: Structure[] = room.find(FIND_STRUCTURES);
+    structures.forEach(structure =>
+    {
+        if (!(structure.id in global.roomMemory[room.name].tasks))
+        {
+
+            let priority = 0;
+            let newTask: GeneralTask.Task | null = null;
+            switch (structure.structureType)
+            {
+                case STRUCTURE_CONTAINER:
+                    priority = -1;
+                    containerCount++;
+                    break;
+                case STRUCTURE_EXTENSION:
+                    priority = 3;
+                    break;
+                case STRUCTURE_SPAWN:
+                    priority = 3;
+                    break;
+                case STRUCTURE_STORAGE:
+                    priority = 5;
+                    break;
+                case STRUCTURE_CONTROLLER:
+                    priority = 11;
+                    break;
+                case STRUCTURE_TOWER:
+                    priority = 1;
+                    break;
+                default:
+                    break;
+            }
+            if (priority > 0)
+            {
+                if (priority === 11)
+                {
+                    newTask = new UpgradeControllerTask(structure.id as Id<StructureController>)
+                    global.roomMemory[room.name].tasks[structure.id] = newTask as GeneralTask.Task;
+                }
+                else
+                {
+                    console.log("Creating new transport task");
+                    newTask = new TransportTask(structure.id as Id<AnyStoreStructure>, priority)
+                    global.roomMemory[room.name].tasks[structure.id] = newTask;
+                }
+            }
+            else
+            {
+                if (priority === -1)
+                {
+                    // container as a resource location
+                    let collectEnergyTask: CollectEnergyTask = new CollectEnergyTask(structure.id as unknown as Id<AnyStoreStructure>);
+                    global.roomMemory[room.name].tasks[structure.id] = collectEnergyTask;
+                    let sources: Source[] = structure.pos.findInRange(FIND_SOURCES, 1);
+
+                    if (sources.length > 0)
+                    {
+                        let source = global.roomMemory[room.name].tasks[sources[0].id] as HarvestTask;
+                        source.containerID = structure.id as unknown as Id<StructureContainer>;
+                    }
+                }
+            }
+        }
+    });
+
+    if (containerCount >= 2)
+    {
+        global.roomMemory[room.name].harvesterLimit = 2;
+    }
+
+    const constructionSites: ConstructionSite[] = room.find(FIND_CONSTRUCTION_SITES);
+    constructionSites.forEach(constructionSite =>
+    {
+        if (!(constructionSite.id in global.roomMemory[room.name].tasks))
+        {
+            let newTask = new BuildTask(constructionSite.id, 6);
+            global.roomMemory[room.name].tasks[constructionSite.id] = newTask;
+        }
+
+    });
+    const resources: Resource[] = room.find(FIND_DROPPED_RESOURCES);
+    resources.forEach(resource =>
+    {
+        if (!(resource.id in global.roomMemory[room.name].tasks))
+        {
+            let newTask = new CollectDroppedResource(resource.id);
+            global.roomMemory[room.name].tasks[resource.id] = newTask;
+        }
+    });
+
+
+
+    //setup resource drop
+    //let dropLocationTask = new DropResourceTask();
+
 }

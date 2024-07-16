@@ -32,15 +32,17 @@ export class BuildTask extends GeneralTask.Task
             return;
         }
 
+        let constructionSite2: ConstructionSite = constructionSite;
+
         this.creeps.forEach(creepName =>
         {
             let creep: Creep = Game.creeps[creepName];
 
             if (creep && creep.store[RESOURCE_ENERGY] > 0)
             {
-                if (creep.build(constructionSite) === ERR_NOT_IN_RANGE)
+                if (creep.build(constructionSite2) === ERR_NOT_IN_RANGE)
                 {
-                    creep.moveTo(constructionSite);
+                    creep.moveTo(constructionSite!.pos);
                 }
             }
             else
@@ -56,6 +58,8 @@ export class BuildTask extends GeneralTask.Task
     }
     public taskAssignCreep(creepName: string)
     {
+        super.taskAssignCreep(creepName);
+
         let creep: Creep = Game.creeps[creepName];
         this.valueLeft -= creep.store[RESOURCE_ENERGY];
     }

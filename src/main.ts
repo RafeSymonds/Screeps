@@ -93,32 +93,7 @@ export const loop = ErrorMapper.wrapLoop(() =>
     {
         if (!(name in Game.creeps))
         {
-            let creepMemory: CreepMemory = Memory.creeps[name];
-            let room: Room = Game.rooms[creepMemory.roomName];
-            console.log("deleting creep memory in ", room)
-            if (room)
-            {
-                console.log("valid room");
-                if (creepMemory.role === GeneralTask.TaskType.work)
-                {
-                    global.roomMemory[room.name].workerCreepCount -= 1;
-                }
-                else if (creepMemory.role === GeneralTask.TaskType.transport)
-                {
-                    global.roomMemory[room.name].transporterCreepCount -= 1;
-                }
-                else if (creepMemory.role === GeneralTask.TaskType.harvest)
-                {
-                    global.roomMemory[room.name].harvesterCreepCount -= 1;
-                }
-
-                for (let taskIndex = 0; taskIndex < creepMemory.taskID.length; taskIndex++)
-                {
-                    global.roomMemory[room.name].tasks[creepMemory.taskID[taskIndex]].tryToRemoveDeadCreeps(name);
-                    global.roomMemory[room.name].tasks[creepMemory.taskID[taskIndex]].updateValueLeft();
-                }
-            }
-            delete Memory.creeps[name];
+            GeneralTask.deleteCreepMemory(name);
         }
     }
 
@@ -132,12 +107,27 @@ export const loop = ErrorMapper.wrapLoop(() =>
                 buildBase.buildBase(room);
             }
 
+            TaskScheduler.setUpTasks(room);
+
             //priorities.setUpTasks(room);
 
-            let creeps: Creep[] = room.find(FIND_MY_CREEPS);
+            let allCreeps = room.find(FIND_MY_CREEPS);
+
+            var creepNeedingTasks: Creep[] = [];
+
+            allCreeps.forEach(creep =>
+            {
+                if (creep.memory.taskID && creep.memory.taskID.length == 0)
+                {
+                    creepNeedingTasks.push(creep);
+                }
+            });
+
+
+
             let tasks: { [taskId: string]: GeneralTask.Task } = global.roomMemory[room.name].tasks;
 
-            TaskScheduler.assignCreeps(room, tasks, creeps.filter(creep => { return creep.memory.taskID && creep.memory.taskID.length === 0; }));
+            TaskScheduler.assignCreeps(room, tasks, creepNeedingTasks);
 
 
             for (let id in global.roomMemory[roomName].tasks)

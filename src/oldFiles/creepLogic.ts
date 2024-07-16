@@ -1,10 +1,10 @@
 import { all, min, object } from "lodash";
-import * as positionCalculations from "./positionCalculations";
+import * as positionCalculations from "../positionCalculations";
 
-import * as priorities from "./oldFiles/prioritiesNew";
-import * as binaryPriorityQueue from "./binaryPriorityQueue"
+import * as priorities from "./prioritiesNew";
+import * as binaryPriorityQueue from "../binaryPriorityQueue"
 
-
+/*
 const lessThanComparator: binaryPriorityQueue.LessThanComparator<[number, number]> = (a, b) =>
 {
 
@@ -180,3 +180,5 @@ export function processCreepActions(creep: Creep, task: priorities.Task | null, 
         creep.memory.taskID.pop();
     }
 }
+
+*/

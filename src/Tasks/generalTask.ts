@@ -89,7 +89,9 @@ export class Task
         return false;
     }
     public taskAssignCreep(creepName: string)
-    { }
+    {
+        this.creeps.add(creepName);
+    }
     public unassignCreep(creepName: string)
     {
         let creep = Game.creeps[creepName];

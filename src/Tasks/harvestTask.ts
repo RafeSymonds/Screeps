@@ -25,7 +25,7 @@ export class HarvestTask extends GeneralTask.Task
         super(GeneralTask.TaskType.harvest, GeneralTask.WorkType.harvest, 10, source!.pos);
 
         this.id = source!.id;
-        this.maxHarvestSpots = 9;
+        this.maxHarvestSpots = 8;
         this.workerPartsLeft = 5;
         this.containerID = containerID;
 
@@ -72,7 +72,7 @@ export class HarvestTask extends GeneralTask.Task
             {
                 let container: StructureContainer | null = Game.getObjectById(this.containerID);
 
-                if (container)
+                if (container && source)
                 {
                     if (container.pos.isEqualTo(creep.pos))
                     {
@@ -90,7 +90,7 @@ export class HarvestTask extends GeneralTask.Task
             }
             else
             {
-                if (creep.harvest(source) === ERR_NOT_IN_RANGE)
+                if (source && creep.harvest(source) === ERR_NOT_IN_RANGE)
                 {
                     creep.moveTo(source);
                 }
@@ -103,6 +103,8 @@ export class HarvestTask extends GeneralTask.Task
     }
     public taskAssignCreep(creepName: string)
     {
+        super.taskAssignCreep(creepName);
+
         this.harvestSpotsLeft -= 1;
         let creep = Game.creeps[creepName];
         this.workerPartsLeft -= creep.getActiveBodyparts(WORK);
@@ -130,6 +132,6 @@ export class HarvestTask extends GeneralTask.Task
     }
     public checkCreepMatches(creep: Creep): boolean
     {
-        return creep.memory.role === GeneralTask.TaskType.harvest || (creep.memory.role === GeneralTask.TaskType.work && creep.store.getFreeCapacity() < creep.store.getCapacity() / 2);
+        return creep.memory.role === GeneralTask.TaskType.harvest || (creep.memory.role === GeneralTask.TaskType.work && creep.store.getUsedCapacity() < creep.store.getCapacity() / 2);
     }
 }

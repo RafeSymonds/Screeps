@@ -36,7 +36,7 @@ export class CollectDroppedResource extends GeneralTask.Task
         this.creeps.forEach(creepName =>
         {
             let creep: Creep = Game.creeps[creepName];
-            if (creep.store.getFreeCapacity() > 0)
+            if (creep.store.getFreeCapacity() > 0 && resource)
             {
                 if (creep.pickup(resource) === ERR_NOT_IN_RANGE)
                 {
@@ -56,6 +56,8 @@ export class CollectDroppedResource extends GeneralTask.Task
     }
     public taskAssignCreep(creepName: string)
     {
+        super.taskAssignCreep(creepName);
+
         let creep: Creep = Game.creeps[creepName];
         this.valueLeft = Math.max(this.valueLeft - creep.store.getFreeCapacity(), 0);
     }

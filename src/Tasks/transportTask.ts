@@ -15,7 +15,7 @@ export class TransportTask extends GeneralTask.Task
 
     valueLeft: number;
 
-    constructor(priority: number, structureID: Id<AnyStoreStructure>)
+    constructor(structureID: Id<AnyStoreStructure>, priority: number)
     {
         let structure: AnyStoreStructure | null = Game.getObjectById(structureID);
 
@@ -42,7 +42,7 @@ export class TransportTask extends GeneralTask.Task
         {
             let creep: Creep = Game.creeps[creepName];
 
-            if (creep.store.getUsedCapacity() > 0)
+            if (creep.store.getUsedCapacity() > 0 && structure)
             {
                 let enegyToTransfer = Math.min(creep.store[RESOURCE_ENERGY], structure.store.getFreeCapacity() as number);
                 if (creep.transfer(structure, RESOURCE_ENERGY, enegyToTransfer) === ERR_NOT_IN_RANGE)
@@ -62,6 +62,8 @@ export class TransportTask extends GeneralTask.Task
     }
     public taskAssignCreep(creepName: string)
     {
+        super.taskAssignCreep(creepName);
+
         let creep: Creep = Game.creeps[creepName];
 
         this.valueLeft -= creep.store.getUsedCapacity() as number;
@@ -94,6 +96,6 @@ export class TransportTask extends GeneralTask.Task
     }
     public checkCreepMatches(creep: Creep): boolean
     {
-        return creep.store.getCapacity() > 0 && creep.memory.role === GeneralTask.TaskType.transport && (creep.store.getUsedCapacity() >= creep.store.getCapacity() / 2 || creep.store.getUsedCapacity() >= this.valueLeft);
+        return creep.store.getUsedCapacity() >= creep.store.getCapacity() / 2 || creep.store.getUsedCapacity() >= this.valueLeft;
     }
 }

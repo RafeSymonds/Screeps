@@ -40,7 +40,7 @@ export class UpgradeControllerTask extends GeneralTask.Task
         this.creeps.forEach(creepName =>
         {
             let creep: Creep = Game.creeps[creepName];
-            if (creep && creep.store[RESOURCE_ENERGY] > 0)
+            if (creep && creep.store[RESOURCE_ENERGY] > 0 && controller)
             {
                 if (creep.upgradeController(controller) === ERR_NOT_IN_RANGE)
                 {
@@ -59,7 +59,9 @@ export class UpgradeControllerTask extends GeneralTask.Task
         return true;
     }
     public taskAssignCreep(creepName: string)
-    { }
+    {
+        super.taskAssignCreep(creepName);
+    }
     public unassignCreep(creepName: string)
     {
         super.unassignCreep(creepName);
