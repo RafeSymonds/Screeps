@@ -106,7 +106,6 @@ export class Task
     public unassignCreep(creepName: string)
     {
         this.creeps.delete(creepName);
-
     }
     public updateValueLeft()
     { }

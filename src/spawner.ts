@@ -2,12 +2,6 @@ import * as GeneralTask from "./Tasks/generalTask";
 
 export function spawnCreepInRoom(room: Room)
 {
-    spawnWorker(room);
-    return;
-
-
-
-    /*
     if (global.roomMemory[room.name].harvesterCreepCount < global.roomMemory[room.name].harvesterLimit && global.roomMemory[room.name].harvesterCreepCount < global.roomMemory[room.name].transporterCreepCount * 2 + 1)
     {
         spawnHarvester(room);
@@ -22,7 +16,6 @@ export function spawnCreepInRoom(room: Room)
         //spawn worker
         spawnWorker(room);
     }
-        */
 }
 
 export function spawnWorker(room: Room)
@@ -46,7 +39,7 @@ export function spawnWorker(room: Room)
         bodyParts.push(MOVE);
     }
 
-    if (spawns[0].spawnCreep(bodyParts, 'Worker' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: bodyParts.filter(bodyPart => bodyPart == CARRY).length * 50, roomName: room.name } }) === OK)
+    if (spawns[0].spawnCreep(bodyParts, 'Worker' + Game.time, { memory: { role: taskTypes, taskID: taskIDs, workAmountLeft: 0, roomName: room.name } }) === OK)
     {
         global.roomMemory[room.name].workerCreepCount += 1;
         setValueLeftAfterSpawning(room);

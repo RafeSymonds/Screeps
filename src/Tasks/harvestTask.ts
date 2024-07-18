@@ -7,7 +7,7 @@ import { Position } from "source-map";
 import internal from "stream";
 import { setFlagsFromString } from "v8";
 import * as GeneralTask from "Tasks/generalTask";
-
+import { CollectDroppedResource } from "./collectDroppedResource";
 
 export class HarvestTask extends GeneralTask.Task
 {
@@ -86,9 +86,29 @@ export class HarvestTask extends GeneralTask.Task
         }
         else
         {
-            if (creep.harvest(source) === ERR_NOT_IN_RANGE)
+            let harvestErroCode = creep.harvest(source);
+            if (harvestErroCode === ERR_NOT_IN_RANGE)
             {
                 creep.moveTo(source);
+            }
+            else if (harvestErroCode === OK)
+            {
+                let objects: LookAtResult[] = source.room.lookAt(creep.pos);
+                objects.forEach(object =>
+                {
+                    if (object.type == LOOK_ENERGY)
+                    {
+                        let energyLocations = global.roomMemory[source!.room.name].energyLocations;
+                        if (object!.energy!.id in energyLocations)
+                        {
+                            energyLocations[object!.energy!.id].updateValueLeft();
+                        }
+                        else
+                        {
+                            energyLocations[object!.energy!.id] = new CollectDroppedResource(object!.energy!.id);
+                        }
+                    }
+                });
             }
         }
     }
@@ -112,6 +132,9 @@ export class HarvestTask extends GeneralTask.Task
 
         this.harvestSpotsLeft += 1;
         this.workerPartsLeft += creep.getActiveBodyparts(WORK);
+
+        creep.memory.workAmountLeft = creep.store.getUsedCapacity();
+
     }
     public updateValueLeft()
     {

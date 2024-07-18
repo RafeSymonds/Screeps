@@ -78,8 +78,9 @@ export class TransportTask extends GeneralTask.Task
         {
             return;
         }
-
-        this.valueLeft = structure.store.getFreeCapacity() as number;
+        console.log(structure.store.getFreeCapacity(RESOURCE_ENERGY));
+        console.log(structure.store.getFreeCapacity());
+        this.valueLeft = structure.store.getFreeCapacity(RESOURCE_ENERGY) as number;
 
         this.creeps.forEach(creepName =>
         {

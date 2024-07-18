@@ -4,7 +4,7 @@ import * as GeneralTask from './Tasks/generalTask'
 
 export function creepAction(creep: Creep, room: Room)
 {
-    if (creep.memory.taskID.length == 0)
+    if (!creep.memory.taskID || creep.memory.taskID.length == 0)
     {
         return;
     }
@@ -24,6 +24,6 @@ export function creepAction(creep: Creep, room: Room)
         break;
     }
 
-    creep.memory.taskID.slice(shiftCount);
+    creep.memory.taskID = creep.memory.taskID.slice(shiftCount);
 
 }

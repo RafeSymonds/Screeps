@@ -81,7 +81,7 @@ export const loop = ErrorMapper.wrapLoop(() =>
                 workerCreepCount: 0,
                 transporterCreepCount: 0,
                 harvesterCreepCount: 0,
-                harvesterLimit: 0,
+                harvesterLimit: 10,
                 baseCenter: [0, 0]
             }
 
@@ -114,19 +114,21 @@ export const loop = ErrorMapper.wrapLoop(() =>
 
             let allCreeps = room.find(FIND_MY_CREEPS)
 
-            var creepNeedingTasks: Creep[] = [];
+            let creepsNeedingTasks: Creep[] = [];
 
             allCreeps.forEach(creep =>
             {
                 if (creep.memory.taskID && (creep.memory.workAmountLeft > 0 || creep.memory.taskID.length == 0))
                 {
-                    creepNeedingTasks.push(creep);
+                    creepsNeedingTasks.push(creep);
                 }
             });
 
+            console.log("Creeps who can get new tasks:", creepsNeedingTasks)
+
             let tasks: { [taskId: string]: GeneralTask.Task } = global.roomMemory[room.name].tasks;
 
-            TaskScheduler.assignCreeps(room, tasks, creepNeedingTasks, global.roomMemory[roomName].energyLocations);
+            TaskScheduler.assignCreeps(room, tasks, creepsNeedingTasks, global.roomMemory[roomName].energyLocations);
 
             allCreeps.forEach(creep =>
             {

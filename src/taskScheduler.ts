@@ -49,8 +49,8 @@ export function assignCreeps(
     creeps: Creep[],
     roomResourceLocations: { [taskID: string]: GeneralTask.Task })
 {
-
-    if (creeps.length == 0)
+    console.log("assignCreeps()", creeps.length);
+    if (creeps.length === 0)
     {
         return;
     }
@@ -120,7 +120,7 @@ export function assignCreeps(
 
         for (; creepIndex < creeps.length; creepIndex++)
         {
-            if (creeps[creepIndex].memory.workAmountLeft > 0)
+            if (creeps[creepIndex].memory.workAmountLeft > 0 || creeps[creepIndex].memory.taskID.length == 0)
             {
                 break;
             }
@@ -217,9 +217,6 @@ export function assignCreepToTask(creep: Creep, resourceTask: GeneralTask.Task |
         resourceTask.taskAssignCreep(creep.name);
     }
     task.taskAssignCreep(creep.name);
-
-    creep.memory.workAmountLeft = 0;
-
 }
 
 export function unassignTempCreepToTask(creep: Creep, resourceTask: GeneralTask.Task | null, task: GeneralTask.Task, room: Room)
@@ -251,8 +248,6 @@ export function setUpTasks(room: Room): void
             global.roomMemory[room.name].tasks[source.id] = newTask;
         }
     });
-
-
 
     const structures: Structure[] = room.find(FIND_STRUCTURES);
     structures.forEach(structure =>
