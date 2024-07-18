@@ -21,30 +21,24 @@ export class DropResourceTask extends GeneralTask.Task
         DropResourceTask.droppedResourceNum++;
     }
 
-    public processCreepActions()
+    public processCreepAction(creep: Creep)
     {
-        this.creeps.forEach(creepName =>
+        if (creep.store.getFreeCapacity() > 0)
         {
-            let creep: Creep = Game.creeps[creepName];
-
-            if (creep.store.getFreeCapacity() > 0)
+            if (creep.pos.isEqualTo(this.position))
             {
-                if (creep.pos.isEqualTo(this.position))
-                {
-                    creep.drop(RESOURCE_ENERGY);
-                    this.unassignCreep(creepName);
-                }
-                else
-                {
-                    creep.moveTo(this.position);
-                }
+                creep.drop(RESOURCE_ENERGY);
+                this.unassignCreep(creep.name);
             }
             else
             {
-                this.unassignCreep(creepName);
+                creep.moveTo(this.position);
             }
-        });
-
+        }
+        else
+        {
+            this.unassignCreep(creep.name);
+        }
     }
     public getID(): string
     {
@@ -62,8 +56,12 @@ export class DropResourceTask extends GeneralTask.Task
     {
 
     }
-    public checkCreepMatches(creep: Creep): boolean
+    public checkCreepMatches(creep: Creep): GeneralTask.CreepMatchesTask
     {
-        return creep.store.getCapacity() > 0 && creep.store[RESOURCE_ENERGY] >= creep.store.getCapacity() / 2;
+        if (creep.store.getCapacity() > 0 && creep.store[RESOURCE_ENERGY] >= creep.store.getCapacity() / 2)
+        {
+            return GeneralTask.CreepMatchesTask.true;
+        }
+        return GeneralTask.CreepMatchesTask.false
     }
 }

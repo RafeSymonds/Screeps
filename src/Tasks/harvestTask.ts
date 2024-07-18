@@ -50,7 +50,7 @@ export class HarvestTask extends GeneralTask.Task
         return this.id;
     }
 
-    public processCreepActions()
+    public processCreepAction(creep: Creep)
     {
         let source: Source | null = Game.getObjectById(this.id);
 
@@ -60,42 +60,37 @@ export class HarvestTask extends GeneralTask.Task
             return;
         }
 
-        this.creeps.forEach(creepName =>
+        if (creep.store.getFreeCapacity() == 0)
         {
-            let creep = Game.creeps[creepName];
+            this.unassignCreep(creep.name);
+        }
+        else if (this.containerID)
+        {
+            let container: StructureContainer | null = Game.getObjectById(this.containerID);
 
-            if (creep.store.getFreeCapacity() == 0)
+            if (container)
             {
-                this.unassignCreep(creepName);
-            }
-            else if (this.containerID)
-            {
-                let container: StructureContainer | null = Game.getObjectById(this.containerID);
-
-                if (container && source)
+                if (container.pos.isEqualTo(creep.pos))
                 {
-                    if (container.pos.isEqualTo(creep.pos))
-                    {
-                        creep.harvest(source);
-                    }
-                    else
-                    {
-                        creep.moveTo(container);
-                    }
+                    creep.harvest(source);
                 }
                 else
                 {
-                    this.containerID = null;
+                    creep.moveTo(container);
                 }
             }
             else
             {
-                if (source && creep.harvest(source) === ERR_NOT_IN_RANGE)
-                {
-                    creep.moveTo(source);
-                }
+                this.containerID = null;
             }
-        });
+        }
+        else
+        {
+            if (creep.harvest(source) === ERR_NOT_IN_RANGE)
+            {
+                creep.moveTo(source);
+            }
+        }
     }
     public hasValueLeft(): boolean
     {
@@ -130,8 +125,17 @@ export class HarvestTask extends GeneralTask.Task
         });
 
     }
-    public checkCreepMatches(creep: Creep): boolean
+    public checkCreepMatches(creep: Creep): GeneralTask.CreepMatchesTask
     {
-        return creep.memory.role === GeneralTask.TaskType.harvest || (creep.memory.role === GeneralTask.TaskType.work && creep.store.getUsedCapacity() < creep.store.getCapacity() / 2);
+        if (creep.memory.role === GeneralTask.TaskType.harvest)
+        {
+            return GeneralTask.CreepMatchesTask.true;
+        }
+
+        if (creep.memory.role === GeneralTask.TaskType.work && creep.store.getUsedCapacity() < creep.store.getCapacity() / 2)
+        {
+            return GeneralTask.CreepMatchesTask.true;
+        }
+        return GeneralTask.CreepMatchesTask.false;
     }
 }

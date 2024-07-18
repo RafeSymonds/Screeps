@@ -28,7 +28,7 @@ export class TransportTask extends GeneralTask.Task
     {
         return this.id;
     }
-    public processCreepActions()
+    public processCreepAction(creep: Creep)
     {
         let structure: AnyStoreStructure | null = Game.getObjectById(this.id);
 
@@ -38,23 +38,18 @@ export class TransportTask extends GeneralTask.Task
             return;
         }
 
-        this.creeps.forEach(creepName =>
+        if (creep.store.getUsedCapacity() > 0)
         {
-            let creep: Creep = Game.creeps[creepName];
-
-            if (creep.store.getUsedCapacity() > 0 && structure)
+            let enegyToTransfer = Math.min(creep.store[RESOURCE_ENERGY], structure.store.getFreeCapacity() as number);
+            if (creep.transfer(structure, RESOURCE_ENERGY, enegyToTransfer) === ERR_NOT_IN_RANGE)
             {
-                let enegyToTransfer = Math.min(creep.store[RESOURCE_ENERGY], structure.store.getFreeCapacity() as number);
-                if (creep.transfer(structure, RESOURCE_ENERGY, enegyToTransfer) === ERR_NOT_IN_RANGE)
-                {
-                    creep.moveTo(structure);
-                }
+                creep.moveTo(structure);
             }
-            else
-            {
-                this.unassignCreep(creepName);
-            }
-        });
+        }
+        else
+        {
+            this.unassignCreep(creep.name);
+        }
     }
     public hasValueLeft(): boolean
     {
@@ -94,8 +89,13 @@ export class TransportTask extends GeneralTask.Task
         });
 
     }
-    public checkCreepMatches(creep: Creep): boolean
+    public checkCreepMatches(creep: Creep): GeneralTask.CreepMatchesTask
     {
-        return creep.store.getUsedCapacity() >= creep.store.getCapacity() / 2 || creep.store.getUsedCapacity() >= this.valueLeft;
+        if (creep.store.getUsedCapacity() >= creep.store.getCapacity() / 2 || creep.store.getUsedCapacity() >= this.valueLeft)
+        {
+            return GeneralTask.CreepMatchesTask.true;
+        }
+
+        return GeneralTask.CreepMatchesTask.false
     }
 }

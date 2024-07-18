@@ -4,7 +4,8 @@ import * as GeneralTask from "./Tasks/generalTask";
 import * as TaskScheduler from "./taskScheduler";
 import * as spawner from "./spawner";
 import * as buildBase from "./buildBase";
-import { memoize } from "lodash";
+import * as CreepManager from "./creepManager"
+import { forEach, memoize } from "lodash";
 import { globalAgent } from "http";
 import { privateEncrypt } from "crypto";
 
@@ -37,8 +38,9 @@ declare global
     interface RoomMemory
     {
         tasks: { [taskId: string]: GeneralTask.Task };
+
         // position, amount of engery left, on ground
-        energyLocations: { [taskId: string]: number };
+        energyLocations: { [taskId: string]: GeneralTask.Task };
         workerCreepCount: number;
         transporterCreepCount: number;
         harvesterCreepCount: number;
@@ -79,11 +81,10 @@ export const loop = ErrorMapper.wrapLoop(() =>
                 workerCreepCount: 0,
                 transporterCreepCount: 0,
                 harvesterCreepCount: 0,
-                baseCenter: [0, 0],
                 harvesterLimit: 0,
+                baseCenter: [0, 0]
             }
-            //priorities.setUpTasks(room);
-            //priorities.assignAllCreeps(room);
+
         });
         // need to recreate memory
     }
@@ -111,29 +112,27 @@ export const loop = ErrorMapper.wrapLoop(() =>
 
             //priorities.setUpTasks(room);
 
-            let allCreeps = room.find(FIND_MY_CREEPS);
+            let allCreeps = room.find(FIND_MY_CREEPS)
 
             var creepNeedingTasks: Creep[] = [];
 
             allCreeps.forEach(creep =>
             {
-                if (creep.memory.taskID && creep.memory.taskID.length == 0)
+                if (creep.memory.taskID && (creep.memory.workAmountLeft > 0 || creep.memory.taskID.length == 0))
                 {
                     creepNeedingTasks.push(creep);
                 }
             });
 
-
-
             let tasks: { [taskId: string]: GeneralTask.Task } = global.roomMemory[room.name].tasks;
 
-            TaskScheduler.assignCreeps(room, tasks, creepNeedingTasks);
+            TaskScheduler.assignCreeps(room, tasks, creepNeedingTasks, global.roomMemory[roomName].energyLocations);
 
-
-            for (let id in global.roomMemory[roomName].tasks)
+            allCreeps.forEach(creep =>
             {
-                global.roomMemory[roomName].tasks[id].processCreepActions();
-            }
+                CreepManager.creepAction(creep, room);
+            });
+
 
             spawner.spawnCreepInRoom(room);
         }

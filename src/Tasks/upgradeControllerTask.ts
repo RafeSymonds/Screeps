@@ -27,7 +27,7 @@ export class UpgradeControllerTask extends GeneralTask.Task
         return this.id;
     }
 
-    public processCreepActions()
+    public processCreepAction(creep: Creep)
     {
         let controller: StructureController | null = Game.getObjectById(this.id);
 
@@ -37,22 +37,15 @@ export class UpgradeControllerTask extends GeneralTask.Task
             return;
         }
 
-        this.creeps.forEach(creepName =>
+        if (creep && creep.store[RESOURCE_ENERGY] > 0)
         {
-            let creep: Creep = Game.creeps[creepName];
-            if (creep && creep.store[RESOURCE_ENERGY] > 0 && controller)
+            if (creep.upgradeController(controller) === ERR_NOT_IN_RANGE)
             {
-                if (creep.upgradeController(controller) === ERR_NOT_IN_RANGE)
-                {
-                    creep.moveTo(controller);
-                }
+                creep.moveTo(controller);
             }
+        }
 
-            this.unassignCreep(creepName);
-
-        });
-
-
+        this.unassignCreep(creep.name);
     }
     public hasValueLeft(): boolean
     {
@@ -68,9 +61,17 @@ export class UpgradeControllerTask extends GeneralTask.Task
     }
     public updateValueLeft()
     { }
-    public checkCreepMatches(creep: Creep): boolean
+    public checkCreepMatches(creep: Creep): GeneralTask.CreepMatchesTask
     {
-        return creep.store.getCapacity() > 0 && creep.memory.role === GeneralTask.TaskType.work && creep.store[RESOURCE_ENERGY] >= creep.store.getCapacity() / 2;
+        if (creep.memory.role !== GeneralTask.TaskType.work)
+        {
+            return GeneralTask.CreepMatchesTask.false;
+        }
+        if (creep.store.getCapacity() > 0 && creep.memory.role === GeneralTask.TaskType.work && creep.store[RESOURCE_ENERGY] >= creep.store.getCapacity() / 2)
+        {
+            return GeneralTask.CreepMatchesTask.true;
+        }
+        return GeneralTask.CreepMatchesTask.needResources;
     }
 }
 

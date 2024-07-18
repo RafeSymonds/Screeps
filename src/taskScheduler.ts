@@ -11,7 +11,7 @@ import { DropResourceTask } from "Tasks/dropResourceTask";
 import { HarvestTask } from "Tasks/harvestTask";
 import { TransportTask } from "Tasks/transportTask";
 import { UpgradeControllerTask } from "Tasks/upgradeControllerTask";
-import { createPrivateKey, privateEncrypt } from "crypto";
+import { createPrivateKey, generateKeyPair, privateEncrypt } from "crypto";
 
 const lessThanComparator: binaryPriorityQueue.LessThanComparator<[number, number]> = (a, b) =>
 {
@@ -23,81 +23,101 @@ const lessThanComparator: binaryPriorityQueue.LessThanComparator<[number, number
 
 };
 
-export function assignCreeps(room: Room, roomTasks: { [taskId: string]: GeneralTask.Task }, creeps: Creep[])
+function findClosestResourceTowardsTask(creep: Creep, allResourceLocations: [string, GeneralTask.Task][], goalTask: GeneralTask.Task): [number, number]
+{
+    let minDistance: number = Infinity;
+    let bestTaskIndex: number = 0;
+
+    for (let resourceIndex = 0; resourceIndex < allResourceLocations.length; resourceIndex++)
+    {
+        let distance: number =
+            positionCalculations.distance(creep.pos, allResourceLocations[resourceIndex][1].getPosition())
+            + positionCalculations.distance(allResourceLocations[resourceIndex][1].getPosition(), goalTask.getPosition())
+
+        if (distance < minDistance)
+        {
+            minDistance = distance;
+            bestTaskIndex = resourceIndex;
+        }
+    };
+    return [bestTaskIndex, minDistance];
+}
+
+export function assignCreeps(
+    room: Room,
+    roomTasks: { [taskID: string]: GeneralTask.Task },
+    creeps: Creep[],
+    roomResourceLocations: { [taskID: string]: GeneralTask.Task })
 {
 
-    let allTasks: [string, GeneralTask.Task][] = Object.entries(roomTasks);
-    if (roomTasks === undefined || allTasks.length === 0)
+    if (creeps.length == 0)
     {
         return;
     }
 
-    let tasks: [string, GeneralTask.Task][] = [];
-    let taskCreeps: binaryPriorityQueue.PriorityQueue<[number, number]>[] = [];
-    let creepDistances: number[][] = [];
-    let taskIndexForDistances: [number, number][][] = [];
+    let validTasks: [GeneralTask.Task, binaryPriorityQueue.PriorityQueue<[number, number]>][] = []
 
-    allTasks.forEach(task =>
+    Object.entries(roomTasks).forEach(([taskID, task]) =>
     {
-        if (task[1].hasValueLeft())
+        if (task.hasValueLeft())
         {
-            tasks.push(task);
-            taskCreeps.push(new binaryPriorityQueue.PriorityQueue(lessThanComparator));
+            validTasks.push([task, new binaryPriorityQueue.PriorityQueue(lessThanComparator)]);
         }
     });
 
-    console.log(creeps);
-    console.log(tasks);
+    let resourceLocations: [string, GeneralTask.Task][] = Object.entries(roomResourceLocations);
 
-    if (creeps.length === 0 || tasks.length === 0)
-    {
-        return;
-    }
+
+    console.log("valid tasks", validTasks);
+    console.log("resource locations", resourceLocations);
+
+
+    // resourceIndex, taskIndex, totalDistance
+    let creepTaskInfos: [number, number, number][][] = []
+
 
     for (let creepIndex = 0; creepIndex < creeps.length; creepIndex++)
     {
-        creepDistances.push([]);
-        taskIndexForDistances.push([]);
-        for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++)
+        creepTaskInfos.push([]);
+
+        for (let taskIndex = 0; taskIndex < validTasks.length; taskIndex++)
         {
-            if (tasks[taskIndex][1].checkCreepMatches(creeps[creepIndex]))
+            let creepMatches: GeneralTask.CreepMatchesTask = validTasks[taskIndex][0].checkCreepMatches(creeps[creepIndex]);
+            if (creepMatches === GeneralTask.CreepMatchesTask.true)
             {
-                let taskPosition: RoomPosition | null = tasks[taskIndex][1].getPosition();
+                let taskPosition: RoomPosition = validTasks[taskIndex][0].getPosition();
 
-                if (taskPosition)
+                let distance: number = positionCalculations.distance(taskPosition, creeps[creepIndex].pos) * (validTasks[taskIndex][0].priority + 1) / 2;
+
+                creepTaskInfos[creepIndex].push([-1, taskIndex, distance]);
+            }
+            else if (creepMatches == GeneralTask.CreepMatchesTask.needResources)
+            {
+                if (resourceLocations.length == 0)
                 {
-                    let distance: number = positionCalculations.distance(taskPosition, creeps[creepIndex].pos) * (tasks[taskIndex][1].priority + 1) / 2
-                    creepDistances[creepIndex].push(distance);
-
-                    taskIndexForDistances[creepIndex].push([taskIndexForDistances[creepIndex].length, taskIndex]);
-
+                    continue;
                 }
+                let [bestResourceLocationIndex, distance] = findClosestResourceTowardsTask(creeps[creepIndex], resourceLocations, validTasks[taskIndex][0]);
+
+                creepTaskInfos[creepIndex].push([bestResourceLocationIndex, taskIndex, distance]);
             }
         }
     }
 
-    console.log(creepDistances, taskIndexForDistances);
-
-    let freeCount: number = creeps.length;
-    let creepFree: boolean[] = Array.from({ length: creeps.length }, () => true);
-
     for (let creepIndex = 0; creepIndex < creeps.length; creepIndex++)
     {
-        if (taskIndexForDistances[creepIndex].length === 0)
-        {
-            freeCount--;
-            creepFree[creepIndex] = false;
-        }
-        else
-        {
-            taskIndexForDistances[creepIndex].sort((a, b) => creepDistances[creepIndex][a[0]] - creepDistances[creepIndex][b[0]]);
-        }
+        console.log(creeps[creepIndex].name, creepTaskInfos[creepIndex]);
     }
 
-    while (freeCount > 0)
+
+
+
+    let noBetterMatches: boolean = false;
+
+    do
     {
-        console.log("Free creep cout: ", freeCount);
         let creepIndex: number = 0;
+
         for (; creepIndex < creeps.length; creepIndex++)
         {
             if (creeps[creepIndex].memory.workAmountLeft > 0)
@@ -110,83 +130,105 @@ export function assignCreeps(room: Room, roomTasks: { [taskId: string]: GeneralT
             break;
         }
 
-        console.log("starting to find best task", taskIndexForDistances[creepIndex]);
+
+        let creepTaskInfo: [number, number, number][] = creepTaskInfos[creepIndex];
 
         let possibleTask: boolean = false;
-        for (let distanceTaskIndex = 0; distanceTaskIndex < taskIndexForDistances[creepIndex].length; distanceTaskIndex++)
+
+        for (let distanceTaskIndex = 0; distanceTaskIndex < creepTaskInfos[creepIndex].length; distanceTaskIndex++)
         {
-            //console.log("first check");
-            let taskIndex = taskIndexForDistances[creepIndex][distanceTaskIndex][1];
-            let distanceIndex = taskIndexForDistances[creepIndex][distanceTaskIndex][0];
 
-            console.log(tasks[taskIndex][1].getID());
+            let resourceIndex: number = creepTaskInfo[distanceTaskIndex][0];
+            let taskIndex: number = creepTaskInfo[distanceTaskIndex][1];
+            let distance: number = creepTaskInfo[distanceTaskIndex][2];
 
-            if (tasks[taskIndex][1].hasValueLeft())
+            if (resourceIndex != -1 && !resourceLocations[resourceIndex][1].hasValueLeft())
+            {
+                continue;
+            }
+
+            if (validTasks[taskIndex][0].hasValueLeft())
             {
                 possibleTask = true;
-                //console.log("Valid match");
-                let distance: number = creepDistances[creepIndex][distanceIndex]
-                //console.log("chosen distance", distance, "from", creepDistances[creepIndex]);
+
                 let newElement: [number, number] = [creepIndex, distance];
                 if (newElement)
                 {
-                    taskCreeps[taskIndex].push(newElement);
-                    creepFree[creepIndex] = false;
-                    freeCount--;
-                    assignCreepToTask(tasks[taskIndex][1], creeps[creepIndex], room);
+                    validTasks[taskIndex][1].push(newElement);
+
+                    if (resourceIndex != -1)
+                    {
+                        // valid resource task
+                        assignCreepToTask(creeps[creepIndex], resourceLocations[resourceIndex][1], validTasks[taskIndex][0], room);
+                    }
+                    else
+                    {
+                        assignCreepToTask(creeps[creepIndex], null, validTasks[taskIndex][0], room);
+                    }
+
+
                 }
                 break;
             }
             else
             {
-                let otherCreepIndexDistance: [number, number] = taskCreeps[taskIndex].top();
-                let distance: number = creepDistances[creepIndex][distanceIndex]
-                if (distance < otherCreepIndexDistance[1])
+                console.log(validTasks[taskIndex][1].top());
+                let [otherCreepIndex, otherCreepDistance] = validTasks[taskIndex][1].top();
+
+                if (distance < otherCreepDistance)
                 {
                     possibleTask = true;
-                    unassignTempCreepToTask(tasks[taskIndex][1], creeps[otherCreepIndexDistance[0]], room);
-                    assignCreepToTask(tasks[taskIndex][1], creeps[creepIndex], room);
 
-                    taskCreeps[taskIndex].pop();
-                    creepFree[otherCreepIndexDistance[0]] = true;
+                    validTasks[taskIndex][1].pop();
+                    validTasks[taskIndex][1].push([creepIndex, distance]);
 
-                    taskCreeps[taskIndex].push([creepIndex, distance]);
-                    creepFree[creepIndex] = false;
+                    if (resourceIndex != -1)
+                    {
+                        // valid resource task
+                        unassignTempCreepToTask(creeps[otherCreepIndex], resourceLocations[resourceIndex][1], validTasks[taskIndex][0], room);
+                        assignCreepToTask(creeps[creepIndex], resourceLocations[resourceIndex][1], validTasks[taskIndex][0], room);
+                    }
+                    else
+                    {
+                        unassignTempCreepToTask(creeps[otherCreepIndex], null, validTasks[taskIndex][0], room);
+                        assignCreepToTask(creeps[creepIndex], null, validTasks[taskIndex][0], room);
+                    }
                     break;
                 }
             }
         }
-        if (!possibleTask)
+
+        if (possibleTask)
         {
-            creepFree[creepIndex] = false;
-            freeCount--;
+            noBetterMatches = true;
         }
     }
+    while (noBetterMatches)
+    {
+
+    }
+
 }
 
-export function assignCreepToTask(task: GeneralTask.Task, creep: Creep, room: Room)
+export function assignCreepToTask(creep: Creep, resourceTask: GeneralTask.Task | null, task: GeneralTask.Task, room: Room)
 {
-    console.log("Assigning creep to task");
-    let taskID: string | null = task.getID();
-    if (taskID)
+    if (resourceTask)
     {
-        creep.memory.taskID.push(taskID);
-
-        task.taskAssignCreep(creep.name);
-
-        creep.memory.workAmountLeft = 0;
+        resourceTask.taskAssignCreep(creep.name);
     }
+    task.taskAssignCreep(creep.name);
+
+    creep.memory.workAmountLeft = 0;
+
 }
 
-export function unassignTempCreepToTask(task: GeneralTask.Task, creep: Creep, room: Room)
+export function unassignTempCreepToTask(creep: Creep, resourceTask: GeneralTask.Task | null, task: GeneralTask.Task, room: Room)
 {
-    console.log("unassigning creep to task");
-    if (task)
+    if (resourceTask)
     {
-        task.unassignCreep(creep.name);
-
-        creep.memory.workAmountLeft = 1;
+        resourceTask.unassignCreep(creep.name);
     }
+    task.unassignCreep(creep.name);
 }
 
 

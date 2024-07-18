@@ -23,7 +23,7 @@ export class CollectDroppedResource extends GeneralTask.Task
         this.valueLeft = resource!.amount;
     }
 
-    public processCreepActions()
+    public processCreepAction(creep: Creep)
     {
         let resource: Resource | null = Game.getObjectById(this.id);
 
@@ -33,21 +33,18 @@ export class CollectDroppedResource extends GeneralTask.Task
             return;
         }
 
-        this.creeps.forEach(creepName =>
+        if (creep.store.getFreeCapacity() > 0)
         {
-            let creep: Creep = Game.creeps[creepName];
-            if (creep.store.getFreeCapacity() > 0 && resource)
+            if (creep.pickup(resource) === ERR_NOT_IN_RANGE)
             {
-                if (creep.pickup(resource) === ERR_NOT_IN_RANGE)
-                {
-                    creep.moveTo(resource);
-                }
+                creep.moveTo(resource);
             }
-            else
-            {
-                this.unassignCreep(creepName);
-            }
-        });
+        }
+        else
+        {
+            this.unassignCreep(creep.name);
+        }
+
 
     }
     public getID(): string
@@ -81,8 +78,12 @@ export class CollectDroppedResource extends GeneralTask.Task
             this.valueLeft -= creep.store.getFreeCapacity();
         });
     }
-    public checkCreepMatches(creep: Creep): boolean
+    public checkCreepMatches(creep: Creep): GeneralTask.CreepMatchesTask
     {
-        return creep.store.getCapacity() > 0 && creep.store[RESOURCE_ENERGY] < creep.store.getCapacity() / 2;
+        if (creep.store.getCapacity() > 0 && creep.store[RESOURCE_ENERGY] < creep.store.getCapacity() / 2)
+        {
+            return GeneralTask.CreepMatchesTask.true;
+        }
+        return GeneralTask.CreepMatchesTask.false;
     }
 }

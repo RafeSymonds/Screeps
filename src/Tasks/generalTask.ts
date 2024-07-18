@@ -27,6 +27,13 @@ export enum WorkType
     none
 }
 
+export enum CreepMatchesTask
+{
+    true,
+    needResources,
+    false
+}
+
 export class Task
 {
     type: TaskType;
@@ -82,7 +89,7 @@ export class Task
         });
     }
 
-    public processCreepActions()
+    public processCreepAction(creep: Creep)
     { }
     public hasValueLeft(): boolean
     {
@@ -91,18 +98,21 @@ export class Task
     public taskAssignCreep(creepName: string)
     {
         this.creeps.add(creepName);
+
+        let creep = Game.creeps[creepName];
+
+        creep.memory.taskID.push(this.getID())
     }
     public unassignCreep(creepName: string)
     {
-        let creep = Game.creeps[creepName];
+        this.creeps.delete(creepName);
 
-        creep.memory.taskID.pop();
     }
     public updateValueLeft()
     { }
-    public checkCreepMatches(creep: Creep): boolean
+    public checkCreepMatches(creep: Creep): CreepMatchesTask
     {
-        return false;
+        return CreepMatchesTask.false;
     }
 }
 
@@ -128,11 +138,11 @@ export function deleteCreepMemory(creepName: string)
             global.roomMemory[room.name].harvesterCreepCount -= 1;
         }
 
-        for (let taskIndex = 0; taskIndex < creepMemory.taskID.length; taskIndex++)
+        creepMemory.taskID.forEach(taskID =>
         {
-            global.roomMemory[room.name].tasks[creepMemory.taskID[taskIndex]].tryToRemoveDeadCreeps(creepName);
-            global.roomMemory[room.name].tasks[creepMemory.taskID[taskIndex]].updateValueLeft();
-        }
+            global.roomMemory[room.name].tasks[taskID].tryToRemoveDeadCreeps(creepName);
+        });
+
     }
     delete Memory.creeps[creepName];
 }

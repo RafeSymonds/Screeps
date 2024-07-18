@@ -28,7 +28,7 @@ export class CollectEnergyTask extends GeneralTask.Task
         return this.id;
     }
 
-    public processCreepActions()
+    public processCreepAction(creep: Creep)
     {
         let structure: AnyStoreStructure | null = Game.getObjectById(this.id);
 
@@ -38,24 +38,20 @@ export class CollectEnergyTask extends GeneralTask.Task
             return;
         }
 
-        this.creeps.forEach(creepName =>
+        if (creep.store.getFreeCapacity() > 0)
         {
-            let creep: Creep = Game.creeps[creepName];
+            let enegyToTransfer = Math.min(creep.store.getFreeCapacity(), structure!.store.getUsedCapacity() as number);
 
-            if (creep.store.getFreeCapacity() > 0 && structure)
+            if (creep.withdraw(structure, RESOURCE_ENERGY, enegyToTransfer) === ERR_NOT_IN_RANGE)
             {
-                let enegyToTransfer = Math.min(creep.store.getFreeCapacity(), structure!.store.getUsedCapacity() as number);
+                creep.moveTo(structure);
+            }
+        }
+        else
+        {
+            this.unassignCreep(creep.name);
+        }
 
-                if (creep.withdraw(structure, RESOURCE_ENERGY, enegyToTransfer) === ERR_NOT_IN_RANGE)
-                {
-                    creep.moveTo(structure);
-                }
-            }
-            else
-            {
-                this.unassignCreep(creepName);
-            }
-        });
     }
     public hasValueLeft(): boolean
     {
@@ -90,8 +86,12 @@ export class CollectEnergyTask extends GeneralTask.Task
         this.valueLeft = Math.max(this.valueLeft, 0);
 
     }
-    public checkCreepMatches(creep: Creep): boolean
+    public checkCreepMatches(creep: Creep): GeneralTask.CreepMatchesTask
     {
-        return creep.store.getCapacity() > 0 && creep.store[RESOURCE_ENERGY] < creep.store.getCapacity() / 2;
+        if (creep.store.getCapacity() > 0 && creep.store[RESOURCE_ENERGY] < creep.store.getCapacity() / 2)
+        {
+            return GeneralTask.CreepMatchesTask.true;
+        }
+        return GeneralTask.CreepMatchesTask.false;
     }
 }
