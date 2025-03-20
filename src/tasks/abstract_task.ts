@@ -80,11 +80,14 @@ export abstract class Task<T extends TaskInfo> {
         this.creeps.delete(creepID);
     }
 
-    public deleteTask() {
+    public removeAllCreeps() {
         this.creeps.forEach((_, creepID) => {
             this.removeCreep(creepID);
         });
+    }
 
+    public deleteTask() {
+        this.removeAllCreeps();
         delete global.roomMemory[this.roomName].tasks[this.taskID];
     }
 

@@ -1,6 +1,6 @@
 import { TaskInfo, Task, TaskType, WorkType, CreepMatchesTask } from "tasks/abstract_task";
 
-export class HarvestTaskInfo extends TaskInfo {
+class HarvestTaskInfo extends TaskInfo {
     workerParts: number;
 
     constructor(workerParts: number) {
@@ -28,6 +28,14 @@ export class HarvestTask extends Task<HarvestTaskInfo> {
         this.harvestSpotsLeft = this.maxHarvestSpots;
     }
 
+    public assignCreep(creep: Creep) {
+        let workParts = creep.getActiveBodyparts(WORK);
+        super.addCreep(creep.id, new HarvestTaskInfo(workParts));
+
+        this.harvestSpotsLeft -= 1;
+        this.workerPartsLeft -= workParts;
+    }
+
     protected unassignCreep(creepID: Id<Creep>) {
         this.harvestSpotsLeft += 1;
 
@@ -41,14 +49,6 @@ export class HarvestTask extends Task<HarvestTaskInfo> {
         }
         global.creepAssignedTasks[creepID].workAmountLeft = creep.store.getUsedCapacity();
         console.log("creep getCapacity", creep.store.getUsedCapacity());
-    }
-
-    public assignCreep(creep: Creep) {
-        let workParts = creep.getActiveBodyparts(WORK);
-        super.addCreep(creep.id, new HarvestTaskInfo(workParts));
-
-        this.harvestSpotsLeft -= 1;
-        this.workerPartsLeft -= workParts;
     }
 
     public checkCreepMatches(creep: Creep): CreepMatchesTask {

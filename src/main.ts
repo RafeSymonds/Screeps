@@ -44,6 +44,11 @@ declare global {
         tasks: { [taskID: string]: TaskInfo };
 
         energyLocations: { [taskId: string]: AbstractTask.TaskClassType };
+
+        workerCreepCount: number;
+        transporterCreepCount: number;
+        harvesterCreepCount: number;
+        harvesterLimit: number;
     }
     var roomMemory: { [roomName: string]: RoomMemory };
 
@@ -77,9 +82,21 @@ export const loop = ErrorMapper.wrapLoop(() => {
         global.tasksNeedingRefresh = [];
 
         gameRooms.forEach(([roomName, room]) => {
+            room.memory = {
+                tasks: {},
+                energyLocations: {},
+                workerCreepCount: 0,
+                transporterCreepCount: 0,
+                harvesterCreepCount: 0,
+                harvesterLimit: 10
+            };
             global.roomMemory[roomName] = {
                 tasks: {},
-                energyLocations: {}
+                energyLocations: {},
+                workerCreepCount: 0,
+                transporterCreepCount: 0,
+                harvesterCreepCount: 0,
+                harvesterLimit: 10
             };
 
             TaskScheduler.setUpTasks(room);
@@ -113,7 +130,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     // console.log("Prior to assigning:", Game.cpu.getUsed()-initialCPU);
 
     gameRooms.forEach(([roomName, room]) => {
-        Spawner.spawnWorker(room);
+        Spawner.spawnCreepInRoom(room);
         if (global.roomMemory[roomName]) {
             TaskScheduler.assignCreeps(room);
         }
