@@ -49,6 +49,9 @@ declare global {
 
     var pendingCreepNames: string[];
 
+    // roomName, taskID
+    var tasksNeedingRefresh: [string, string][];
+
     var creepNames: { [creepName: string]: Id<Creep> };
 }
 
@@ -71,6 +74,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
         global.roomMemory = {};
         global.pendingCreepNames = [];
         global.creepNames = {};
+        global.tasksNeedingRefresh = [];
 
         gameRooms.forEach(([roomName, room]) => {
             global.roomMemory[roomName] = {
@@ -82,7 +86,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
         });
 
         Object.values(Game.creeps).forEach(creep => {
-            global.creepAssignedTasks[creep.id] = { tasks: [], workAmountLeft: 0 };
+            global.creepAssignedTasks[creep.id] = { tasks: [], workAmountLeft: creep.store.getUsedCapacity() };
             global.creepNames[creep.name] = creep.id;
         });
     }
@@ -94,6 +98,13 @@ export const loop = ErrorMapper.wrapLoop(() => {
         global.creepNames[name] = creep.id;
     });
     global.pendingCreepNames.length = 0;
+    global.tasksNeedingRefresh.forEach(([roomName, taskID]) => {
+        let taskInfo = global.roomMemory[roomName].tasks[taskID];
+        if (taskInfo) {
+            taskInfo.task.updateValueLeft();
+        }
+    });
+    global.tasksNeedingRefresh.length = 0;
 
     // console.log("Prior to processing dead creeps:", Game.cpu.getUsed()-initialCPU);
 
@@ -113,6 +124,5 @@ export const loop = ErrorMapper.wrapLoop(() => {
         CreepManager.creepAction(creep);
     });
 
-    console.log(Game.cpu.getUsed() - initialCPU);
-    console.log("Overall cpu:", Game.cpu.getUsed());
+    console.log("CPU usage:", Game.cpu.getUsed() - initialCPU);
 });

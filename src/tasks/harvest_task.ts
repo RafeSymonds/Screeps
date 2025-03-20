@@ -40,6 +40,7 @@ export class HarvestTask extends Task<HarvestTaskInfo> {
             return;
         }
         global.creepAssignedTasks[creepID].workAmountLeft = creep.store.getUsedCapacity();
+        console.log("creep getCapacity", creep.store.getUsedCapacity());
     }
 
     public assignCreep(creep: Creep) {
@@ -53,6 +54,10 @@ export class HarvestTask extends Task<HarvestTaskInfo> {
     public checkCreepMatches(creep: Creep): CreepMatchesTask {
         if (creep.memory.role === TaskType.harvest) {
             return CreepMatchesTask.true;
+        }
+
+        if (global.creepAssignedTasks[creep.id].tasks.length > 0) {
+            return CreepMatchesTask.false;
         }
 
         if (creep.memory.role === TaskType.work && creep.store.getUsedCapacity() < creep.store.getCapacity() / 2) {
@@ -113,7 +118,7 @@ export class HarvestTask extends Task<HarvestTaskInfo> {
             if (creep !== null) {
                 this.assignCreep(creep);
             } else {
-                super.deleteCreep(creepID);
+                super.removeCreep(creepID);
             }
         });
         this.harvestSpotsLeft = this.maxHarvestSpots - super.numCreepsAssigned();

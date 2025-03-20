@@ -32,13 +32,13 @@ function setValueLeftAfterSpawning(room: Room) {
     let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
 
     spawns.forEach(spawn => {
-        global.roomMemory[room.name].tasks[spawn.id].task.updateValueLeft();
+        tasksNeedingRefresh.push([room.name, spawn.id]);
     });
 
     let extensions: StructureExtension[] = room.find(FIND_MY_STRUCTURES, {
         filter: { structureType: STRUCTURE_EXTENSION }
     });
     extensions.forEach(extension => {
-        global.roomMemory[room.name].tasks[extension.id].task.updateValueLeft();
+        tasksNeedingRefresh.push([room.name, extension.id]);
     });
 }

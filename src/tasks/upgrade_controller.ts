@@ -26,7 +26,7 @@ export class UpgradeControllerTask extends Task<UpgradeControllerInfo> {
             return CreepMatchesTask.false;
         }
         if (
-            creep.store.getCapacity() > 0 &&
+            global.creepAssignedTasks[creep.id].workAmountLeft >= creep.store.getCapacity() / 2 &&
             creep.memory.role === TaskType.work &&
             creep.store[RESOURCE_ENERGY] >= creep.store.getCapacity() / 2
         ) {

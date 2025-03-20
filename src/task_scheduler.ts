@@ -17,15 +17,15 @@ export function assignCreeps(room: Room) {
         return a.task.priority - b.task.priority;
     });
 
-    for (const taskInfo of taskInfos) {
-        console.log(taskInfo.task.constructor.name);
-    }
-
     creeps.forEach(creep => {
         for (const taskInfo of taskInfos) {
             let task = taskInfo.task;
 
-            if (task.hasValueLeft() && task.checkCreepMatches(creep) === CreepMatchesTask.true) {
+            if (
+                task.hasValueLeft() &&
+                !task.creeps.has(creep.id) &&
+                task.checkCreepMatches(creep) === CreepMatchesTask.true
+            ) {
                 task.assignCreep(creep);
                 break;
             }

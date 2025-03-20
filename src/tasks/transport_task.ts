@@ -19,13 +19,15 @@ export class TransportTask extends Task<TransportTaskInfo> {
         this.id = structure.id;
 
         this.valueLeft = this.getResourceAmount(structure);
-        console.log("**************", this.valueLeft);
+        console.log("transport task value start", this.valueLeft);
     }
 
     public assignCreep(creep: Creep) {
         let value = creep.store.getUsedCapacity() as number;
 
         super.addCreep(creep.id, new TransportTaskInfo(value));
+
+        global.creepAssignedTasks[creep.id].workAmountLeft -= value;
 
         this.valueLeft -= value;
     }
@@ -38,11 +40,9 @@ export class TransportTask extends Task<TransportTaskInfo> {
 
     public checkCreepMatches(creep: Creep): CreepMatchesTask {
         if (
-            creep.store.getUsedCapacity() >= creep.store.getCapacity() / 2 ||
-            creep.store.getUsedCapacity() >= this.valueLeft
+            global.creepAssignedTasks[creep.id].workAmountLeft >= creep.store.getCapacity() / 2 ||
+            global.creepAssignedTasks[creep.id].workAmountLeft >= this.valueLeft
         ) {
-            console.log(creep.store.getUsedCapacity());
-            console.log(creep.store.getCapacity() / 2);
             return CreepMatchesTask.true;
         }
 
@@ -57,7 +57,7 @@ export class TransportTask extends Task<TransportTaskInfo> {
             return;
         }
 
-        if (creep.store.getUsedCapacity() > 0) {
+        if (creep.store.getUsedCapacity() > 0 && structure.store.getFreeCapacity() !== 0) {
             let enegyToTransfer = Math.min(creep.store[RESOURCE_ENERGY], this.getResourceAmount(structure));
 
             if (creep.transfer(structure, RESOURCE_ENERGY, enegyToTransfer) === ERR_NOT_IN_RANGE) {
@@ -87,6 +87,7 @@ export class TransportTask extends Task<TransportTaskInfo> {
                 this.valueLeft -= creep.store.getUsedCapacity();
             }
         });
+        console.log("******************* updating transport task", this.valueLeft);
     }
 
     public getResourceAmount(structure: AnyStoreStructure): number {
