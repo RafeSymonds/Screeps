@@ -69,7 +69,7 @@ export class HarvestTask extends Task<HarvestTaskInfo> {
         }
 
         if (creep.store.getFreeCapacity() == 0) {
-            this.unassignCreep(creep.id);
+            this.removeCreep(creep.id);
         } else if (this.containerID) {
             let container: StructureContainer | null = Game.getObjectById(this.containerID);
 

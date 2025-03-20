@@ -1,7 +1,10 @@
 import * as AbstractTask from "tasks/abstract_task";
 import { HarvestTask } from "tasks/harvest_task";
+import { UpgradeControllerTask } from "tasks/upgrade_controller";
+import { CreepMatchesTask } from "tasks/abstract_task";
 
 export function assignCreeps(room: Room) {
+    console.log("assigning creeps");
     let creeps = room.find(FIND_MY_CREEPS);
 
     let roomMemory = global.roomMemory[room.name];
@@ -11,7 +14,7 @@ export function assignCreeps(room: Room) {
         for (const taskID in roomTasks) {
             let task = roomTasks[taskID].task;
 
-            if (task.hasValueLeft() && task.checkCreepMatches(creep)) {
+            if (task.hasValueLeft() && task.checkCreepMatches(creep) === CreepMatchesTask.true) {
                 task.assignCreep(creep);
             }
         }
@@ -33,6 +36,10 @@ export function setUpTasks(room: Room): void {
             switch (structure.structureType) {
                 case STRUCTURE_SPAWN:
                     priority = 3;
+                    break;
+                case STRUCTURE_CONTROLLER:
+                    priority = 11;
+                    new UpgradeControllerTask(structure as StructureController);
                     break;
                 default:
                     break;

@@ -3,11 +3,20 @@ export function processDeadCreeps() {
     for (const name in Memory.creeps) {
         if (!(name in Game.creeps)) {
             // process dead creep
-            let creep = Game.creeps[name];
+            let creepID = global.creepNames[name];
 
-            global.creepAssignedTasks[creep.id].tasks.forEach(taskInfo => {
-                global.roomMemory[taskInfo.roomName].tasks[taskInfo.taskID].task.removeCreep(creep.id);
+            let creepInfo = global.creepAssignedTasks[creepID];
+            if (!creepInfo) {
+                continue;
+            }
+
+            creepInfo.tasks.forEach(taskInfo => {
+                global.roomMemory[taskInfo.roomName].tasks[taskInfo.taskID].task.removeCreep(creepID);
             });
+
+            delete global.creepAssignedTasks[creepID];
+            delete global.creepNames[name];
+            delete Memory.creeps[name];
         }
     }
 }

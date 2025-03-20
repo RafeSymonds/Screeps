@@ -47,6 +47,8 @@ declare global {
     var roomMemory: { [roomName: string]: RoomMemory };
 
     var pendingCreepNames: string[];
+
+    var creepNames: { [creepName: string]: Id<Creep> };
 }
 
 // Syntax for adding proprties to `global` (ex "global.log")
@@ -59,14 +61,15 @@ declare namespace NodeJS {
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
-    console.log("loop");
-
+    const initialCPU = Game.cpu.getUsed();
+    console.log("Initial:", Game.cpu.getUsed());
     const gameRooms: [string, Room][] = Object.entries(Game.rooms);
 
     if (!global.roomMemory) {
         global.creepAssignedTasks = {};
         global.roomMemory = {};
         global.pendingCreepNames = [];
+        global.creepNames = {};
 
         gameRooms.forEach(([roomName, room]) => {
             global.roomMemory[roomName] = {
@@ -75,20 +78,27 @@ export const loop = ErrorMapper.wrapLoop(() => {
             };
 
             TaskScheduler.setUpTasks(room);
+        });
 
-            Object.values(Game.creeps).forEach(creep => {
-                global.creepAssignedTasks[creep.id] = { tasks: [], workAmountLeft: 0 };
-            });
+        Object.values(Game.creeps).forEach(creep => {
+            global.creepAssignedTasks[creep.id] = { tasks: [], workAmountLeft: 0 };
+            global.creepNames[creep.name] = creep.id;
         });
     }
+    console.log("After global room check:", Game.cpu.getUsed()-initialCPU);
 
     global.pendingCreepNames.forEach(name => {
-        console.log(name);
-        global.creepAssignedTasks[Game.creeps[name].id] = { tasks: [], workAmountLeft: 0 };
+        let creep = Game.creeps[name];
+        global.creepAssignedTasks[creep.id] = { tasks: [], workAmountLeft: 0 };
+        global.creepNames[name] = creep.id;
     });
-    global.pendingCreepNames = [];
+    global.pendingCreepNames.length = 0;
+
+    console.log("Prior to processing dead creeps:", Game.cpu.getUsed()-initialCPU);
 
     CreepManager.processDeadCreeps();
+
+    console.log("Prior to assigning:", Game.cpu.getUsed()-initialCPU);
 
     gameRooms.forEach(([roomName, room]) => {
         Spawner.spawnWorker(room);
@@ -96,8 +106,12 @@ export const loop = ErrorMapper.wrapLoop(() => {
             TaskScheduler.assignCreeps(room);
         }
     });
+    console.log("After assigning:", Game.cpu.getUsed()-initialCPU);
 
     Object.values(Game.creeps).forEach(creep => {
         CreepManager.creepAction(creep);
     });
+
+    console.log(Game.cpu.getUsed()-initialCPU);
+    console.log("Overall cpu:",Game.cpu.getUsed());
 });
