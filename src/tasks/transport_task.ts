@@ -8,89 +8,93 @@ export class TransportTaskInfo extends TaskInfo {
         this.amount = amount;
     }
 }
-// export class TransportTask extends Task<TransportTaskInfo> {
-//     id: Id<AnyStoreStructure>;
-//
-//     valueLeft: number;
-//
-//     constructor(structure: AnyStoreStructure, priority: number) {
-//         super(structure.room.name, TaskType.transport, WorkType.none, priority, structure!.pos);
-//
-//         this.id = structure.id;
-//         this.valueLeft = structure!.store.getFreeCapacity() as number;
-//     }
-//
-//     public assignCreep(creep: Creep) {
-//         let value = creep.store.getUsedCapacity() as number;
-//
-//         super.addCreep(creep.id, new TransportTaskInfo(value));
-//
-//         this.valueLeft -= value;
-//     }
-//
-//     protected unassignCreep(creepID: Id<Creep>) {
-//         let taskInfo = this.creeps.get(creepID);
-//         this.valueLeft += taskInfo!.amount;
-//         global.creepAssignedTasks[creepID].workAmountLeft += taskInfo!.amount;
-//     }
-//
-//     public checkCreepMatches(creep: Creep): CreepMatchesTask {
-//         if (
-//             creep.store.getUsedCapacity() >= creep.store.getCapacity() / 2 ||
-//             creep.store.getUsedCapacity() >= this.valueLeft
-//         ) {
-//             return CreepMatchesTask.true;
-//         }
-//
-//         return CreepMatchesTask.false;
-//     }
-//
-//     protected processCreepAction(creep: Creep) {
-//         let structure: AnyStoreStructure | null = Game.getObjectById(this.id);
-//
-//         if (!structure || this.getResourceAmount(structure) == 0) {
-//             this.deleteTask();
-//             return;
-//         }
-//
-//         if (creep.store.getUsedCapacity() > 0) {
-//             let enegyToTransfer = Math.min(creep.store[RESOURCE_ENERGY], this.getResourceAmount(structure));
-//             if (creep.transfer(structure, RESOURCE_ENERGY, enegyToTransfer) === ERR_NOT_IN_RANGE) {
-//                 creep.moveTo(structure);
-//             }
-//         } else {
-//             this.unassignCreep(creep.name);
-//         }
-//     }
-//     public hasValueLeft(): boolean {
-//         return this.valueLeft > 0;
-//     }
-//     public taskAssignCreep(creepName: string) {
-//         super.taskAssignCreep(creepName);
-//
-//         let creep: Creep = Game.creeps[creepName];
-//     }
-//     public updateValueLeft() {
-//         let structure: AnyStoreStructure | null = Game.getObjectById(this.id);
-//         if (!structure) {
-//             return;
-//         }
-//
-//         this.valueLeft = this.getResourceAmount(structure);
-//
-//         this.creeps.forEach(creepName => {
-//             let creep: Creep = Game.creeps[creepName];
-//
-//             this.valueLeft -= creep.store.getUsedCapacity();
-//         });
-//     }
-//
-//     public getResourceAmount(structure: AnyStoreStructure): number {
-//         let resourceValue: number | null = structure.store.getFreeCapacity();
-//         if (resourceValue) {
-//             return resourceValue;
-//         } else {
-//             return structure.store.getFreeCapacity(RESOURCE_ENERGY);
-//         }
-//     }
-// }
+export class TransportTask extends Task<TransportTaskInfo> {
+    id: Id<AnyStoreStructure>;
+
+    valueLeft: number;
+
+    constructor(structure: AnyStoreStructure, priority: number) {
+        super(structure.id, structure.room.name, TaskType.transport, WorkType.none, priority, structure!.pos);
+
+        this.id = structure.id;
+
+        this.valueLeft = this.getResourceAmount(structure);
+        console.log("**************", this.valueLeft);
+    }
+
+    public assignCreep(creep: Creep) {
+        let value = creep.store.getUsedCapacity() as number;
+
+        super.addCreep(creep.id, new TransportTaskInfo(value));
+
+        this.valueLeft -= value;
+    }
+
+    protected unassignCreep(creepID: Id<Creep>) {
+        let taskInfo = this.creeps.get(creepID);
+        this.valueLeft += taskInfo!.amount;
+        global.creepAssignedTasks[creepID].workAmountLeft += taskInfo!.amount;
+    }
+
+    public checkCreepMatches(creep: Creep): CreepMatchesTask {
+        if (
+            creep.store.getUsedCapacity() >= creep.store.getCapacity() / 2 ||
+            creep.store.getUsedCapacity() >= this.valueLeft
+        ) {
+            console.log(creep.store.getUsedCapacity());
+            console.log(creep.store.getCapacity() / 2);
+            return CreepMatchesTask.true;
+        }
+
+        return CreepMatchesTask.false;
+    }
+
+    public processCreepAction(creep: Creep) {
+        let structure: AnyStoreStructure | null = Game.getObjectById(this.id);
+
+        if (!structure) {
+            this.deleteTask();
+            return;
+        }
+
+        if (creep.store.getUsedCapacity() > 0) {
+            let enegyToTransfer = Math.min(creep.store[RESOURCE_ENERGY], this.getResourceAmount(structure));
+
+            if (creep.transfer(structure, RESOURCE_ENERGY, enegyToTransfer) === ERR_NOT_IN_RANGE) {
+                creep.moveTo(structure);
+            }
+        } else {
+            global.creepAssignedTasks[creep.id].workAmountLeft = 0;
+            this.removeCreep(creep.id);
+        }
+    }
+    public hasValueLeft(): boolean {
+        return this.valueLeft > 0;
+    }
+
+    public updateValueLeft() {
+        let structure: AnyStoreStructure | null = Game.getObjectById(this.id);
+        if (!structure) {
+            return;
+        }
+
+        this.valueLeft = this.getResourceAmount(structure);
+
+        this.creeps.forEach((_, creepID) => {
+            let creep: Creep | null = Game.getObjectById(creepID);
+
+            if (creep) {
+                this.valueLeft -= creep.store.getUsedCapacity();
+            }
+        });
+    }
+
+    public getResourceAmount(structure: AnyStoreStructure): number {
+        let resourceValue: number | null = structure.store.getFreeCapacity();
+        if (resourceValue) {
+            return resourceValue;
+        } else {
+            return structure.store.getFreeCapacity(RESOURCE_ENERGY);
+        }
+    }
+}

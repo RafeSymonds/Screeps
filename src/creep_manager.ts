@@ -25,6 +25,7 @@ export function creepAction(creep: Creep) {
     let creepTaskInfo = global.creepAssignedTasks[creep.id];
 
     if (!creepTaskInfo) {
+        global.creepAssignedTasks[creep.id] = { tasks: [], workAmountLeft: 0 };
         return;
     }
 

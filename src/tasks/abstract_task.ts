@@ -24,9 +24,7 @@ export enum CreepMatchesTask {
 export class TaskInfo {}
 
 export abstract class Task<T extends TaskInfo> {
-    static staticProperty: number = 0;
-
-    taskID: number;
+    taskID: string;
 
     roomName: string;
 
@@ -37,9 +35,15 @@ export abstract class Task<T extends TaskInfo> {
 
     creeps: Map<Id<Creep>, T> = new Map();
 
-    constructor(roomName: string, type: TaskType, workType: WorkType, priority: number, position: RoomPosition) {
-        this.taskID = Task.staticProperty;
-        Task.staticProperty += 1;
+    constructor(
+        taskID: string,
+        roomName: string,
+        type: TaskType,
+        workType: WorkType,
+        priority: number,
+        position: RoomPosition
+    ) {
+        this.taskID = taskID;
 
         this.roomName = roomName;
 
@@ -51,7 +55,7 @@ export abstract class Task<T extends TaskInfo> {
         global.roomMemory[roomName].tasks[this.taskID] = { task: this, roomName: roomName };
     }
 
-    public getTaskID(): number {
+    public getTaskID(): string {
         return this.taskID;
     }
 
@@ -87,6 +91,7 @@ export abstract class Task<T extends TaskInfo> {
     public removeCreep(creepID: Id<Creep>): void {
         this.unassignCreep(creepID);
         this.creeps.delete(creepID);
+        global.creepAssignedTasks[creepID].tasks.shift();
     }
 
     public abstract assignCreep(creep: Creep): void;

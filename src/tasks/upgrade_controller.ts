@@ -10,7 +10,7 @@ export class UpgradeControllerTask extends Task<UpgradeControllerInfo> {
     id: Id<StructureController>;
 
     constructor(controller: StructureController) {
-        super(controller.room.name, TaskType.work, WorkType.upgradeController, 30, controller!.pos);
+        super(controller.id, controller.room.name, TaskType.work, WorkType.upgradeController, 30, controller!.pos);
 
         this.id = controller.id;
     }
@@ -48,6 +48,7 @@ export class UpgradeControllerTask extends Task<UpgradeControllerInfo> {
                 creep.moveTo(controller);
             }
         } else {
+            global.creepAssignedTasks[creep.id].workAmountLeft = 0;
             this.removeCreep(creep.id);
         }
     }

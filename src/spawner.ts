@@ -25,5 +25,20 @@ export function spawnWorker(room: Room) {
         }) === OK
     ) {
         global.pendingCreepNames.push(name);
+        setValueLeftAfterSpawning(room);
     }
+}
+function setValueLeftAfterSpawning(room: Room) {
+    let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
+
+    spawns.forEach(spawn => {
+        global.roomMemory[room.name].tasks[spawn.id].task.updateValueLeft();
+    });
+
+    let extensions: StructureExtension[] = room.find(FIND_MY_STRUCTURES, {
+        filter: { structureType: STRUCTURE_EXTENSION }
+    });
+    extensions.forEach(extension => {
+        global.roomMemory[room.name].tasks[extension.id].task.updateValueLeft();
+    });
 }

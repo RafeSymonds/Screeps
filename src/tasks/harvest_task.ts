@@ -19,7 +19,7 @@ export class HarvestTask extends Task<HarvestTaskInfo> {
     containerID: Id<StructureContainer> | null;
 
     constructor(source: Source, containerID: Id<StructureContainer> | null = null) {
-        super(source.room.name, TaskType.harvest, WorkType.harvest, 10, source.pos);
+        super(source.id, source.room.name, TaskType.harvest, WorkType.harvest, 10, source.pos);
 
         this.source_id = source!.id;
         this.workerPartsLeft = 5;
