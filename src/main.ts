@@ -1,14 +1,3 @@
-import { ErrorMapper } from "utils/ErrorMapper";
-
-import * as GeneralTask from "./Tasks/generalTask";
-import * as TaskScheduler from "./taskScheduler";
-import * as spawner from "./spawner";
-import * as buildBase from "./buildBase";
-import * as CreepManager from "./creepManager"
-import { forEach, memoize } from "lodash";
-import { globalAgent } from "http";
-import { privateEncrypt } from "crypto";
-
 declare global
 {
 
@@ -29,23 +18,10 @@ declare global
 
     interface CreepMemory
     {
-        role: GeneralTask.TaskType;
-        taskID: string[];
-        workAmountLeft: number;
-        roomName: string;
     }
 
     interface RoomMemory
     {
-        tasks: { [taskId: string]: GeneralTask.Task };
-
-        // position, amount of engery left, on ground
-        energyLocations: { [taskId: string]: GeneralTask.Task };
-        workerCreepCount: number;
-        transporterCreepCount: number;
-        harvesterCreepCount: number;
-        harvesterLimit: number;
-        baseCenter: [number, number];
     }
 
 
@@ -59,7 +35,6 @@ declare namespace NodeJS
     interface Global
     {
         log: any;
-
     }
 }
 
@@ -67,7 +42,7 @@ declare namespace NodeJS
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() =>
 {
-    const gameRooms: [string, Room][] = Object.entries(Game.rooms);
+  const gameRooms: [string, Room][] = Object.entries(Game.rooms);
 
     if (global.roomMemory == null)
     {
@@ -88,57 +63,5 @@ export const loop = ErrorMapper.wrapLoop(() =>
         });
         // need to recreate memory
     }
-    //console.log(`Current game tick is ${Game.time}`);
-    // Automatically delete memory of missing creeps
-    for (const name in Memory.creeps)
-    {
-        if (!(name in Game.creeps))
-        {
-            GeneralTask.deleteCreepMemory(name);
-        }
-    }
 
-    gameRooms.forEach(([roomName, room]) =>
-    {
-        if (global.roomMemory[roomName])
-        {
-            //everyr 40 ticks plan base
-            if (Game.time % 40 === 0)
-            {
-                buildBase.buildBase(room);
-            }
-
-            TaskScheduler.setUpTasks(room);
-
-            //priorities.setUpTasks(room);
-
-            let allCreeps = room.find(FIND_MY_CREEPS)
-
-            let creepsNeedingTasks: Creep[] = [];
-
-            allCreeps.forEach(creep =>
-            {
-                if (creep.memory.taskID && (creep.memory.workAmountLeft > 0 || creep.memory.taskID.length == 0))
-                {
-                    creepsNeedingTasks.push(creep);
-                }
-            });
-
-            console.log("Creeps who can get new tasks:", creepsNeedingTasks)
-
-            let tasks: { [taskId: string]: GeneralTask.Task } = global.roomMemory[room.name].tasks;
-
-            TaskScheduler.assignCreeps(room, tasks, creepsNeedingTasks, global.roomMemory[roomName].energyLocations);
-
-            allCreeps.forEach(creep =>
-            {
-                CreepManager.creepAction(creep, room);
-            });
-
-
-            spawner.spawnCreepInRoom(room);
-        }
-        room.memory = global.roomMemory[roomName];
-    });
-    //console.log(Game.cpu.getUsed());
 });
