@@ -1,4 +1,6 @@
 import { ErrorMapper } from "utils/ErrorMapper";
+import * as CreepManager from "creep_manager";
+import * as AbstractTask from "tasks/abstract_task";
 
 declare global {
     /*
@@ -15,10 +17,25 @@ declare global {
         log: any;
     }
 
-    interface CreepMemory {}
+    // actual creep memory. Persistent Memory
+    interface CreepMemory {
+        role: number;
+    }
 
-    interface RoomMemory {}
+    interface CreepTaskDetails {
+        tasks: number[];
+        workAmountLeft: number;
+    }
+    var creepAssignedTasks: { [creepID: Id<Creep>]: CreepTaskDetails };
 
+    interface Task {
+        roomID: number;
+    }
+    var tasks: { [taskID: number]: Task };
+
+    interface RoomMemory {
+        energyLocations: { [taskId: string]: AbstractTask.Task };
+    }
     var roomMemory: { [roomName: string]: RoomMemory };
 }
 
@@ -32,5 +49,7 @@ declare namespace NodeJS {
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
+    CreepManager.processDeadCreeps();
+
     const gameRooms: [string, Room][] = Object.entries(Game.rooms);
 });

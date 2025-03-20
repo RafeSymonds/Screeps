@@ -7,8 +7,7 @@ import { Position } from "source-map";
 import internal from "stream";
 import { setFlagsFromString } from "v8";
 
-export enum TaskType
-{
+export enum TaskType {
     work,
     transport,
     collect,
@@ -16,8 +15,7 @@ export enum TaskType
     dropResource
 }
 
-export enum WorkType
-{
+export enum WorkType {
     harvest,
     build,
     repair,
@@ -27,15 +25,13 @@ export enum WorkType
     none
 }
 
-export enum CreepMatchesTask
-{
+export enum CreepMatchesTask {
     true,
     needResources,
     false
 }
 
-export class Task
-{
+export class Task {
     type: TaskType;
     workType: WorkType;
     priority: number;
@@ -43,35 +39,27 @@ export class Task
 
     creeps: Set<string> = new Set();
 
-    constructor(type: TaskType, workType: WorkType, priority: number, position: RoomPosition)
-    {
+    constructor(type: TaskType, workType: WorkType, priority: number, position: RoomPosition) {
         this.type = type;
         this.workType = workType;
         this.priority = priority;
         this.position = position;
     }
-    public getID(): string
-    {
+    public getID(): string {
         return "";
     }
-    public getPosition(): RoomPosition
-    {
+    public getPosition(): RoomPosition {
         return this.position;
     }
-    public getCreeps(): Set<string>
-    {
+    public getCreeps(): Set<string> {
         return this.creeps;
     }
-    public numCreepsAssigned(): number
-    {
+    public numCreepsAssigned(): number {
         return this.creeps.size;
     }
-    public tryToRemoveDeadCreeps(creepName: string)
-    {
-        this.creeps.forEach(creepName =>
-        {
-            if (!Game.creeps[creepName])
-            {
+    public tryToRemoveDeadCreeps(creepName: string) {
+        this.creeps.forEach(creepName => {
+            if (!Game.creeps[creepName]) {
                 this.creeps.delete(creepName);
                 deleteCreepMemory(creepName);
             }
@@ -79,70 +67,51 @@ export class Task
 
         this.updateValueLeft();
     }
-    public deleteTask()
-    {
+    public deleteTask() {
         delete global.roomMemory[this.position.roomName].tasks[this.getID()];
 
-        this.creeps.forEach(creep =>
-        {
+        this.creeps.forEach(creep => {
             this.unassignCreep(creep);
         });
     }
 
-    public processCreepAction(creep: Creep)
-    { }
-    public hasValueLeft(): boolean
-    {
+    public processCreepAction(creep: Creep) {}
+    public hasValueLeft(): boolean {
         return false;
     }
-    public taskAssignCreep(creepName: string)
-    {
+    public taskAssignCreep(creepName: string) {
         this.creeps.add(creepName);
 
         let creep = Game.creeps[creepName];
 
-        creep.memory.taskID.push(this.getID())
+        creep.memory.taskID.push(this.getID());
     }
-    public unassignCreep(creepName: string)
-    {
+    public unassignCreep(creepName: string) {
         this.creeps.delete(creepName);
     }
-    public updateValueLeft()
-    { }
-    public checkCreepMatches(creep: Creep): CreepMatchesTask
-    {
+    public updateValueLeft() {}
+    public checkCreepMatches(creep: Creep): CreepMatchesTask {
         return CreepMatchesTask.false;
     }
 }
 
-
-export function deleteCreepMemory(creepName: string)
-{
+export function deleteCreepMemory(creepName: string) {
     let creepMemory: CreepMemory = Memory.creeps[creepName];
     let room: Room = Game.rooms[creepMemory.roomName];
-    console.log("deleting creep memory in ", room)
-    if (room)
-    {
+    console.log("deleting creep memory in ", room);
+    if (room) {
         console.log("valid room");
-        if (creepMemory.role === TaskType.work)
-        {
+        if (creepMemory.role === TaskType.work) {
             global.roomMemory[room.name].workerCreepCount -= 1;
-        }
-        else if (creepMemory.role === TaskType.transport)
-        {
+        } else if (creepMemory.role === TaskType.transport) {
             global.roomMemory[room.name].transporterCreepCount -= 1;
-        }
-        else if (creepMemory.role === TaskType.harvest)
-        {
+        } else if (creepMemory.role === TaskType.harvest) {
             global.roomMemory[room.name].harvesterCreepCount -= 1;
         }
 
-        creepMemory.taskID.forEach(taskID =>
-        {
+        creepMemory.taskID.forEach(taskID => {
             global.roomMemory[room.name].tasks[taskID].tryToRemoveDeadCreeps(creepName);
         });
-
     }
     delete Memory.creeps[creepName];
 }
-
