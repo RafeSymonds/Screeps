@@ -2,6 +2,7 @@ import { ErrorMapper } from "utils/ErrorMapper";
 import * as CreepManager from "creep_manager";
 import * as TaskScheduler from "task_scheduler";
 import * as AbstractTask from "tasks/abstract_task";
+import * as Spawner from "spawner";
 
 declare global {
     /*
@@ -36,6 +37,7 @@ declare global {
 
     interface TaskInfo {
         task: AbstractTask.TaskClassType;
+        roomName: string;
     }
 
     interface RoomMemory {
@@ -55,6 +57,8 @@ declare namespace NodeJS {
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
+    console.log("loop");
+
     const gameRooms: [string, Room][] = Object.entries(Game.rooms);
 
     if (global.roomMemory == null) {
@@ -73,6 +77,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     CreepManager.processDeadCreeps();
 
     gameRooms.forEach(([roomName, room]) => {
+        Spawner.spawnWorker(room);
         if (global.roomMemory[roomName]) {
             TaskScheduler.assignCreeps(room);
         }

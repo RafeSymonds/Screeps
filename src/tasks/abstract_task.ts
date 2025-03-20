@@ -48,7 +48,7 @@ export abstract class Task<T extends TaskInfo> {
         this.priority = priority;
         this.position = position;
 
-        global.roomMemory[roomName].tasks[this.taskID] = { task: this };
+        global.roomMemory[roomName].tasks[this.taskID] = { task: this, roomName: roomName };
     }
 
     public getTaskID(): number {
