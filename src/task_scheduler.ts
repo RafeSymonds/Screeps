@@ -1,4 +1,3 @@
-import { globalAgent } from "https";
 import * as AbstractTask from "tasks/abstract_task";
 import { HarvestTask } from "tasks/harvest_task";
 

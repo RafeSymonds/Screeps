@@ -17,7 +17,13 @@ export function spawnWorker(room: Room) {
         bodyParts.push(MOVE);
     }
 
-    spawns[0].spawnCreep(bodyParts, "Worker" + Game.time, {
-        memory: { role: taskTypes }
-    });
+    let name = "Worker" + Game.time;
+
+    if (
+        spawns[0].spawnCreep(bodyParts, name, {
+            memory: { role: taskTypes }
+        }) === OK
+    ) {
+        global.pendingCreepNames.push(name);
+    }
 }

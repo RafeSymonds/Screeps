@@ -45,6 +45,8 @@ declare global {
         energyLocations: { [taskId: string]: AbstractTask.TaskClassType };
     }
     var roomMemory: { [roomName: string]: RoomMemory };
+
+    var pendingCreepNames: string[];
 }
 
 // Syntax for adding proprties to `global` (ex "global.log")
@@ -61,8 +63,10 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     const gameRooms: [string, Room][] = Object.entries(Game.rooms);
 
-    if (global.roomMemory == null) {
+    if (!global.roomMemory) {
+        global.creepAssignedTasks = {};
         global.roomMemory = {};
+        global.pendingCreepNames = [];
 
         gameRooms.forEach(([roomName, room]) => {
             global.roomMemory[roomName] = {
@@ -71,8 +75,18 @@ export const loop = ErrorMapper.wrapLoop(() => {
             };
 
             TaskScheduler.setUpTasks(room);
+
+            Object.values(Game.creeps).forEach(creep => {
+                global.creepAssignedTasks[creep.id] = { tasks: [], workAmountLeft: 0 };
+            });
         });
     }
+
+    global.pendingCreepNames.forEach(name => {
+        console.log(name);
+        global.creepAssignedTasks[Game.creeps[name].id] = { tasks: [], workAmountLeft: 0 };
+    });
+    global.pendingCreepNames = [];
 
     CreepManager.processDeadCreeps();
 

@@ -1,14 +1,6 @@
-import { strict } from "assert";
-import { drop, extend, forEach, take, words } from "lodash";
-import { worker } from "cluster";
-import { createPrivateKey } from "crypto";
-import { Position } from "source-map";
-import internal from "stream";
-import { setFlagsFromString } from "v8";
+import { TaskInfo, Task, TaskType, WorkType, CreepMatchesTask } from "tasks/abstract_task";
 
-import * as AbstractTask from "tasks/abstract_task";
-
-export class HarvestTaskInfo extends AbstractTask.TaskInfo {
+export class HarvestTaskInfo extends TaskInfo {
     workerParts: number;
 
     constructor(workerParts: number) {
@@ -18,7 +10,7 @@ export class HarvestTaskInfo extends AbstractTask.TaskInfo {
     }
 }
 
-export class HarvestTask extends AbstractTask.Task<HarvestTaskInfo> {
+export class HarvestTask extends Task<HarvestTaskInfo> {
     source_id: Id<Source>;
     maxHarvestSpots: number = 8;
     harvestSpotsLeft: number;
@@ -27,7 +19,7 @@ export class HarvestTask extends AbstractTask.Task<HarvestTaskInfo> {
     containerID: Id<StructureContainer> | null;
 
     constructor(source: Source, containerID: Id<StructureContainer> | null = null) {
-        super(source.room.name, AbstractTask.TaskType.harvest, AbstractTask.WorkType.harvest, 10, source.pos);
+        super(source.room.name, TaskType.harvest, WorkType.harvest, 10, source.pos);
 
         this.source_id = source!.id;
         this.workerPartsLeft = 5;
@@ -58,18 +50,15 @@ export class HarvestTask extends AbstractTask.Task<HarvestTaskInfo> {
         this.workerPartsLeft -= workParts;
     }
 
-    public checkCreepMatches(creep: Creep): AbstractTask.CreepMatchesTask {
-        if (creep.memory.role === AbstractTask.TaskType.harvest) {
-            return AbstractTask.CreepMatchesTask.true;
+    public checkCreepMatches(creep: Creep): CreepMatchesTask {
+        if (creep.memory.role === TaskType.harvest) {
+            return CreepMatchesTask.true;
         }
 
-        if (
-            creep.memory.role === AbstractTask.TaskType.work &&
-            creep.store.getUsedCapacity() < creep.store.getCapacity() / 2
-        ) {
-            return AbstractTask.CreepMatchesTask.true;
+        if (creep.memory.role === TaskType.work && creep.store.getUsedCapacity() < creep.store.getCapacity() / 2) {
+            return CreepMatchesTask.true;
         }
-        return AbstractTask.CreepMatchesTask.false;
+        return CreepMatchesTask.false;
     }
     public processCreepAction(creep: Creep) {
         let source: Source | null = Game.getObjectById(this.source_id);
