@@ -1,5 +1,6 @@
 import { ErrorMapper } from "utils/ErrorMapper";
 import * as CreepManager from "creep_manager";
+import * as TaskScheduler from "task_scheduler";
 import * as AbstractTask from "tasks/abstract_task";
 
 declare global {
@@ -22,19 +23,24 @@ declare global {
         role: number;
     }
 
+    interface TaskDetails {
+        taskID: number;
+        roomName: string;
+    }
+
     interface CreepTaskDetails {
-        tasks: number[];
+        tasks: TaskDetails[];
         workAmountLeft: number;
     }
     var creepAssignedTasks: { [creepID: Id<Creep>]: CreepTaskDetails };
 
-    interface Task {
-        roomID: number;
+    interface TaskInfo {
+        task: AbstractTask.TaskClassType;
     }
-    var tasks: { [taskID: number]: Task };
 
     interface RoomMemory {
-        energyLocations: { [taskId: string]: AbstractTask.Task };
+        tasks: { [taskID: number]: TaskInfo };
+        energyLocations: { [taskId: string]: AbstractTask.TaskClassType };
     }
     var roomMemory: { [roomName: string]: RoomMemory };
 }
@@ -49,7 +55,30 @@ declare namespace NodeJS {
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
+    const gameRooms: [string, Room][] = Object.entries(Game.rooms);
+
+    if (global.roomMemory == null) {
+        global.roomMemory = {};
+
+        gameRooms.forEach(([roomName, room]) => {
+            global.roomMemory[roomName] = {
+                tasks: {},
+                energyLocations: {}
+            };
+
+            TaskScheduler.setUpTasks(room);
+        });
+    }
+
     CreepManager.processDeadCreeps();
 
-    const gameRooms: [string, Room][] = Object.entries(Game.rooms);
+    gameRooms.forEach(([roomName, room]) => {
+        if (global.roomMemory[roomName]) {
+            TaskScheduler.assignCreeps(room);
+        }
+    });
+
+    Object.values(Game.creeps).forEach(creep => {
+        CreepManager.creepAction(creep);
+    });
 });

@@ -1,31 +1,44 @@
+import * as AbstractTask from "tasks/abstract_task";
 export function processDeadCreeps() {
     for (const name in Memory.creeps) {
         if (!(name in Game.creeps)) {
             // process dead creep
+            let creep = Game.creeps[name];
+
+            global.creepAssignedTasks[creep.id].tasks.forEach(taskInfo => {
+                global.roomMemory[taskInfo.roomName].tasks[taskInfo.taskID].task.removeCreep(creep.id);
+            });
         }
     }
 }
 
 export function creepAction(creep: Creep) {
-    let tasks = global.creepAssignedTasks[creep.id];
+    let creepTaskInfo = global.creepAssignedTasks[creep.id];
 
-    if (!tasks || tasks.tasks.length === 0) {
+    if (!creepTaskInfo) {
+        return;
+    }
+
+    let tasks = creepTaskInfo.tasks;
+
+    if (tasks.length === 0) {
         return;
     }
 
     let shiftCount: number = 0;
 
-    while (shiftCount < tasks.tasks.length) {
-        let taskID: string = creep.memory.taskID[shiftCount];
+    while (shiftCount < tasks.length) {
+        let task = tasks[shiftCount];
 
-        // let task: GeneralTask.Task | null = global.roomMemory[room.name].tasks[taskID];
-        // if (!task || !task.creeps.has(creep.name)) {
-        //     shiftCount++;
-        //     continue;
-        // }
-        // task.processCreepAction(creep);
+        let taskInfo = global.roomMemory[task.roomName].tasks[task.taskID];
+
+        if (!taskInfo || !taskInfo.task.creeps.has(creep.id)) {
+            shiftCount++;
+            continue;
+        }
+        taskInfo.task.processCreepAction(creep);
         break;
     }
 
-    creep.memory.taskID = creep.memory.taskID.slice(shiftCount);
+    global.creepAssignedTasks[creep.id].tasks = tasks.slice(shiftCount);
 }

@@ -28,6 +28,8 @@ export abstract class Task<T extends TaskInfo> {
 
     taskID: number;
 
+    roomName: string;
+
     type: TaskType;
     workType: WorkType;
     priority: number;
@@ -35,14 +37,18 @@ export abstract class Task<T extends TaskInfo> {
 
     creeps: Map<Id<Creep>, T> = new Map();
 
-    constructor(type: TaskType, workType: WorkType, priority: number, position: RoomPosition) {
+    constructor(roomName: string, type: TaskType, workType: WorkType, priority: number, position: RoomPosition) {
         this.taskID = Task.staticProperty;
         Task.staticProperty += 1;
+
+        this.roomName = roomName;
 
         this.type = type;
         this.workType = workType;
         this.priority = priority;
         this.position = position;
+
+        global.roomMemory[roomName].tasks[this.taskID] = { task: this };
     }
 
     public getTaskID(): number {
@@ -62,7 +68,7 @@ export abstract class Task<T extends TaskInfo> {
     }
 
     protected addCreep(creepID: Id<Creep>, value: T) {
-        global.creepAssignedTasks[creepID].tasks.push(this.taskID);
+        global.creepAssignedTasks[creepID].tasks.push({ taskID: this.taskID, roomName: this.roomName });
         this.creeps.set(creepID, value);
     }
 
@@ -75,7 +81,7 @@ export abstract class Task<T extends TaskInfo> {
             this.removeCreep(creepID);
         });
 
-        delete global.tasks[this.taskID];
+        delete global.roomMemory[this.roomName].tasks[this.taskID];
     }
 
     public removeCreep(creepID: Id<Creep>): void {
@@ -83,7 +89,7 @@ export abstract class Task<T extends TaskInfo> {
         this.creeps.delete(creepID);
     }
 
-    public abstract taskAssignCreep(creep: Creep): void;
+    public abstract assignCreep(creep: Creep): void;
 
     protected abstract unassignCreep(creepID: Id<Creep>): void;
 
@@ -95,3 +101,5 @@ export abstract class Task<T extends TaskInfo> {
 
     public abstract hasValueLeft(): boolean;
 }
+
+export type TaskClassType = Task<TaskInfo>;

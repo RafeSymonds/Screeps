@@ -27,7 +27,7 @@ export class HarvestTask extends AbstractTask.Task<HarvestTaskInfo> {
     containerID: Id<StructureContainer> | null;
 
     constructor(source: Source, containerID: Id<StructureContainer> | null = null) {
-        super(AbstractTask.TaskType.harvest, AbstractTask.WorkType.harvest, 10, source.pos);
+        super(source.room.name, AbstractTask.TaskType.harvest, AbstractTask.WorkType.harvest, 10, source.pos);
 
         this.source_id = source!.id;
         this.workerPartsLeft = 5;
@@ -39,18 +39,18 @@ export class HarvestTask extends AbstractTask.Task<HarvestTaskInfo> {
     protected unassignCreep(creepID: Id<Creep>) {
         this.harvestSpotsLeft += 1;
 
-        let taskInfo = this.getCreeps().get(creepID);
+        let taskInfo = this.creeps.get(creepID);
 
         this.workerPartsLeft += taskInfo!.workerParts;
 
         let creep = Game.getObjectById(creepID);
-        if (creep === null) {
+        if (!creep) {
             return;
         }
         global.creepAssignedTasks[creepID].workAmountLeft = creep.store.getUsedCapacity();
     }
 
-    public taskAssignCreep(creep: Creep) {
+    public assignCreep(creep: Creep) {
         let workParts = creep.getActiveBodyparts(WORK);
         super.addCreep(creep.id, new HarvestTaskInfo(workParts));
 
@@ -122,7 +122,7 @@ export class HarvestTask extends AbstractTask.Task<HarvestTaskInfo> {
             let creep = Game.getObjectById(creepID);
 
             if (creep !== null) {
-                this.taskAssignCreep(creep);
+                this.assignCreep(creep);
             } else {
                 super.deleteCreep(creepID);
             }
