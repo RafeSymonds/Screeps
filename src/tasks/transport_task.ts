@@ -19,7 +19,6 @@ export class TransportTask extends Task<TransportTaskInfo> {
         this.id = structure.id;
 
         this.valueLeft = this.getResourceAmount(structure);
-        console.log("transport task value start", this.valueLeft);
     }
 
     public assignCreep(creep: Creep) {
@@ -39,6 +38,9 @@ export class TransportTask extends Task<TransportTaskInfo> {
     }
 
     public checkCreepMatches(creep: Creep): CreepMatchesTask {
+        if (!creep.store.getCapacity() || creep.store.getCapacity() == 0 || creep.store.getUsedCapacity() == 0) {
+            return CreepMatchesTask.false;
+        }
         if (
             global.creepAssignedTasks[creep.id].workAmountLeft >= creep.store.getCapacity() / 2 ||
             global.creepAssignedTasks[creep.id].workAmountLeft >= this.valueLeft
@@ -87,7 +89,6 @@ export class TransportTask extends Task<TransportTaskInfo> {
                 this.valueLeft -= creep.store.getUsedCapacity();
             }
         });
-        console.log("******************* updating transport task", this.valueLeft);
     }
 
     public getResourceAmount(structure: AnyStoreStructure): number {

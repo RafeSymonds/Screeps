@@ -1,18 +1,18 @@
 import { TaskInfo, Task, TaskType, WorkType, CreepMatchesTask } from "tasks/abstract_task";
 
 export function spawnCreepInRoom(room: Room) {
-    if (
-        global.roomMemory[room.name].harvesterCreepCount < global.roomMemory[room.name].harvesterLimit &&
-        global.roomMemory[room.name].harvesterCreepCount < global.roomMemory[room.name].transporterCreepCount * 2 + 1
-    ) {
+    let harvesterCreepCount = room.memory.harvesterCreepCount;
+    let harvesterLimit = room.memory.harvesterLimit;
+
+    let transporterCreepCount = room.memory.transporterCreepCount;
+    let workerCreepCount = room.memory.workerCreepCount;
+
+    if (harvesterCreepCount < harvesterLimit && harvesterCreepCount < transporterCreepCount * 2 + 1) {
         spawnHarvester(room);
-    } else if (
-        global.roomMemory[room.name].harvesterCreepCount * 2 + 1 >
-        global.roomMemory[room.name].transporterCreepCount
-    ) {
+    } else if (harvesterCreepCount * 2 + 1 > transporterCreepCount) {
         //spawn transporter
         spawnTransporter(room);
-    } else if (global.roomMemory[room.name].workerCreepCount < 8) {
+    } else if (workerCreepCount < 8) {
         //spawn worker
         spawnWorker(room);
     }
@@ -41,7 +41,7 @@ export function spawnWorker(room: Room) {
             memory: { role: taskTypes }
         }) === OK
     ) {
-        global.roomMemory[room.name].workerCreepCount += 1;
+        room.memory.workerCreepCount += 1;
         global.pendingCreepNames.push(name);
         setValueLeftAfterSpawning(room);
     }
@@ -56,7 +56,7 @@ export function spawnTransporter(room: Room) {
             memory: { role: taskTypes }
         }) === OK
     ) {
-        global.roomMemory[room.name].transporterCreepCount += 1;
+        room.memory.transporterCreepCount += 1;
         global.pendingCreepNames.push(name);
         setValueLeftAfterSpawning(room);
     }
@@ -65,7 +65,6 @@ export function spawnTransporter(room: Room) {
 export function spawnHarvester(room: Room) {
     let spawns: StructureSpawn[] = room.find(FIND_MY_SPAWNS);
     let taskTypes: TaskType = TaskType.harvest;
-    let taskIDs: string[] = [];
 
     let bodyParts: BodyPartConstant[] = [MOVE, WORK, WORK];
 
@@ -81,7 +80,10 @@ export function spawnHarvester(room: Room) {
             memory: { role: taskTypes }
         }) === OK
     ) {
-        global.roomMemory[room.name].harvesterCreepCount += 1;
+        console.log("spawning harvest");
+        console.log(room.memory.harvesterCreepCount);
+        room.memory.harvesterCreepCount += 1;
+        console.log(room.memory.harvesterCreepCount);
         global.pendingCreepNames.push(name);
         setValueLeftAfterSpawning(room);
     }

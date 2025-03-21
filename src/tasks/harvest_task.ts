@@ -1,4 +1,5 @@
 import { TaskInfo, Task, TaskType, WorkType, CreepMatchesTask } from "tasks/abstract_task";
+import { CollectEnergyTask } from "./collect_resource";
 
 class HarvestTaskInfo extends TaskInfo {
     workerParts: number;
@@ -48,7 +49,6 @@ export class HarvestTask extends Task<HarvestTaskInfo> {
             return;
         }
         global.creepAssignedTasks[creepID].workAmountLeft = creep.store.getUsedCapacity();
-        console.log("creep getCapacity", creep.store.getUsedCapacity());
     }
 
     public checkCreepMatches(creep: Creep): CreepMatchesTask {
@@ -73,7 +73,7 @@ export class HarvestTask extends Task<HarvestTaskInfo> {
             return;
         }
 
-        if (creep.store.getFreeCapacity() == 0) {
+        if (creep.store.getFreeCapacity() == 0 && creep.memory.role != TaskType.harvest) {
             this.removeCreep(creep.id);
         } else if (this.containerID) {
             let container: StructureContainer | null = Game.getObjectById(this.containerID);
@@ -88,23 +88,25 @@ export class HarvestTask extends Task<HarvestTaskInfo> {
                 this.containerID = null;
             }
         } else {
-            let harvestErroCode = creep.harvest(source);
+            let harvestErrCode = creep.harvest(source);
 
-            if (harvestErroCode === ERR_NOT_IN_RANGE) {
+            if (harvestErrCode === ERR_NOT_IN_RANGE) {
                 creep.moveTo(source);
-            } else if (harvestErroCode === OK) {
+            } else if (harvestErrCode === OK) {
                 let objects: LookAtResult[] = source.room.lookAt(creep.pos);
 
                 objects.forEach(object => {
-                    // if (object.type == LOOK_ENERGY) {
-                    //     let energyLocations = global.roomMemory[source!.room.name].energyLocations;
-                    //
-                    //     if (object!.energy!.id in energyLocations) {
-                    //         energyLocations[object!.energy!.id].updateValueLeft();
-                    //     } else {
-                    //         energyLocations[object!.energy!.id] = new CollectDroppedResource(object!.energy!.id);
-                    //     }
-                    // }
+                    if (object.type == LOOK_ENERGY) {
+                        let energyLocations = global.roomMemory[source!.room.name].energyLocations;
+
+                        if (object!.energy!.id in energyLocations) {
+                            energyLocations[object!.energy!.id].updateValueLeft();
+                        } else {
+                            energyLocations[object!.energy!.id] = new CollectEnergyTask(
+                                Game.getObjectById(object!.energy!.id) as Resource
+                            );
+                        }
+                    }
                 });
             }
         }

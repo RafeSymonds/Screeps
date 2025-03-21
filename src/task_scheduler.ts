@@ -17,6 +17,10 @@ export function assignCreeps(room: Room) {
         return a.task.priority - b.task.priority;
     });
 
+    // for (const task of taskInfos) {
+    //     console.log(task.task.constructor.name);
+    // }
+
     creeps.forEach(creep => {
         for (const taskInfo of taskInfos) {
             let task = taskInfo.task;

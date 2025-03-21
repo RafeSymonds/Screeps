@@ -26,7 +26,9 @@ export class CollectEnergyTask extends Task<CollectTaskInfo> {
     }
 
     public assignCreep(creep: Creep) {
-        this.valueLeft = Math.max(this.valueLeft - creep.store.getFreeCapacity(), 0);
+        let value = Math.max(this.valueLeft - creep.store.getFreeCapacity(), 0);
+        this.valueLeft = value;
+        super.addCreep(creep.id, new CollectTaskInfo(value));
     }
 
     protected unassignCreep(creepID: Id<Creep>) {
@@ -42,7 +44,7 @@ export class CollectEnergyTask extends Task<CollectTaskInfo> {
     }
 
     public checkCreepMatches(creep: Creep): CreepMatchesTask {
-        if (creep.store.getCapacity() > 0 && creep.store[RESOURCE_ENERGY] < creep.store.getCapacity() / 2) {
+        if (creep.store.getCapacity() > 0 && creep.store.getUsedCapacity() < creep.store.getCapacity() / 2) {
             return CreepMatchesTask.true;
         }
         return CreepMatchesTask.false;
@@ -75,7 +77,7 @@ export class CollectEnergyTask extends Task<CollectTaskInfo> {
                 }
             }
         } else {
-            this.unassignCreep(creep.name);
+            this.removeCreep(creep.id);
         }
     }
     public updateValueLeft() {
