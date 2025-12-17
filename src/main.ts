@@ -1,8 +1,4 @@
 import { ErrorMapper } from "utils/ErrorMapper";
-import * as CreepManager from "creep_manager";
-import * as TaskScheduler from "task_scheduler";
-import * as AbstractTask from "tasks/abstract_task";
-import * as Spawner from "spawner";
 
 declare global {
     /*
@@ -20,44 +16,7 @@ declare global {
     }
 
     // actual creep memory. Persistent Memory
-    interface CreepMemory {
-        role: number;
-    }
-
-    interface TaskDetails {
-        taskID: string;
-        roomName: string;
-    }
-
-    interface CreepTaskDetails {
-        tasks: TaskDetails[];
-        workAmountLeft: number;
-    }
-    var creepAssignedTasks: { [creepID: Id<Creep>]: CreepTaskDetails };
-
-    interface TaskInfo {
-        task: AbstractTask.TaskClassType;
-        roomName: string;
-    }
-
-    interface RoomMemory {
-        tasks: { [taskID: string]: TaskInfo };
-
-        energyLocations: { [taskId: string]: AbstractTask.TaskClassType };
-
-        workerCreepCount: number;
-        transporterCreepCount: number;
-        harvesterCreepCount: number;
-        harvesterLimit: number;
-    }
-    var roomMemory: { [roomName: string]: RoomMemory };
-
-    var pendingCreepNames: string[];
-
-    // roomName, taskID
-    var tasksNeedingRefresh: [string, string][];
-
-    var creepNames: { [creepName: string]: Id<Creep> };
+    interface CreepMemory {}
 }
 
 // Syntax for adding proprties to `global` (ex "global.log")
@@ -70,76 +29,5 @@ declare namespace NodeJS {
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
-    const initialCPU = Game.cpu.getUsed();
-    // console.log("Initial:", Game.cpu.getUsed());
-    const gameRooms: [string, Room][] = Object.entries(Game.rooms);
-
-    if (!global.roomMemory) {
-        global.creepAssignedTasks = {};
-        global.roomMemory = {};
-        global.pendingCreepNames = [];
-        global.creepNames = {};
-        global.tasksNeedingRefresh = [];
-
-        gameRooms.forEach(([roomName, room]) => {
-            room.memory = {
-                tasks: {},
-                energyLocations: {},
-                workerCreepCount: 0,
-                transporterCreepCount: 0,
-                harvesterCreepCount: 0,
-                harvesterLimit: 10
-            };
-            global.roomMemory[roomName] = {
-                tasks: {},
-                energyLocations: {},
-                workerCreepCount: 0,
-                transporterCreepCount: 0,
-                harvesterCreepCount: 0,
-                harvesterLimit: 10
-            };
-
-            TaskScheduler.setUpTasks(room);
-        });
-
-        Object.values(Game.creeps).forEach(creep => {
-            global.creepAssignedTasks[creep.id] = { tasks: [], workAmountLeft: creep.store.getUsedCapacity() };
-            global.creepNames[creep.name] = creep.id;
-        });
-    }
-    // console.log("After global room check:", Game.cpu.getUsed()-initialCPU);
-
-    global.pendingCreepNames.forEach(name => {
-        let creep = Game.creeps[name];
-        global.creepAssignedTasks[creep.id] = { tasks: [], workAmountLeft: 0 };
-        global.creepNames[name] = creep.id;
-    });
-    global.pendingCreepNames.length = 0;
-    global.tasksNeedingRefresh.forEach(([roomName, taskID]) => {
-        let taskInfo = global.roomMemory[roomName].tasks[taskID];
-        if (taskInfo) {
-            taskInfo.task.updateValueLeft();
-        }
-    });
-    global.tasksNeedingRefresh.length = 0;
-
-    // console.log("Prior to processing dead creeps:", Game.cpu.getUsed()-initialCPU);
-
-    CreepManager.processDeadCreeps();
-
-    // console.log("Prior to assigning:", Game.cpu.getUsed()-initialCPU);
-
-    gameRooms.forEach(([roomName, room]) => {
-        Spawner.spawnCreepInRoom(room);
-        if (global.roomMemory[roomName]) {
-            TaskScheduler.assignCreeps(room);
-        }
-    });
-    // console.log("After assigning:", Game.cpu.getUsed()-initialCPU);
-
-    Object.values(Game.creeps).forEach(creep => {
-        CreepManager.creepAction(creep);
-    });
-
-    console.log("CPU usage:", Game.cpu.getUsed() - initialCPU);
+    console.log("Initial CPU Usage:", Game.cpu.getUsed());
 });
