@@ -5,30 +5,7 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from 'rollup-plugin-typescript2';
 import screeps from 'rollup-plugin-screeps';
-
-
-const { execSync } = require('child_process');
-
-// Function to check if the C drive is mounted
-function isCDriveMounted() {
-  try {
-    execSync('ls /mnt/c');
-    return true; // Mounted
-  } catch (error) {
-    return false; // Not mounted
-  }
-}
-
-// Mount the C drive if not already mounted
-if (!isCDriveMounted()) {
-  try {
-    execSync('sudo mount -t drvfs C: /mnt/c');
-    console.log('C drive mounted successfully.');
-  } catch (error) {
-    console.error('Failed to mount the C drive:', error.message);
-    process.exit(1);
-  }
-}
+import { existsSync, mkdirSync } from 'fs';
 
 const localHostLocation = "/mnt/c/Users/rafes/AppData/Local/Screeps/scripts/127_0_0_1___21025/default";
 
@@ -38,6 +15,15 @@ const dest2 = process.env.DEST;
 let dest;
 let dist = "dist";
 if (dest2 === "local") {
+  if (!existsSync(localHostLocation)) {
+    try {
+      mkdirSync(localHostLocation, { recursive: true });
+    } catch (error) {
+      console.error(`Failed to prepare the local Screeps directory at ${localHostLocation}: ${error.message}`);
+      console.error("Ensure your Windows drive is mounted and the path is correct before running deploy_private.");
+      process.exit(1);
+    }
+  }
 
   dest = localHostLocation;
   dist = localHostLocation;
@@ -48,8 +34,11 @@ if (dest2 === "local") {
 console.log(dest);
 if (!dest) {
   console.log("No destination specified - code will be compiled but not uploaded");
-} else if ((cfg = require("./screeps.json")[dest]) == null && dest2 !== "local") {
-  throw new Error("Invalid upload destination");
+} else if (dest2 !== "local") {
+  cfg = require("./screeps.json")[dest];
+  if (cfg == null) {
+    throw new Error("Invalid upload destination");
+  }
 }
 
 export default {
