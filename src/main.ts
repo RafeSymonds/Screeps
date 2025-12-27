@@ -15,8 +15,8 @@ declare global {
         log: any;
     }
 
-    // actual creep memory. Persistent Memory
-    interface CreepMemory {}
+    var tasks: [TaskData];
+    var creepsData: [CreepMemory];
 }
 
 // Syntax for adding proprties to `global` (ex "global.log")

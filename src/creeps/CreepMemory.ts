@@ -1,0 +1,3 @@
+type CreepMemory = {
+    taskId?: number;
+};
