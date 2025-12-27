@@ -1,12 +1,17 @@
-import { RoomTasksMap, Task } from "tasks/Task";
+import { AnyTask, TaskMap } from "tasks/Task";
 import { WorldRoom } from "./WorldRoom";
 import { TaskData } from "tasks/TaskData";
+import { filterMapToArray, mapMap, mapToArray } from "utils/MapUtils";
 
 export class World {
+    tasks: TaskMap;
+
     rooms: Map<string, WorldRoom>;
 
-    constructor(rooms: Room[], myCreeps: Creep[], roomTasks: RoomTasksMap) {
-        const worldRooms = rooms.map(room => new WorldRoom(room, myCreeps, roomTasks.get(room.name) || new Map()));
+    constructor(rooms: Room[], myCreeps: Creep[], tasks: TaskMap) {
+        this.tasks = tasks;
+
+        const worldRooms = rooms.map(room => new WorldRoom(room, myCreeps, tasks));
 
         this.rooms = new Map<string, WorldRoom>(worldRooms.map(worldRoom => [worldRoom.room.name, worldRoom]));
     }
@@ -20,10 +25,6 @@ export class World {
     }
 
     public getRoomTaskData(): TaskData[] {
-        const tasks: TaskData[] = [];
-
-        this.rooms.forEach(room => room.tasks.forEach(task => tasks.push(task.data)));
-
-        return tasks;
+        return mapToArray(this.tasks, task => task.data);
     }
 }

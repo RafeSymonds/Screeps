@@ -1,11 +1,12 @@
 import { CreepState } from "creeps/CreepState";
-import { Task, TaskMap } from "tasks/Task";
+import { Task, TaskIdSet, TaskMap } from "tasks/Task";
+import { filterMapToArray } from "utils/MapUtils";
 
 export class WorldRoom {
     room: Room;
     myCreepsInRoom: CreepState[];
 
-    tasks: TaskMap;
+    tasks: TaskIdSet;
 
     // sources: Source[];
     // structures: Structure[];
@@ -18,6 +19,6 @@ export class WorldRoom {
         const creepMemory = Memory.creeps;
         this.myCreepsInRoom = creepsInRoom.map(creep => new CreepState(creep, creepMemory[creep.id]));
 
-        this.tasks = tasks;
+        this.tasks = new Set(filterMapToArray(tasks, task => task.data.room === room.name));
     }
 }

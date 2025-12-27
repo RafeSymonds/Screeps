@@ -21,6 +21,7 @@ export abstract class Task<T extends TaskData> {
 
 export type AnyTask = Task<TaskData>;
 export type TaskMap = Map<string, AnyTask>;
+export type TaskIdSet = Set<string>;
 
 export function constructTask(data: TaskData): AnyTask {
     switch (data.kind) {
@@ -32,12 +33,6 @@ export function constructTask(data: TaskData): AnyTask {
     }
 }
 
-export function constructTasks(tasks: TaskData[]): TaskMap {
-    return new Map(tasks.map(task => [task.id, constructTask(task)]));
-}
-
-export type RoomTasksMap = Map<string, TaskMap>;
-
-export function getRoomTasks(): RoomTasksMap {
-    return new Map(Memory.roomTasks.map(roomTasks => [roomTasks.name, constructTasks(roomTasks.tasks)]));
+export function constructTasks(): TaskMap {
+    return new Map(Memory.tasks.map(task => [task.id, constructTask(task)]));
 }

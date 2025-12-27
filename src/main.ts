@@ -1,7 +1,7 @@
 import { RoomTaskData, TaskData } from "tasks/TaskData";
 import { ErrorMapper } from "utils/ErrorMapper";
 import { World } from "world/World";
-import { constructTask, getRoomTasks, Task, TaskMap } from "tasks/Task";
+import { constructTask, constructTasks, Task, TaskMap } from "tasks/Task";
 
 declare global {
     /*
@@ -17,13 +17,15 @@ declare global {
         uuid: number;
         log: any;
 
-        roomTasks: [RoomTaskData];
+        tasks: [TaskData];
         creepsData: [CreepMemory];
     }
 
     interface CreepMemory {
         taskId?: number;
     }
+
+    interface RoomMemory {}
 }
 
 // Syntax for adding proprties to `global` (ex "global.log")
@@ -42,7 +44,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     let myCreeps = Object.values(Game.creeps);
 
-    let roomTasks = getRoomTasks();
+    let tasks = constructTasks();
 
-    let world = new World(rooms, myCreeps, roomTasks);
+    let world = new World(rooms, myCreeps, tasks);
 });
