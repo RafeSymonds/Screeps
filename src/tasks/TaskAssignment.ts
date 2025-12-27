@@ -13,8 +13,12 @@ export function assignCreeps(world: World) {
                 continue;
             }
 
+            console.log(room.tasks, room.tasks.size);
+
             for (const taskId of room.tasks) {
                 const task = world.taskManager.get(taskId);
+
+                console.log("lk;jasdfj;klsaf", task, taskId);
 
                 if (task) {
                     creep.memory.taskId = task.id();

@@ -16,10 +16,10 @@ export class World {
         this.rooms = new Map<string, WorldRoom>(worldRooms.map(worldRoom => [worldRoom.room.name, worldRoom]));
     }
 
-    public getCreepData(): CreepMemory[] {
-        const creeps: CreepMemory[] = [];
+    public getCreepData(): { [name: string]: CreepMemory } {
+        const creeps: { [name: string]: CreepMemory } = {};
 
-        this.rooms.forEach(room => room.myCreeps.forEach(creep => creeps.push(creep.memory)));
+        this.rooms.forEach(room => room.myCreeps.forEach(creep => (creeps[creep.creep.name] = creep.memory)));
 
         return creeps;
     }

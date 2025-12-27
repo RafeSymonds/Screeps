@@ -5,6 +5,7 @@ import { setupRoomMemory } from "memory/RoomMemory";
 import { TaskManager } from "tasks/TaskManager";
 import { assignCreeps } from "tasks/TaskAssignment";
 import { performCreepActions } from "creeps/CreepController";
+import { runSpawning } from "spawner/Spawner";
 
 declare global {
     /*
@@ -18,7 +19,6 @@ declare global {
     // Memory extension samples
     interface Memory {
         tasks: TaskData[];
-        creepsData: CreepMemory[];
     }
 
     interface CreepMemory {
@@ -43,7 +43,10 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     if (!Memory.tasks) {
         Memory.tasks = [];
-        Memory.creepsData;
+    }
+
+    if (!Memory.creeps) {
+        Memory.creeps = {};
     }
 
     let taskManager = new TaskManager();
@@ -56,9 +59,11 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     let world = new World(rooms, myCreeps, taskManager);
 
+    runSpawning();
+
     assignCreeps(world);
     performCreepActions(world);
 
-    Memory.creepsData = world.getCreepData();
+    Memory.creeps = world.getCreepData();
     Memory.tasks = world.getTaskData();
 });

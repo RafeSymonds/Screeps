@@ -1,3 +1,4 @@
+import { getCreepMemory } from "creeps/CreepMemory";
 import { CreepState } from "creeps/CreepState";
 import { TaskIdSet } from "tasks/Task";
 import { TaskManager } from "tasks/TaskManager";
@@ -17,9 +18,10 @@ export class WorldRoom {
         this.room = room;
 
         const creepsInRoom = myCreeps.filter(creep => creep.room.name === room.name);
-        const creepMemory = Memory.creeps;
-        this.myCreeps = creepsInRoom.map(creep => new CreepState(creep, creepMemory[creep.id]));
+        this.myCreeps = creepsInRoom.map(creep => new CreepState(creep, getCreepMemory(creep.name)));
 
-        this.tasks = new Set(filterMapToArray(taskManager.tasks, task => task.data.room === room.name));
+        this.tasks = new Set(
+            filterMapToArray(taskManager.tasks, task => task.data.room === room.name).map(task => task.id())
+        );
     }
 }
