@@ -37,8 +37,9 @@ export class HarvestTask extends Task<HarvestTaskData> {
     }
 
     public nextAction(creep: CreepState): Action | null {
-        if (!this.constructionSite) {
+        if (!this.source) {
             this.data.assignedCreeps = [];
+            creep.memory.taskId = undefined;
 
             return null;
         }

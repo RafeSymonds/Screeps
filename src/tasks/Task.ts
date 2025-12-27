@@ -1,5 +1,6 @@
 import { Action } from "actions/Action";
 import { TaskData } from "./TaskData";
+import { CreepState } from "creeps/CreepState";
 
 export abstract class Task<T extends TaskData> {
     data: T;
@@ -12,7 +13,7 @@ export abstract class Task<T extends TaskData> {
 
     public abstract score(creep: Creep): number;
 
-    public abstract nextAction(creep: Creep): Action | null;
+    public abstract nextAction(creep: CreepState): Action | null;
 
     public id() {
         return this.data.id;

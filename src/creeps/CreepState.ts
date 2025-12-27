@@ -14,7 +14,7 @@ export class CreepState {
         const task = this.memory.taskId ? taskManager.tasks.get(this.memory.taskId) : undefined;
 
         if (task) {
-            const nextAction = task.nextAction(this.creep);
+            const nextAction = task.nextAction(this);
 
             nextAction?.perform(this.creep);
         }

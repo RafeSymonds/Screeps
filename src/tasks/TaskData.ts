@@ -16,7 +16,12 @@ export type HarvestTaskData = BaseTask & {
     targetId: Id<Source>;
 };
 
-export type TaskData = BuildTaskData | HarvestTaskData;
+export type TransferTaskData = BaseTask & {
+    kind: TaskKind.TRANSFER;
+    structureId: Id<AnyStoreStructure>;
+};
+
+export type TaskData = BuildTaskData | HarvestTaskData | TransferTaskData;
 
 export type RoomTaskData = {
     name: string;

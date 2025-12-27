@@ -1,4 +1,5 @@
 export enum TaskKind {
     BUILD,
-    HARVEST
+    HARVEST,
+    TRANSFER
 }

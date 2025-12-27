@@ -3,6 +3,7 @@ import { BuildTaskData } from "./TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { BuildAction } from "actions/BuildAction";
+import { CreepState } from "creeps/CreepState";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
     return "build-" + constructionSite.pos.roomName + "-" + constructionSite.id;
@@ -36,14 +37,15 @@ export class BuildTask extends Task<BuildTaskData> {
         return 0;
     }
 
-    public override nextAction(creep: Creep): Action | null {
+    public override nextAction(creep: CreepState): Action | null {
         if (!this.constructionSite) {
             this.data.assignedCreeps = [];
+            creep.memory.taskId = undefined;
 
             return null;
         }
 
-        if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
+        if (creep.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
             return new BuildAction(this.constructionSite);
         }
 
