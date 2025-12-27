@@ -10,7 +10,7 @@ const TARGET_WORK_PER_SOURCE = 5; // exact: 5 WORK fully drains a source
 const MAX_MINER_WORK = 5;
 
 // Transport math
-const TARGET_CARRY_PER_WORK = 1; // 1 CARRY per WORK (early-game safe)
+const TARGET_CARRY_PER_WORK = 0.25; // 1 CARRY per WORK (early-game safe)
 
 // Flexibility
 const TARGET_WORKERS = 2;
