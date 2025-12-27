@@ -31,7 +31,7 @@ export class HarvestTask extends Task<HarvestTaskData> {
         return 0;
     }
 
-    public ready(creep: Creep): Action | null {
+    public nextAction(creep: Creep): Action | null {
         return null;
     }
 }

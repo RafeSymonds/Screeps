@@ -16,7 +16,7 @@ export abstract class Task<T extends TaskData> {
 
     public abstract score(creep: Creep): number;
 
-    public abstract ready(creep: Creep): Action | null;
+    public abstract nextAction(creep: Creep): Action | null;
 }
 
 export type AnyTask = Task<TaskData>;

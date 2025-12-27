@@ -2,7 +2,7 @@ import { TaskKind } from "./TaskKind";
 import { BuildTaskData } from "./TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
-import { TransferAction } from "actions/TransferAction";
+import { CollectAction } from "actions/CollectionAction";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
     return "build-" + constructionSite.pos.roomName + "-" + constructionSite.id;
@@ -36,12 +36,11 @@ export class BuildTask extends Task<BuildTaskData> {
         return 0;
     }
 
-    public ready(creep: Creep): Action | null {
+    public nextAction(creep: Creep): Action | null {
         if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
             return null;
         }
 
-        // TODO: change this to be collect resource
-        return new TransferAction();
+        return new CollectAction();
     }
 }
