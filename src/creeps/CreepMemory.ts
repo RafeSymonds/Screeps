@@ -1,3 +1,3 @@
-type CreepMemory = {
-    taskId?: number;
+const DEFAULT_CREEP_MEMORY: CreepMemory = {
+    taskId: undefined
 };

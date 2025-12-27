@@ -15,6 +15,10 @@ declare global {
         log: any;
     }
 
+    interface CreepMemory {
+        taskId?: number;
+    }
+
     var tasks: [TaskData];
     var creepsData: [CreepMemory];
 }
@@ -30,4 +34,10 @@ declare namespace NodeJS {
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
     console.log("Initial CPU Usage:", Game.cpu.getUsed());
+
+    let rooms = Object.values(Game.rooms);
+
+    let myCreeps = Object.values(Game.creeps);
+
+    let world = new World(rooms, myCreeps);
 });

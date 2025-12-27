@@ -1,5 +1,9 @@
 class World {
     rooms: Map<string, WorldRoom>;
-    agents: Map<string, WorldAgent>;
-    time: number;
+
+    constructor(rooms: Room[], myCreeps: Creep[]) {
+        const worldRooms = rooms.map(room => new WorldRoom(room, myCreeps));
+
+        this.rooms = new Map<string, WorldRoom>(worldRooms.map(worldRoom => [worldRoom.room.name, worldRoom]));
+    }
 }

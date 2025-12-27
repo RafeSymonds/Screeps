@@ -1,8 +1,16 @@
 class WorldRoom {
-    name: string;
+    room: Room;
+    myCreepsInRoom: CreepState[];
 
-    creeps: WorldAgent[];
-    sources: Source[];
-    structures: Structure[];
-    constructionSites: ConstructionSite[];
+    // sources: Source[];
+    // structures: Structure[];
+    // constructionSites: ConstructionSite[];
+
+    constructor(room: Room, myCreeps: Creep[]) {
+        this.room = room;
+
+        const creepsInRoom = myCreeps.filter(creep => creep.room.name === room.name);
+        const creepMemory = Memory.creeps;
+        this.myCreepsInRoom = creepsInRoom.map(creep => new CreepState(creep, creepMemory[creep.id]));
+    }
 }
