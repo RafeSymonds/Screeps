@@ -5,7 +5,13 @@ import { TaskData } from "./TaskData";
 
 import { TaskKind } from "./TaskKind";
 
-export abstract class Task {
+export abstract class Task<T extends TaskData> {
+    data: T;
+
+    constructor(data: T) {
+        this.data = data;
+    }
+
     public abstract isStillValid(): boolean;
 
     public abstract score(creep: Creep): number;
@@ -13,9 +19,10 @@ export abstract class Task {
     public abstract ready(creep: Creep): Action | null;
 }
 
-export type TaskMap = Map<string, Task>;
+export type AnyTask = Task<TaskData>;
+export type TaskMap = Map<string, AnyTask>;
 
-export function constructTask(data: TaskData): Task {
+export function constructTask(data: TaskData): AnyTask {
     switch (data.kind) {
         case TaskKind.BUILD:
             return new BuildTask(data);

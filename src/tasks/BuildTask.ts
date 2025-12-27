@@ -18,12 +18,11 @@ export function createBuildTaskData(constructionSite: ConstructionSite): BuildTa
     };
 }
 
-export class BuildTask extends Task {
-    data: BuildTaskData;
+export class BuildTask extends Task<BuildTaskData> {
     constructionSite: ConstructionSite | null;
 
     constructor(data: BuildTaskData) {
-        super();
+        super(data);
         this.data = data;
 
         this.constructionSite = Game.getObjectById(data.constructionId);

@@ -17,11 +17,9 @@ function createHarvestTaskData(source: Source): HarvestTaskData {
     };
 }
 
-export class HarvestTask extends Task {
-    data: HarvestTaskData;
-
+export class HarvestTask extends Task<HarvestTaskData> {
     constructor(data: HarvestTaskData) {
-        super();
+        super(data);
         this.data = data;
     }
 
