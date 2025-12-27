@@ -1,9 +1,5 @@
 import { Action } from "actions/Action";
-import { BuildTask } from "./BuildTask";
-import { HarvestTask } from "./HarvestTask";
 import { TaskData } from "./TaskData";
-
-import { TaskKind } from "./TaskKind";
 
 export abstract class Task<T extends TaskData> {
     data: T;
@@ -20,19 +16,4 @@ export abstract class Task<T extends TaskData> {
 }
 
 export type AnyTask = Task<TaskData>;
-export type TaskMap = Map<string, AnyTask>;
 export type TaskIdSet = Set<string>;
-
-export function constructTask(data: TaskData): AnyTask {
-    switch (data.kind) {
-        case TaskKind.BUILD:
-            return new BuildTask(data);
-
-        case TaskKind.HARVEST:
-            return new HarvestTask(data);
-    }
-}
-
-export function constructTasks(): TaskMap {
-    return new Map(Memory.tasks.map(task => [task.id, constructTask(task)]));
-}

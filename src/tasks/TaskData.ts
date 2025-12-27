@@ -3,7 +3,7 @@ import { TaskKind } from "./TaskKind";
 export type BaseTask = {
     id: string;
     room: string;
-    assignedAgents: Id<Creep>[];
+    assignedCreeps: Id<Creep>[];
 };
 
 export type BuildTaskData = BaseTask & {

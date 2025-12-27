@@ -1,7 +1,8 @@
-import { RoomTaskData, TaskData } from "tasks/TaskData";
+import { TaskData } from "tasks/TaskData";
 import { ErrorMapper } from "utils/ErrorMapper";
 import { World } from "world/World";
-import { constructTask, constructTasks, Task, TaskMap } from "tasks/Task";
+import { setupRoomMemory } from "memory/RoomMemory";
+import { TaskManager } from "tasks/TaskManager";
 
 declare global {
     /*
@@ -14,11 +15,8 @@ declare global {
   */
     // Memory extension samples
     interface Memory {
-        uuid: number;
-        log: any;
-
-        tasks: [TaskData];
-        creepsData: [CreepMemory];
+        tasks: TaskData[];
+        creepsData: CreepMemory[];
     }
 
     interface CreepMemory {
@@ -26,9 +24,7 @@ declare global {
         taskTicks: number;
     }
 
-    interface RoomMemory {
-        taskIds: string[];
-    }
+    interface RoomMemory {}
 }
 
 // Syntax for adding proprties to `global` (ex "global.log")
@@ -43,11 +39,21 @@ declare namespace NodeJS {
 export const loop = ErrorMapper.wrapLoop(() => {
     console.log("Initial CPU Usage:", Game.cpu.getUsed());
 
+    if (!Memory.tasks) {
+        Memory.tasks = [];
+        Memory.creepsData;
+    }
+
+    let taskManager = new TaskManager();
+
     let rooms = Object.values(Game.rooms);
+
+    rooms.forEach(room => setupRoomMemory(room, taskManager));
 
     let myCreeps = Object.values(Game.creeps);
 
-    let tasks = constructTasks();
+    let world = new World(rooms, myCreeps, taskManager);
 
-    let world = new World(rooms, myCreeps, tasks);
+    Memory.creepsData = world.getCreepData();
+    Memory.tasks = world.getTaskData();
 });

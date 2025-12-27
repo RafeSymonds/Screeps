@@ -1,3 +1,4 @@
 export const DEFAULT_CREEP_MEMORY: CreepMemory = {
-    taskId: undefined
+    taskId: undefined,
+    taskTicks: 0
 };

@@ -1,5 +1,5 @@
-import { TaskMap } from "tasks/Task";
 import { DEFAULT_CREEP_MEMORY } from "./CreepMemory";
+import { TaskManager } from "tasks/TaskManager";
 
 export class CreepState {
     creep: Creep;
@@ -10,8 +10,8 @@ export class CreepState {
         this.memory = memory || DEFAULT_CREEP_MEMORY;
     }
 
-    public perform(tasks: TaskMap) {
-        const task = this.memory.taskId ? tasks.get(this.memory.taskId) : undefined;
+    public perform(taskManager: TaskManager) {
+        const task = this.memory.taskId ? taskManager.tasks.get(this.memory.taskId) : undefined;
 
         if (task) {
             const nextAction = task.nextAction(this.creep);

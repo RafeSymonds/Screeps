@@ -3,6 +3,7 @@ import { BuildTaskData } from "./TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { CollectAction } from "actions/CollectionAction";
+import { BuildAction } from "actions/BuildAction";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
     return "build-" + constructionSite.pos.roomName + "-" + constructionSite.id;
@@ -13,7 +14,7 @@ export function createBuildTaskData(constructionSite: ConstructionSite): BuildTa
         id: buildTaskName(constructionSite),
         kind: TaskKind.BUILD,
         room: constructionSite.pos.roomName,
-        assignedAgents: [],
+        assignedCreeps: [],
         constructionId: constructionSite.id
     };
 }
@@ -37,8 +38,14 @@ export class BuildTask extends Task<BuildTaskData> {
     }
 
     public override nextAction(creep: Creep): Action | null {
-        if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
+        if (!this.constructionSite) {
+            this.data.assignedCreeps = [];
+
             return null;
+        }
+
+        if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
+            return new BuildAction(this.constructionSite);
         }
 
         return new CollectAction();
