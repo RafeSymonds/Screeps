@@ -4,6 +4,7 @@ import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { TransferAction } from "actions/TransferAction";
 import { CreepState } from "creeps/CreepState";
+import { findBestEnergyTask } from "./NeedEnergyPrereq";
 
 export function transferTaskName(structure: AnyStoreStructure): string {
     return "Transfer-" + structure.pos.roomName + "-" + structure.id;
@@ -37,21 +38,19 @@ export class TransferTask extends Task<TransferTaskData> {
         return 0;
     }
 
-    public override nextAction(creep: CreepState): Action | null {
+    public override nextAction(creepState: CreepState): Action | null {
         if (!this.structure) {
             this.data.assignedCreeps = [];
-            creep.memory.taskId = undefined;
+            creepState.memory.taskId = undefined;
 
             return null;
         }
 
         // TODO: change this to function to determine if we have energy or not
-        if (creep.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
+        if (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
             return new TransferAction(this.structure);
         }
 
-        // TODO: find best pickup spot and then create action
-        // add pickup loaction to memory of creep as subtask
-        return null;
+        return findBestEnergyTask(creepState);
     }
 }

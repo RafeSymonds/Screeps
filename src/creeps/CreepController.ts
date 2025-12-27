@@ -1,6 +1,6 @@
 import { World } from "world/World";
 import { CreepState } from "./CreepState";
-import { EnergyPickupTarget } from "rooms/ResourceManagement";
+import { EnergyTarget } from "rooms/ResourceManagement";
 
 export function performCreepActions(world: World) {
     for (const [, room] of world.rooms) {
@@ -10,8 +10,8 @@ export function performCreepActions(world: World) {
     }
 }
 
-export function assignCreepEnegyPickup(creep: CreepState, resourceLocation: EnergyPickupTarget) {
-    creep.memory.energyTarget = resourceLocation;
+export function assignCreepEnegyPickup(creep: CreepState, energyTarget: EnergyTarget) {
+    creep.memory.energyTarget = energyTarget;
 }
 
 export function tryOrMove<T extends RoomObject>(

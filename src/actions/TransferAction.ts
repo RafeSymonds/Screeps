@@ -1,3 +1,4 @@
+import { CreepState } from "creeps/CreepState";
 import { Action } from "./Action";
 
 export class TransferAction extends Action {
@@ -8,7 +9,9 @@ export class TransferAction extends Action {
         this.structure = structure;
     }
 
-    public override perform(creep: Creep): void {
+    public override perform(creepState: CreepState): void {
+        const creep = creepState.creep;
+
         if (creep.transfer(this.structure, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
             creep.moveTo(this.structure);
         }

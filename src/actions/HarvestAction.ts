@@ -1,3 +1,4 @@
+import { CreepState } from "creeps/CreepState";
 import { Action } from "./Action";
 
 export class HarvestAction extends Action {
@@ -8,7 +9,9 @@ export class HarvestAction extends Action {
         this.source = source;
     }
 
-    public override perform(creep: Creep): void {
+    public override perform(creepState: CreepState): void {
+        const creep = creepState.creep;
+
         if (creep.harvest(this.source) === ERR_NOT_IN_RANGE) {
             creep.moveTo(this.source);
         }

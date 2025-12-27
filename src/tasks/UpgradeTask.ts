@@ -5,6 +5,9 @@ import { Action } from "actions/Action";
 import { UpgradeAction } from "actions/UpgradeAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergySource } from "rooms/ResourceManagement";
+import { assignCreepEnegyPickup } from "creeps/CreepController";
+import { CollectAction } from "actions/CollectionAction";
+import { findBestEnergyTask } from "./NeedEnergyPrereq";
 
 export function upgradeTaskName(controller: StructureController): string {
     return "upgrade-" + controller.pos.roomName + "-" + controller.id;
@@ -38,24 +41,18 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
         return 0;
     }
 
-    public override nextAction(creep: CreepState): Action | null {
+    public override nextAction(creepState: CreepState): Action | null {
         if (!this.controller) {
             this.data.assignedCreeps = [];
-            creep.memory.taskId = undefined;
+            creepState.memory.taskId = undefined;
 
             return null;
         }
 
-        if (creep.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
+        if (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
             return new UpgradeAction(this.controller);
         }
 
-        let energySource = findBestEnergySource(creep.creep);
-
-        if (energySource) {
-            return;
-        }
-
-        return null;
+        return findBestEnergyTask(creepState);
     }
 }

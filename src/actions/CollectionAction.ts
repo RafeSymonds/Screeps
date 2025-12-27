@@ -1,10 +1,11 @@
-import { tryOrMove } from "creeps/CreepController";
+import { CreepState } from "creeps/CreepState";
 import { Action } from "./Action";
+import { EnergyTarget } from "rooms/ResourceManagement";
 
 export class CollectAction extends Action {
-    target: Resource | Structure | Tombstone | Ruin;
+    target: EnergyTarget;
 
-    constructor(target: Resource) {
+    constructor(target: EnergyTarget) {
         super();
         this.target = target;
     }
@@ -28,10 +29,11 @@ export class CollectAction extends Action {
         return false;
     }
 
-    public override perform(creep: Creep): void {
-        let moved = this.tryAndMove(creep);
+    public override perform(creepState: CreepState): void {
+        const moved = this.tryAndMove(creepState.creep);
 
         if (!moved) {
+            creepState.memory.energyTarget = undefined;
         }
     }
 }

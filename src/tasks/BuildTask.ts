@@ -4,6 +4,7 @@ import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { BuildAction } from "actions/BuildAction";
 import { CreepState } from "creeps/CreepState";
+import { findBestEnergyTask } from "./NeedEnergyPrereq";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
     return "build-" + constructionSite.pos.roomName + "-" + constructionSite.id;
@@ -37,20 +38,18 @@ export class BuildTask extends Task<BuildTaskData> {
         return 0;
     }
 
-    public override nextAction(creep: CreepState): Action | null {
+    public override nextAction(creepState: CreepState): Action | null {
         if (!this.constructionSite) {
             this.data.assignedCreeps = [];
-            creep.memory.taskId = undefined;
+            creepState.memory.taskId = undefined;
 
             return null;
         }
 
-        if (creep.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
+        if (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
             return new BuildAction(this.constructionSite);
         }
 
-        // TODO: find best pickup spot and then create action
-        // add pickup loaction to memory of creep as subtask
-        return null;
+        return findBestEnergyTask(creepState);
     }
 }

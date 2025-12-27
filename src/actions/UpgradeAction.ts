@@ -1,3 +1,4 @@
+import { CreepState } from "creeps/CreepState";
 import { Action } from "./Action";
 
 export class UpgradeAction extends Action {
@@ -8,7 +9,9 @@ export class UpgradeAction extends Action {
         this.target = target;
     }
 
-    public override perform(creep: Creep): void {
+    public override perform(creepState: CreepState): void {
+        const creep = creepState.creep;
+
         if (creep.upgradeController(this.target) === ERR_NOT_IN_RANGE) {
             creep.moveTo(this.target);
         }

@@ -1,25 +1,22 @@
-type EnergyWithdrawTarget =
+export type EnergyTarget =
     | StructureSpawn
     | StructureExtension
     | StructureContainer
     | StructureStorage
     | Tombstone
-    | Ruin;
+    | Ruin
+    | Resource;
 
 enum EnergyPickupType {
     PICKUP,
     WITHDRAW
 }
 
-export type EnergyPickupTarget =
-    | { kind: EnergyPickupType.PICKUP; resource: Resource }
-    | { kind: EnergyPickupType.WITHDRAW; target: EnergyWithdrawTarget };
-
-export function findBestEnergySource(creep: Creep): EnergyPickupTarget | null {
+export function findBestEnergySource(creep: Creep): EnergyTarget | null {
     const room = creep.room;
 
     const candidates: {
-        target: EnergyPickupTarget;
+        target: EnergyTarget;
         range: number;
     }[] = [];
 
@@ -27,7 +24,7 @@ export function findBestEnergySource(creep: Creep): EnergyPickupTarget | null {
     room.find(FIND_DROPPED_RESOURCES).forEach(resource => {
         if (resource.resourceType === RESOURCE_ENERGY && resource.amount > 0) {
             candidates.push({
-                target: { kind: EnergyPickupType.PICKUP, resource },
+                target: resource,
                 range: creep.pos.getRangeTo(resource)
             });
         }
@@ -44,7 +41,7 @@ export function findBestEnergySource(creep: Creep): EnergyPickupTarget | null {
             const energy = structure.store.getUsedCapacity(RESOURCE_ENERGY);
             if (energy > 0) {
                 candidates.push({
-                    target: { kind: EnergyPickupType.WITHDRAW, target: structure },
+                    target: structure,
                     range: creep.pos.getRangeTo(structure)
                 });
             }
@@ -55,7 +52,7 @@ export function findBestEnergySource(creep: Creep): EnergyPickupTarget | null {
     room.find(FIND_TOMBSTONES).forEach(tombstone => {
         if (tombstone.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
             candidates.push({
-                target: { kind: EnergyPickupType.WITHDRAW, target: tombstone },
+                target: tombstone,
                 range: creep.pos.getRangeTo(tombstone)
             });
         }
@@ -65,7 +62,7 @@ export function findBestEnergySource(creep: Creep): EnergyPickupTarget | null {
     room.find(FIND_RUINS).forEach(ruin => {
         if (ruin.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
             candidates.push({
-                target: { kind: EnergyPickupType.WITHDRAW, target: ruin },
+                target: ruin,
                 range: creep.pos.getRangeTo(ruin)
             });
         }

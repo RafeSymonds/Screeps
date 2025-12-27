@@ -16,7 +16,7 @@ export class CreepState {
         if (task) {
             const nextAction = task.nextAction(this);
 
-            nextAction?.perform(this.creep);
+            nextAction?.perform(this);
         }
     }
 }
