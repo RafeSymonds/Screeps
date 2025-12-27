@@ -8,7 +8,14 @@ export class TaskManager {
     tasks: TaskMap;
 
     constructor() {
-        this.tasks = new Map(Memory.tasks.map(task => [task.id, createTask(task)]));
+        this.tasks = new Map();
+
+        for (const task of Memory.tasks) {
+            const created = createTask(task);
+            if (created) {
+                this.tasks.set(task.id, created);
+            }
+        }
     }
 
     /*
@@ -19,6 +26,10 @@ export class TaskManager {
             return;
         }
 
-        this.tasks.set(taskData.id, createTask(taskData));
+        let task = createTask(taskData);
+
+        if (task) {
+            this.tasks.set(taskData.id, task);
+        }
     }
 }

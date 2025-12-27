@@ -2,7 +2,6 @@ import { TaskKind } from "./TaskKind";
 import { BuildTaskData } from "./TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
-import { CollectAction } from "actions/CollectionAction";
 import { BuildAction } from "actions/BuildAction";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
@@ -48,6 +47,8 @@ export class BuildTask extends Task<BuildTaskData> {
             return new BuildAction(this.constructionSite);
         }
 
-        return new CollectAction();
+        // TODO: find best pickup spot and then create action
+        // add pickup loaction to memory of creep as subtask
+        return null;
     }
 }
