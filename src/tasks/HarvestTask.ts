@@ -2,6 +2,8 @@ import { TaskKind } from "./TaskKind";
 import { HarvestTaskData } from "./TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
+import { HarvestAction } from "actions/HarvestAction";
+import { CreepState } from "creeps/CreepState";
 
 export function harvestTaskName(source: Source): string {
     return "harvest-" + source.room.name + "-" + source.id;
@@ -18,9 +20,12 @@ export function createHarvestTaskData(source: Source): HarvestTaskData {
 }
 
 export class HarvestTask extends Task<HarvestTaskData> {
+    source: Source | null;
+
     constructor(data: HarvestTaskData) {
         super(data);
         this.data = data;
+        this.source = Game.getObjectById(data.targetId);
     }
 
     public isStillValid(): boolean {
@@ -31,7 +36,13 @@ export class HarvestTask extends Task<HarvestTaskData> {
         return 0;
     }
 
-    public nextAction(creep: Creep): Action | null {
-        return null;
+    public nextAction(creep: CreepState): Action | null {
+        if (!this.constructionSite) {
+            this.data.assignedCreeps = [];
+
+            return null;
+        }
+
+        return new HarvestAction(this.source);
     }
 }
