@@ -1,6 +1,7 @@
-import { TaskData } from "tasks/TaskData";
+import { RoomTaskData, TaskData } from "tasks/TaskData";
 import { ErrorMapper } from "utils/ErrorMapper";
 import { World } from "world/World";
+import { constructTask, getRoomTasks, Task, TaskMap } from "tasks/Task";
 
 declare global {
     /*
@@ -16,7 +17,7 @@ declare global {
         uuid: number;
         log: any;
 
-        tasks: [TaskData];
+        roomTasks: [RoomTaskData];
         creepsData: [CreepMemory];
     }
 
@@ -41,5 +42,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     let myCreeps = Object.values(Game.creeps);
 
-    let world = new World(rooms, myCreeps);
+    let roomTasks = getRoomTasks();
+
+    let world = new World(rooms, myCreeps, roomTasks);
 });

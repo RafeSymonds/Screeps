@@ -1,6 +1,7 @@
 import { TaskKind } from "./TaskKind";
 import { HarvestTaskData } from "./TaskData";
 import { Task } from "./Task";
+import { Action } from "actions/Action";
 
 export function harvestTaskName(source: Source): string {
     return "harvest-" + source.room.name + "-" + source.id;
@@ -30,5 +31,9 @@ export class HarvestTask extends Task {
 
     public score(creep: Creep): number {
         return 0;
+    }
+
+    public ready(creep: Creep): Action | null {
+        return null;
     }
 }

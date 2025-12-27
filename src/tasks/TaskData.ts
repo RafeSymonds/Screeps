@@ -17,3 +17,8 @@ export type HarvestTaskData = BaseTask & {
 };
 
 export type TaskData = BuildTaskData | HarvestTaskData;
+
+export type RoomTaskData = {
+    name: string;
+    tasks: TaskData[];
+};
