@@ -1,5 +1,6 @@
 import { TaskKind } from "./TaskKind";
 import { HarvestTaskData } from "./TaskData";
+import { Task } from "./Task";
 
 export function harvestTaskName(source: Source): string {
     return "harvest-" + source.room.name + "-" + source.id;
@@ -13,4 +14,21 @@ function createHarvestTaskData(source: Source): HarvestTaskData {
         assignedAgents: [],
         targetId: source.id
     };
+}
+
+export class HarvestTask extends Task {
+    data: HarvestTaskData;
+
+    constructor(data: HarvestTaskData) {
+        super();
+        this.data = data;
+    }
+
+    public isStillValid(): boolean {
+        return true;
+    }
+
+    public score(creep: Creep): number {
+        return 0;
+    }
 }

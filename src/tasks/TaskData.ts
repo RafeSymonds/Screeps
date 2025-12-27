@@ -8,7 +8,7 @@ export type BaseTask = {
 
 export type BuildTaskData = BaseTask & {
     kind: TaskKind.BUILD;
-    targetId: Id<ConstructionSite>;
+    constructionId: Id<ConstructionSite>;
 };
 
 export type HarvestTaskData = BaseTask & {

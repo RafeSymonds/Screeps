@@ -15,14 +15,14 @@ declare global {
     interface Memory {
         uuid: number;
         log: any;
+
+        tasks: [TaskData];
+        creepsData: [CreepMemory];
     }
 
     interface CreepMemory {
         taskId?: number;
     }
-
-    var tasks: [TaskData];
-    var creepsData: [CreepMemory];
 }
 
 // Syntax for adding proprties to `global` (ex "global.log")
