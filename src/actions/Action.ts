@@ -1,3 +1,3 @@
 export abstract class Action {
-    public perform(creep: Creep) {}
+    public abstract perform(creep: Creep): void;
 }

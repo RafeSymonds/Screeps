@@ -22,7 +22,7 @@ declare global {
     }
 
     interface CreepMemory {
-        taskId?: number;
+        taskId?: string;
     }
 
     interface RoomMemory {}

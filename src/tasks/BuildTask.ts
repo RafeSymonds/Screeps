@@ -28,15 +28,15 @@ export class BuildTask extends Task<BuildTaskData> {
         this.constructionSite = Game.getObjectById(data.constructionId);
     }
 
-    public isStillValid(): boolean {
+    public override isStillValid(): boolean {
         return this.constructionSite !== null;
     }
 
-    public score(creep: Creep): number {
+    public override score(creep: Creep): number {
         return 0;
     }
 
-    public nextAction(creep: Creep): Action | null {
+    public override nextAction(creep: Creep): Action | null {
         if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
             return null;
         }
