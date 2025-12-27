@@ -1,3 +1,3 @@
-const DEFAULT_CREEP_MEMORY: CreepMemory = {
+export const DEFAULT_CREEP_MEMORY: CreepMemory = {
     taskId: undefined
 };

@@ -1,4 +1,6 @@
+import { TaskData } from "tasks/TaskData";
 import { ErrorMapper } from "utils/ErrorMapper";
+import { World } from "world/World";
 
 declare global {
     /*

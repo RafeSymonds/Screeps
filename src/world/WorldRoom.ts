@@ -1,4 +1,6 @@
-class WorldRoom {
+import { CreepState } from "creeps/CreepState";
+
+export class WorldRoom {
     room: Room;
     myCreepsInRoom: CreepState[];
 

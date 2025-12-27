@@ -1,4 +1,6 @@
-class World {
+import { WorldRoom } from "./WorldRoom";
+
+export class World {
     rooms: Map<string, WorldRoom>;
 
     constructor(rooms: Room[], myCreeps: Creep[]) {

@@ -1,4 +1,6 @@
-class CreepState {
+import { DEFAULT_CREEP_MEMORY } from "./CreepMemory";
+
+export class CreepState {
     creep: Creep;
     memory: CreepMemory;
 

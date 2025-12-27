@@ -1,4 +1,4 @@
-enum TaskKind {
+export enum TaskKind {
     BUILD,
     HARVEST
 }
