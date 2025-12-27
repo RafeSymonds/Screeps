@@ -23,9 +23,12 @@ declare global {
 
     interface CreepMemory {
         taskId?: string;
+        taskTicks: number;
     }
 
-    interface RoomMemory {}
+    interface RoomMemory {
+        taskIds: string[];
+    }
 }
 
 // Syntax for adding proprties to `global` (ex "global.log")
