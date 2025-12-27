@@ -5,6 +5,7 @@ import { Action } from "actions/Action";
 import { BuildAction } from "actions/BuildAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "./NeedEnergyPrereq";
+import { hasBodyPart } from "creeps/CreepUtils";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
     return "build-" + constructionSite.pos.roomName + "-" + constructionSite.id;
@@ -32,6 +33,10 @@ export class BuildTask extends Task<BuildTaskData> {
 
     public override isStillValid(): boolean {
         return this.constructionSite !== null;
+    }
+
+    public canPerformTask(creepState: CreepState): boolean {
+        return hasBodyPart(creepState.creep, WORK) && hasBodyPart(creepState.creep, CARRY);
     }
 
     public override score(creep: Creep): number {

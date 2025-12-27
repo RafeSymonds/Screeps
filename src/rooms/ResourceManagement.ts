@@ -32,12 +32,7 @@ export function findBestEnergySource(creep: Creep): EnergyTarget | null {
 
     // Structures with energy
     room.find(FIND_STRUCTURES).forEach(structure => {
-        if (
-            structure instanceof StructureSpawn ||
-            structure instanceof StructureExtension ||
-            structure instanceof StructureContainer ||
-            structure instanceof StructureStorage
-        ) {
+        if (structure instanceof StructureContainer || structure instanceof StructureStorage) {
             const energy = structure.store.getUsedCapacity(RESOURCE_ENERGY);
             if (energy > 0) {
                 candidates.push({

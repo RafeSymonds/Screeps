@@ -33,7 +33,7 @@ export class CollectAction extends Action {
         const moved = this.tryAndMove(creepState.creep);
 
         if (!moved) {
-            creepState.memory.energyTarget = undefined;
+            creepState.memory.energyTargetId = undefined;
         }
     }
 }

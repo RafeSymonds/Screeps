@@ -6,14 +6,14 @@ import { CollectAction } from "actions/CollectionAction";
 export function performCreepActions(world: World) {
     for (const [, room] of world.rooms) {
         for (const creepState of room.myCreeps) {
-            if (creepState.memory.energyTarget) {
-                let energyTarget = Game.getObjectById(creepState.memory.energyTarget);
+            if (creepState.memory.energyTargetId) {
+                let energyTarget = Game.getObjectById(creepState.memory.energyTargetId);
 
                 if (energyTarget) {
                     let action = new CollectAction(energyTarget);
                     action.perform(creepState);
                 } else {
-                    creepState.memory.energyTarget = undefined;
+                    creepState.memory.energyTargetId = undefined;
                 }
             } else {
                 creepState.perform(world.taskManager);
@@ -23,7 +23,7 @@ export function performCreepActions(world: World) {
 }
 
 export function assignCreepEnegyPickup(creep: CreepState, energyTarget: EnergyTarget) {
-    creep.memory.energyTarget = energyTarget.id;
+    creep.memory.energyTargetId = energyTarget.id;
 }
 
 export function tryOrMove<T extends RoomObject>(

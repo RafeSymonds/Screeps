@@ -1,7 +1,7 @@
 import { TaskData } from "tasks/TaskData";
 import { ErrorMapper } from "utils/ErrorMapper";
 import { World } from "world/World";
-import { setupRoomMemory } from "memory/RoomMemory";
+import { setupRoomMemory } from "rooms/RoomSetup";
 import { TaskManager } from "tasks/TaskManager";
 import { assignCreeps } from "tasks/TaskAssignment";
 import { performCreepActions } from "creeps/CreepController";
@@ -25,7 +25,7 @@ declare global {
     interface CreepMemory {
         taskId?: string;
         taskTicks: number;
-        energyTarget?: Id<EnergyTarget>;
+        energyTargetId?: Id<EnergyTarget>;
     }
 
     interface RoomMemory {}
@@ -50,6 +50,8 @@ export const loop = ErrorMapper.wrapLoop(() => {
     if (!Memory.creeps) {
         Memory.creeps = {};
     }
+
+    // TODO: deal with dead creeps somewhere in here
 
     let taskManager = new TaskManager();
 

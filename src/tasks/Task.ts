@@ -11,6 +11,8 @@ export abstract class Task<T extends TaskData> {
 
     public abstract isStillValid(): boolean;
 
+    public abstract canPerformTask(creepState: CreepState): boolean;
+
     public abstract score(creep: Creep): number;
 
     public abstract nextAction(creep: CreepState): Action | null;

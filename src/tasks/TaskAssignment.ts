@@ -8,17 +8,17 @@ function isCreepFree(creepMemory: CreepMemory, taskManager: TaskManager): boolea
 
 export function assignCreeps(world: World) {
     for (const [, room] of world.rooms) {
-        for (const creep of room.myCreeps) {
-            if (!isCreepFree(creep.memory, world.taskManager)) {
+        for (const creepState of room.myCreeps) {
+            if (!isCreepFree(creepState.memory, world.taskManager)) {
                 continue;
             }
 
             for (const taskId of room.tasks) {
                 const task = world.taskManager.get(taskId);
 
-                if (task) {
-                    creep.memory.taskId = task.id();
-                    task.assignCreep(creep.creep);
+                if (task && task.canPerformTask(creepState)) {
+                    creepState.memory.taskId = task.id();
+                    task.assignCreep(creepState.creep);
 
                     break;
                 }

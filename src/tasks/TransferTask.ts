@@ -5,18 +5,19 @@ import { Action } from "actions/Action";
 import { TransferAction } from "actions/TransferAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "./NeedEnergyPrereq";
+import { hasBodyPart } from "creeps/CreepUtils";
 
 export function transferTaskName(structure: AnyStoreStructure): string {
     return "Transfer-" + structure.pos.roomName + "-" + structure.id;
 }
 
-export function createtransferTaskData(constructionSite: AnyStoreStructure): TransferTaskData {
+export function createtransferTaskData(structure: AnyStoreStructure): TransferTaskData {
     return {
-        id: transferTaskName(constructionSite),
+        id: transferTaskName(structure),
         kind: TaskKind.TRANSFER,
-        room: constructionSite.pos.roomName,
+        room: structure.pos.roomName,
         assignedCreeps: [],
-        structureId: constructionSite.id
+        structureId: structure.id
     };
 }
 
@@ -34,6 +35,10 @@ export class TransferTask extends Task<TransferTaskData> {
         return this.structure !== null;
     }
 
+    public canPerformTask(creepState: CreepState): boolean {
+        return hasBodyPart(creepState.creep, CARRY);
+    }
+
     public override score(creep: Creep): number {
         return 0;
     }
@@ -47,7 +52,11 @@ export class TransferTask extends Task<TransferTaskData> {
         }
 
         // TODO: change this to function to determine if we have energy or not
-        if (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
+        console.log(creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY));
+        if (
+            creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) >
+            creepState.creep.store.getCapacity(RESOURCE_ENERGY) / 2
+        ) {
             return new TransferAction(this.structure);
         }
 

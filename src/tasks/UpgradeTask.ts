@@ -4,10 +4,8 @@ import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { UpgradeAction } from "actions/UpgradeAction";
 import { CreepState } from "creeps/CreepState";
-import { findBestEnergySource } from "rooms/ResourceManagement";
-import { assignCreepEnegyPickup } from "creeps/CreepController";
-import { CollectAction } from "actions/CollectionAction";
 import { findBestEnergyTask } from "./NeedEnergyPrereq";
+import { hasBodyPart } from "creeps/CreepUtils";
 
 export function upgradeTaskName(controller: StructureController): string {
     return "upgrade-" + controller.pos.roomName + "-" + controller.id;
@@ -35,6 +33,10 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
 
     public override isStillValid(): boolean {
         return this.controller !== null;
+    }
+
+    public canPerformTask(creepState: CreepState): boolean {
+        return hasBodyPart(creepState.creep, WORK) && hasBodyPart(creepState.creep, CARRY);
     }
 
     public override score(creep: Creep): number {

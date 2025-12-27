@@ -4,6 +4,7 @@ import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { HarvestAction } from "actions/HarvestAction";
 import { CreepState } from "creeps/CreepState";
+import { hasBodyPart } from "creeps/CreepUtils";
 
 export function harvestTaskName(source: Source): string {
     return "harvest-" + source.room.name + "-" + source.id;
@@ -30,6 +31,10 @@ export class HarvestTask extends Task<HarvestTaskData> {
 
     public isStillValid(): boolean {
         return true;
+    }
+
+    public canPerformTask(creepState: CreepState): boolean {
+        return hasBodyPart(creepState.creep, WORK);
     }
 
     public score(creep: Creep): number {
