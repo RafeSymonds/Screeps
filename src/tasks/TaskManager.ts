@@ -32,4 +32,8 @@ export class TaskManager {
             this.tasks.set(taskData.id, task);
         }
     }
+
+    public get(taskId: string): AnyTask | undefined {
+        return this.tasks.get(taskId);
+    }
 }

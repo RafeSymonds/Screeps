@@ -19,7 +19,7 @@ export class World {
     public getCreepData(): CreepMemory[] {
         const creeps: CreepMemory[] = [];
 
-        this.rooms.forEach(room => room.myCreepsInRoom.forEach(creep => creeps.push(creep.memory)));
+        this.rooms.forEach(room => room.myCreeps.forEach(creep => creeps.push(creep.memory)));
 
         return creeps;
     }

@@ -13,6 +13,14 @@ export abstract class Task<T extends TaskData> {
     public abstract score(creep: Creep): number;
 
     public abstract nextAction(creep: Creep): Action | null;
+
+    public id() {
+        return this.data.id;
+    }
+
+    public assignCreep(creep: Creep) {
+        this.data.assignedCreeps.push(creep.id);
+    }
 }
 
 export type AnyTask = Task<TaskData>;

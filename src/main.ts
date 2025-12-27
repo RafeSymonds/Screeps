@@ -3,6 +3,8 @@ import { ErrorMapper } from "utils/ErrorMapper";
 import { World } from "world/World";
 import { setupRoomMemory } from "memory/RoomMemory";
 import { TaskManager } from "tasks/TaskManager";
+import { assignCreeps } from "tasks/TaskAssignment";
+import { performCreepActions } from "creeps/CreepController";
 
 declare global {
     /*
@@ -53,6 +55,9 @@ export const loop = ErrorMapper.wrapLoop(() => {
     let myCreeps = Object.values(Game.creeps);
 
     let world = new World(rooms, myCreeps, taskManager);
+
+    assignCreeps(world);
+    performCreepActions(world);
 
     Memory.creepsData = world.getCreepData();
     Memory.tasks = world.getTaskData();

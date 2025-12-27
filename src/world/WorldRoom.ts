@@ -5,7 +5,7 @@ import { filterMapToArray } from "utils/MapUtils";
 
 export class WorldRoom {
     room: Room;
-    myCreepsInRoom: CreepState[];
+    myCreeps: CreepState[];
 
     tasks: TaskIdSet;
 
@@ -18,7 +18,7 @@ export class WorldRoom {
 
         const creepsInRoom = myCreeps.filter(creep => creep.room.name === room.name);
         const creepMemory = Memory.creeps;
-        this.myCreepsInRoom = creepsInRoom.map(creep => new CreepState(creep, creepMemory[creep.id]));
+        this.myCreeps = creepsInRoom.map(creep => new CreepState(creep, creepMemory[creep.id]));
 
         this.tasks = new Set(filterMapToArray(taskManager.tasks, task => task.data.room === room.name));
     }
