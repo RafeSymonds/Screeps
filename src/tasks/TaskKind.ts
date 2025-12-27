@@ -1,1 +1,4 @@
-enum TaskKind {}
+enum TaskKind {
+    BUILD,
+    HARVEST
+}
