@@ -1,17 +1,29 @@
 import { World } from "world/World";
 import { CreepState } from "./CreepState";
 import { EnergyTarget } from "rooms/ResourceManagement";
+import { CollectAction } from "actions/CollectionAction";
 
 export function performCreepActions(world: World) {
     for (const [, room] of world.rooms) {
-        for (const creep of room.myCreeps) {
-            creep.perform(world.taskManager);
+        for (const creepState of room.myCreeps) {
+            if (creepState.memory.energyTarget) {
+                let energyTarget = Game.getObjectById(creepState.memory.energyTarget);
+
+                if (energyTarget) {
+                    let action = new CollectAction(energyTarget);
+                    action.perform(creepState);
+                } else {
+                    creepState.memory.energyTarget = undefined;
+                }
+            } else {
+                creepState.perform(world.taskManager);
+            }
         }
     }
 }
 
 export function assignCreepEnegyPickup(creep: CreepState, energyTarget: EnergyTarget) {
-    creep.memory.energyTarget = energyTarget;
+    creep.memory.energyTarget = energyTarget.id;
 }
 
 export function tryOrMove<T extends RoomObject>(

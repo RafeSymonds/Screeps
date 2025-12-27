@@ -6,7 +6,7 @@ import { TaskManager } from "tasks/TaskManager";
 import { assignCreeps } from "tasks/TaskAssignment";
 import { performCreepActions } from "creeps/CreepController";
 import { runSpawning } from "spawner/Spawner";
-import { EnergyPickupTarget } from "rooms/ResourceManagement";
+import { EnergyTarget } from "rooms/ResourceManagement";
 
 declare global {
     /*
@@ -25,7 +25,7 @@ declare global {
     interface CreepMemory {
         taskId?: string;
         taskTicks: number;
-        energyTarget?: EnergyPickupTarget;
+        energyTarget?: Id<EnergyTarget>;
     }
 
     interface RoomMemory {}
