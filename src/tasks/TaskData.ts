@@ -11,6 +11,11 @@ export type BuildTaskData = BaseTask & {
     constructionId: Id<ConstructionSite>;
 };
 
+export type UpgradeTaskData = BaseTask & {
+    kind: TaskKind.UPGRADE;
+    controllerId: Id<StructureController>;
+};
+
 export type HarvestTaskData = BaseTask & {
     kind: TaskKind.HARVEST;
     targetId: Id<Source>;
@@ -21,7 +26,7 @@ export type TransferTaskData = BaseTask & {
     structureId: Id<AnyStoreStructure>;
 };
 
-export type TaskData = BuildTaskData | HarvestTaskData | TransferTaskData;
+export type TaskData = BuildTaskData | UpgradeTaskData | HarvestTaskData | TransferTaskData;
 
 export type RoomTaskData = {
     name: string;

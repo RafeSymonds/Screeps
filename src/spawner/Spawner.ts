@@ -1,3 +1,5 @@
+import { DEFAULT_CREEP_MEMORY } from "creeps/CreepMemory";
+
 const TARGET_CREEPS = 4;
 
 function countCreeps(): number {
@@ -30,10 +32,7 @@ export function runSpawning(): void {
     const name = `worker-${Game.time}`;
 
     const result = spawn.spawnCreep(body, name, {
-        memory: {
-            taskId: undefined,
-            taskTicks: 0
-        }
+        memory: DEFAULT_CREEP_MEMORY
     });
 
     if (result !== OK) {
