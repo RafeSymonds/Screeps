@@ -1,7 +1,7 @@
-export abstract class Task<T> {
-    data: T;
+export abstract class Task {
+    public abstract isStillValid(): boolean;
+}
 
-    constructor(data: T) {
-        this.data = data;
-    }
+export function getTasks(): Map<string, Task> {
+    return new Map<string, Task>();
 }

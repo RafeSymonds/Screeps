@@ -16,4 +16,8 @@ export function createBuildTaskData(constructionSite: ConstructionSite): BuildTa
     };
 }
 
-export class BuildTask extends Task<BuildTaskData> {}
+export class BuildTask extends Task {
+    public isStillValid(): boolean {
+        return false;
+    }
+}
