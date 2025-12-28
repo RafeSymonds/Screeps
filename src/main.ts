@@ -8,6 +8,7 @@ import { performCreepActions } from "creeps/CreepController";
 import { runSpawning } from "spawner/Spawner";
 import { EnergyTarget } from "rooms/ResourceManager";
 import { getDefaultCreepMemory } from "creeps/CreepMemory";
+import { runRelativeBasePlanner } from "basePlaner/BasePlans";
 
 declare global {
     /*
@@ -33,6 +34,7 @@ declare global {
     interface RoomMemory {
         // early game max number of harvesters to spawn
         numHarvestSpots: number;
+        anchorSpawnId?: Id<StructureSpawn>;
     }
 }
 
@@ -61,6 +63,8 @@ export const loop = ErrorMapper.wrapLoop(() => {
         Memory.rooms = {};
     }
 
+    let rooms = Object.values(Game.rooms);
+
     let taskManager = new TaskManager();
 
     // TODO: deal with dead creeps somewhere in here
@@ -78,9 +82,9 @@ export const loop = ErrorMapper.wrapLoop(() => {
         }
     }
 
-    let rooms = Object.values(Game.rooms);
-
     rooms.forEach(room => setupRoomMemory(room, taskManager));
+
+    rooms.forEach(room => runRelativeBasePlanner(room));
 
     let myCreeps = Object.values(Game.creeps);
 

@@ -17,7 +17,7 @@ const MINER_MIN_COST = 250; // MOVE + 2x WORK
 const HAULER_MIN_COST = 100; // CARRY + MOVE
 
 // Hauling math
-const CARRY_PER_WORK = 2.5; // tune per distance / roads
+const CARRY_PER_WORK = 1; // tune per distance / roads
 
 /* ================================
    ROLE HELPERS
@@ -76,7 +76,7 @@ function haulerBody(energy: number): BodyPartConstant[] {
     return body;
 }
 
-const WORK_RATIO = 3;
+const WORK_RATIO = 2;
 const CARRY_RATIO = 1;
 const MOVE_RATIO = 1;
 

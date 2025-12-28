@@ -1,235 +1,74 @@
-const BUNKER = {
-    rcl: 8,
-    buildings: {
-        spawn: [
-            { x: 25, y: 18 },
-            { x: 27, y: 20 },
-            { x: 23, y: 20 }
-        ],
-        tower: [
-            { x: 24, y: 19 },
-            { x: 25, y: 19 },
-            { x: 26, y: 19 },
-            { x: 24, y: 20 },
-            { x: 26, y: 20 },
-            { x: 25, y: 21 }
-        ],
-        powerSpawn: [{ x: 25, y: 22 }],
-        road: [
-            { x: 25, y: 20 },
-            { x: 26, y: 21 },
-            { x: 24, y: 21 },
-            { x: 22, y: 20 },
-            { x: 23, y: 19 },
-            { x: 24, y: 18 },
-            { x: 25, y: 17 },
-            { x: 26, y: 18 },
-            { x: 28, y: 20 },
-            { x: 27, y: 21 },
-            { x: 26, y: 22 },
-            { x: 25, y: 23 },
-            { x: 24, y: 22 },
-            { x: 23, y: 21 },
-            { x: 21, y: 21 },
-            { x: 20, y: 22 },
-            { x: 21, y: 19 },
-            { x: 20, y: 18 },
-            { x: 21, y: 17 },
-            { x: 22, y: 16 },
-            { x: 23, y: 15 },
-            { x: 24, y: 16 },
-            { x: 26, y: 16 },
-            { x: 27, y: 15 },
-            { x: 28, y: 16 },
-            { x: 29, y: 17 },
-            { x: 30, y: 18 },
-            { x: 29, y: 19 },
-            { x: 24, y: 24 },
-            { x: 23, y: 25 },
-            { x: 22, y: 24 },
-            { x: 21, y: 23 },
-            { x: 31, y: 19 },
-            { x: 31, y: 20 },
-            { x: 31, y: 21 },
-            { x: 26, y: 14 },
-            { x: 25, y: 14 },
-            { x: 24, y: 14 },
-            { x: 22, y: 14 },
-            { x: 21, y: 14 },
-            { x: 20, y: 14 },
-            { x: 19, y: 15 },
-            { x: 19, y: 16 },
-            { x: 19, y: 17 },
-            { x: 19, y: 19 },
-            { x: 19, y: 20 },
-            { x: 19, y: 21 },
-            { x: 30, y: 22 },
-            { x: 29, y: 21 },
-            { x: 31, y: 23 },
-            { x: 19, y: 23 },
-            { x: 19, y: 24 },
-            { x: 19, y: 25 },
-            { x: 20, y: 26 },
-            { x: 21, y: 26 },
-            { x: 22, y: 26 },
-            { x: 24, y: 26 },
-            { x: 25, y: 26 },
-            { x: 29, y: 23 },
-            { x: 28, y: 24 },
-            { x: 27, y: 25 },
-            { x: 26, y: 26 },
-            { x: 26, y: 24 },
-            { x: 28, y: 26 },
-            { x: 31, y: 24 },
-            { x: 31, y: 25 },
-            { x: 30, y: 26 },
-            { x: 29, y: 26 },
-            { x: 24, y: 23 },
-            { x: 26, y: 23 },
-            { x: 31, y: 16 },
-            { x: 31, y: 17 },
-            { x: 29, y: 14 },
-            { x: 30, y: 14 },
-            { x: 28, y: 14 },
-            { x: 31, y: 15 },
-            { x: 27, y: 19 }
-        ],
-        extension: [
-            { x: 26, y: 17 },
-            { x: 27, y: 18 },
-            { x: 28, y: 19 },
-            { x: 28, y: 18 },
-            { x: 27, y: 17 },
-            { x: 27, y: 16 },
-            { x: 28, y: 17 },
-            { x: 29, y: 18 },
-            { x: 24, y: 17 },
-            { x: 23, y: 18 },
-            { x: 22, y: 19 },
-            { x: 22, y: 18 },
-            { x: 21, y: 18 },
-            { x: 22, y: 17 },
-            { x: 23, y: 17 },
-            { x: 23, y: 16 },
-            { x: 22, y: 21 },
-            { x: 23, y: 23 },
-            { x: 22, y: 23 },
-            { x: 22, y: 22 },
-            { x: 21, y: 22 },
-            { x: 23, y: 24 },
-            { x: 21, y: 20 },
-            { x: 20, y: 19 },
-            { x: 20, y: 20 },
-            { x: 20, y: 21 },
-            { x: 25, y: 16 },
-            { x: 24, y: 15 },
-            { x: 25, y: 15 },
-            { x: 26, y: 15 },
-            { x: 29, y: 20 },
-            { x: 30, y: 19 },
-            { x: 30, y: 20 },
-            { x: 30, y: 21 },
-            { x: 27, y: 14 },
-            { x: 23, y: 14 },
-            { x: 19, y: 18 },
-            { x: 19, y: 22 },
-            { x: 20, y: 23 },
-            { x: 21, y: 24 },
-            { x: 22, y: 25 },
-            { x: 20, y: 24 },
-            { x: 21, y: 25 },
-            { x: 20, y: 25 },
-            { x: 23, y: 26 },
-            { x: 31, y: 18 },
-            { x: 31, y: 22 },
-            { x: 20, y: 17 },
-            { x: 21, y: 16 },
-            { x: 22, y: 15 },
-            { x: 21, y: 15 },
-            { x: 20, y: 16 },
-            { x: 20, y: 15 },
-            { x: 28, y: 15 },
-            { x: 29, y: 16 },
-            { x: 30, y: 17 },
-            { x: 30, y: 16 },
-            { x: 30, y: 15 },
-            { x: 29, y: 15 },
-            { x: 27, y: 26 }
-        ],
-        link: [{ x: 23, y: 22 }],
-        storage: [{ x: 25, y: 24 }],
-        terminal: [{ x: 27, y: 22 }],
-        lab: [
-            { x: 28, y: 22 },
-            { x: 27, y: 23 },
-            { x: 28, y: 23 },
-            { x: 29, y: 22 },
-            { x: 27, y: 24 },
-            { x: 29, y: 25 },
-            { x: 29, y: 24 },
-            { x: 30, y: 24 },
-            { x: 30, y: 23 },
-            { x: 28, y: 25 }
-        ],
-        observer: [{ x: 30, y: 25 }],
-        rampart: [
-            { x: 19, y: 15 },
-            { x: 20, y: 15 },
-            { x: 20, y: 14 },
-            { x: 19, y: 16 },
-            { x: 19, y: 17 },
-            { x: 19, y: 19 },
-            { x: 19, y: 20 },
-            { x: 19, y: 21 },
-            { x: 19, y: 22 },
-            { x: 19, y: 23 },
-            { x: 19, y: 24 },
-            { x: 19, y: 18 },
-            { x: 20, y: 26 },
-            { x: 19, y: 25 },
-            { x: 20, y: 25 },
-            { x: 22, y: 26 },
-            { x: 23, y: 26 },
-            { x: 24, y: 26 },
-            { x: 25, y: 26 },
-            { x: 26, y: 26 },
-            { x: 27, y: 26 },
-            { x: 28, y: 26 },
-            { x: 29, y: 26 },
-            { x: 30, y: 26 },
-            { x: 31, y: 25 },
-            { x: 30, y: 25 },
-            { x: 21, y: 26 },
-            { x: 31, y: 23 },
-            { x: 31, y: 22 },
-            { x: 31, y: 21 },
-            { x: 31, y: 20 },
-            { x: 31, y: 19 },
-            { x: 31, y: 18 },
-            { x: 31, y: 17 },
-            { x: 31, y: 16 },
-            { x: 31, y: 15 },
-            { x: 29, y: 14 },
-            { x: 28, y: 14 },
-            { x: 27, y: 14 },
-            { x: 26, y: 14 },
-            { x: 25, y: 14 },
-            { x: 24, y: 14 },
-            { x: 23, y: 14 },
-            { x: 22, y: 14 },
-            { x: 21, y: 14 },
-            { x: 30, y: 15 },
-            { x: 31, y: 24 },
-            { x: 25, y: 24 },
-            { x: 24, y: 20 },
-            { x: 23, y: 20 },
-            { x: 25, y: 19 },
-            { x: 26, y: 19 },
-            { x: 24, y: 19 },
-            { x: 25, y: 18 },
-            { x: 26, y: 20 },
-            { x: 27, y: 20 },
-            { x: 25, y: 21 }
-        ]
+import { Offset, RCL_LIMITS, STRUCTURE_RCL, PlannedStructure, RELATIVE_BUNKER } from "./BaseLimitInfo";
+
+/* =========================================
+   ENTRY POINT
+   ========================================= */
+
+export function runRelativeBasePlanner(room: Room): void {
+    const controller = room.controller;
+    if (!controller) return;
+
+    const anchor = getAnchorSpawn(room);
+    if (!anchor) return;
+
+    const rcl = controller.level;
+
+    for (const structure of Object.keys(RELATIVE_BUNKER.buildings) as PlannedStructure[]) {
+        if (rcl < STRUCTURE_RCL[structure]) continue;
+
+        const offsets = RELATIVE_BUNKER.buildings[structure];
+        const limit = RCL_LIMITS[structure]?.[rcl - 1] ?? offsets.length;
+
+        for (let i = 0; i < Math.min(limit, offsets.length); i++) {
+            placeRelative(room, structure, anchor.pos, offsets[i], rcl);
+        }
     }
-};
+}
+
+/* =========================================
+   PLACEMENT LOGIC
+   ========================================= */
+
+function placeRelative(
+    room: Room,
+    structure: PlannedStructure,
+    anchor: RoomPosition,
+    offset: Offset,
+    rcl: number
+): void {
+    const x = anchor.x + offset.x;
+    const y = anchor.y + offset.y;
+
+    // Prevent invalid room positions
+    if (x <= 1 || x >= 48 || y <= 1 || y >= 48) return;
+
+    const pos = new RoomPosition(x, y, room.name);
+
+    if (pos.lookFor(LOOK_STRUCTURES).some(s => s.structureType === structure)) return;
+    if (pos.lookFor(LOOK_CONSTRUCTION_SITES).some(s => s.structureType === structure)) return;
+
+    // Lazy rampart placement early game
+    if (structure === "rampart" && rcl < 5 && !isCoreRampart(offset)) return;
+
+    room.createConstructionSite(pos, structure);
+}
+
+/* =========================================
+   HELPERS
+   ========================================= */
+
+function getAnchorSpawn(room: Room): StructureSpawn | null {
+    if (!room.memory.anchorSpawnId) {
+        const spawns = room.find(FIND_MY_SPAWNS);
+        if (spawns.length === 0) return null;
+
+        room.memory.anchorSpawnId = spawns[0].id;
+    }
+
+    return Game.getObjectById(room.memory.anchorSpawnId) ?? null;
+}
+
+function isCoreRampart(offset: Offset): boolean {
+    // Protect spawn + immediate core early
+    return offset.x === 0 && offset.y === 0;
+}

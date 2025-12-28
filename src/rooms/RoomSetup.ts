@@ -6,12 +6,24 @@ import { createUpgradeTaskData } from "tasks/UpgradeTask";
 import { containerIsSourceTied } from "./ResourceManager";
 
 export function getDefaultRoomMemory(): RoomMemory {
-    return { numHarvestSpots: 0 };
+    return { numHarvestSpots: 0, anchorSpawnId: undefined };
 }
 
 export function setupRoomMemory(room: Room, taskManager: TaskManager) {
     if (room.memory === undefined || room.memory.numHarvestSpots === undefined) {
         room.memory = getDefaultRoomMemory();
+    }
+
+    const spawns = room.find(FIND_MY_SPAWNS);
+
+    /**
+     * The first spawn placed in a room is stable and permanent.
+     * Screeps returns spawns in creation order.
+     */
+    if (spawns.length > 0) {
+        const anchor = spawns[0];
+
+        room.memory.anchorSpawnId = anchor.id;
     }
 
     console.log("inital room amount", room.memory.numHarvestSpots);
