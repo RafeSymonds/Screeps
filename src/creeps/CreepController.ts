@@ -4,6 +4,7 @@ import { EnergyTarget } from "rooms/ResourceManager";
 import { CollectAction } from "actions/CollectionAction";
 import { TaskManager } from "tasks/TaskManager";
 import { getDefaultCreepMemory } from "./CreepMemory";
+import { max } from "lodash";
 
 export function performCreepActions(world: World) {
     for (const [, room] of world.rooms) {
@@ -74,15 +75,25 @@ export function creepNeedsEnergy(creepState: CreepState) {
     const freeCapacity = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY);
 
     if (creepState.memory.working && usedCapacity === 0) {
-        // preemption since we need more enegy
-        // TODO: deal with what happens if we start with 0 energy
-        creepState.memory.taskId = undefined;
         creepState.memory.working = false;
-    }
-
-    if (!creepState.memory.working && freeCapacity === 0) {
+    } else if (!creepState.memory.working && freeCapacity === 0) {
         creepState.memory.working = true;
     }
 
-    return !creepState.memory.working && creepState.memory.taskId;
+    return !creepState.memory.working;
+}
+
+export function tryPreemptCreep(creepState: CreepState) {
+    const usedCapacity = creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY);
+    const maxCapacity = creepState.creep.store.getCapacity(RESOURCE_ENERGY);
+
+    if (maxCapacity === null) {
+        return;
+    }
+
+    if (creepState.memory.working && usedCapacity === 0) {
+        // preemption since we need more enegy
+        // TODO: deal with what happens if we start with 0 energy
+        creepState.memory.taskId = undefined;
+    }
 }

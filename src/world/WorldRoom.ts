@@ -1,3 +1,4 @@
+import { tryPreemptCreep } from "creeps/CreepController";
 import { getCreepMemory } from "creeps/CreepMemory";
 import { CreepState } from "creeps/CreepState";
 import { TaskIdSet } from "tasks/Task";
@@ -19,6 +20,7 @@ export class WorldRoom {
 
         const creepsInRoom = myCreeps.filter(creep => creep.room.name === room.name);
         this.myCreeps = creepsInRoom.map(creep => new CreepState(creep, getCreepMemory(creep.name)));
+        this.myCreeps.forEach(creepState => tryPreemptCreep(creepState));
 
         this.tasks = new Set(
             filterMapToArray(taskManager.tasks, task => task.data.room === room.name).map(task => task.id())

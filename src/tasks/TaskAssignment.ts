@@ -34,7 +34,7 @@ export function assignCreeps(world: World) {
             }
 
             if (bestTask) {
-                creepState.memory = { taskId: bestTask.id(), taskTicks: 0, energyTargetId: undefined, working: false };
+                creepState.memory = { taskId: bestTask.id(), taskTicks: 0, energyTargetId: undefined, working: true };
 
                 bestTask.assignCreep(creepState.creep);
 
