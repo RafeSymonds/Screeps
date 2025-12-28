@@ -14,6 +14,8 @@ export abstract class Task<T extends TaskData> {
 
     public abstract canPerformTask(creepState: CreepState): boolean;
 
+    public abstract taskIsFull(): boolean;
+
     public abstract score(creep: Creep): number;
 
     public abstract nextAction(creep: CreepState, resourceManager: ResourceManager): Action | null;
@@ -24,6 +26,10 @@ export abstract class Task<T extends TaskData> {
 
     public assignCreep(creep: Creep) {
         this.data.assignedCreeps.push(creep.id);
+    }
+
+    public removeCreep(creepState: CreepState) {
+        this.data.assignedCreeps = this.data.assignedCreeps.filter(id => id !== creepState.creep.id);
     }
 }
 

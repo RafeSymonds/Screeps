@@ -4,7 +4,7 @@ import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { HarvestAction } from "actions/HarvestAction";
 import { CreepState } from "creeps/CreepState";
-import { hasBodyPart } from "creeps/CreepUtils";
+import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 
 export function harvestTaskName(source: Source): string {
@@ -36,6 +36,20 @@ export class HarvestTask extends Task<HarvestTaskData> {
 
     public override canPerformTask(creepState: CreepState): boolean {
         return hasBodyPart(creepState.creep, WORK);
+    }
+
+    public override taskIsFull(): boolean {
+        let workParts = this.data.assignedCreeps.reduce((total, creepId) => {
+            const creep = Game.getObjectById(creepId);
+
+            if (creep) {
+                total += countBodyParts(creep, WORK);
+            }
+
+            return total;
+        }, 0);
+
+        return workParts < 5 && this.data.assignedCreeps.length < 5;
     }
 
     public override score(creep: Creep): number {

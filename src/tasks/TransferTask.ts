@@ -40,6 +40,10 @@ export class TransferTask extends Task<TransferTaskData> {
         return hasBodyPart(creepState.creep, CARRY);
     }
 
+    public taskIsFull(): boolean {
+        return false;
+    }
+
     public override score(creep: Creep): number {
         return 0;
     }

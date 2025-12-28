@@ -41,6 +41,10 @@ export class BuildTask extends Task<BuildTaskData> {
         return hasBodyPart(creepState.creep, WORK) && hasBodyPart(creepState.creep, CARRY);
     }
 
+    public override taskIsFull(): boolean {
+        return false;
+    }
+
     public override score(creep: Creep): number {
         return 0;
     }

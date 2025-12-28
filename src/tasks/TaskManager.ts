@@ -12,7 +12,7 @@ export class TaskManager {
 
         for (const task of Memory.tasks) {
             const created = createTask(task);
-            if (created) {
+            if (created && !created.taskIsFull()) {
                 this.tasks.set(task.id, created);
             }
         }

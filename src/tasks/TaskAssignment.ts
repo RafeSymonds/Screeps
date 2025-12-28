@@ -15,8 +15,15 @@ export function assignCreeps(world: World) {
 
             for (const taskId of room.tasks) {
                 const task = world.taskManager.get(taskId);
+                if (creepState.creep.name.startsWith("h") && task) {
+                    console.log("here", creepState.creep.name, task.id(), task?.canPerformTask(creepState));
+                }
+            }
 
-                if (task && task.canPerformTask(creepState)) {
+            for (const taskId of room.tasks) {
+                const task = world.taskManager.get(taskId);
+
+                if (task && task.canPerformTask(creepState) && !task.taskIsFull()) {
                     creepState.memory.taskId = task.id();
                     task.assignCreep(creepState.creep);
 

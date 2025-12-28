@@ -40,6 +40,10 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
         return hasBodyPart(creepState.creep, WORK) && hasBodyPart(creepState.creep, CARRY);
     }
 
+    public taskIsFull(): boolean {
+        return false;
+    }
+
     public override score(creep: Creep): number {
         return 0;
     }
