@@ -6,6 +6,7 @@ import { UpgradeAction } from "actions/UpgradeAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "./NeedEnergyPrereq";
 import { hasBodyPart } from "creeps/CreepUtils";
+import { ResourceManager } from "rooms/ResourceManager";
 
 export function upgradeTaskName(controller: StructureController): string {
     return "upgrade-" + controller.pos.roomName + "-" + controller.id;
@@ -43,7 +44,7 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
         return 0;
     }
 
-    public override nextAction(creepState: CreepState): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
         if (!this.controller) {
             this.data.assignedCreeps = [];
             creepState.memory.taskId = undefined;
@@ -55,6 +56,6 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
             return new UpgradeAction(this.controller);
         }
 
-        return findBestEnergyTask(creepState);
+        return findBestEnergyTask(creepState, resourceManager);
     }
 }

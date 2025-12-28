@@ -6,6 +6,7 @@ import { TransferAction } from "actions/TransferAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "./NeedEnergyPrereq";
 import { hasBodyPart } from "creeps/CreepUtils";
+import { ResourceManager } from "rooms/ResourceManager";
 
 export function transferTaskName(structure: AnyStoreStructure): string {
     return "Transfer-" + structure.pos.roomName + "-" + structure.id;
@@ -43,7 +44,7 @@ export class TransferTask extends Task<TransferTaskData> {
         return 0;
     }
 
-    public override nextAction(creepState: CreepState): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
         if (!this.structure) {
             this.data.assignedCreeps = [];
             creepState.memory.taskId = undefined;
@@ -59,6 +60,6 @@ export class TransferTask extends Task<TransferTaskData> {
             return new TransferAction(this.structure);
         }
 
-        return findBestEnergyTask(creepState);
+        return findBestEnergyTask(creepState, resourceManager);
     }
 }

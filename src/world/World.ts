@@ -1,3 +1,4 @@
+import { ResourceManager } from "rooms/ResourceManager";
 import { WorldRoom } from "./WorldRoom";
 import { TaskData } from "tasks/TaskData";
 import { TaskManager } from "tasks/TaskManager";
@@ -8,12 +9,16 @@ export class World {
 
     rooms: Map<string, WorldRoom>;
 
+    resourceManager: ResourceManager;
+
     constructor(rooms: Room[], myCreeps: Creep[], taskManager: TaskManager) {
         this.taskManager = taskManager;
 
         const worldRooms = rooms.map(room => new WorldRoom(room, myCreeps, taskManager));
 
         this.rooms = new Map<string, WorldRoom>(worldRooms.map(worldRoom => [worldRoom.room.name, worldRoom]));
+
+        this.resourceManager = new ResourceManager(worldRooms);
     }
 
     public getCreepData(): { [name: string]: CreepMemory } {

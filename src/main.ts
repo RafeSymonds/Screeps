@@ -6,7 +6,7 @@ import { TaskManager } from "tasks/TaskManager";
 import { assignCreeps } from "tasks/TaskAssignment";
 import { performCreepActions } from "creeps/CreepController";
 import { runSpawning } from "spawner/Spawner";
-import { EnergyTarget } from "rooms/ResourceManagement";
+import { EnergyTarget } from "rooms/ResourceManager";
 
 declare global {
     /*

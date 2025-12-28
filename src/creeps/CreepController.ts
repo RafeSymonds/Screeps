@@ -1,6 +1,6 @@
 import { World } from "world/World";
 import { CreepState } from "./CreepState";
-import { EnergyTarget } from "rooms/ResourceManagement";
+import { EnergyTarget } from "rooms/ResourceManager";
 import { CollectAction } from "actions/CollectionAction";
 
 export function performCreepActions(world: World) {
@@ -16,7 +16,15 @@ export function performCreepActions(world: World) {
                     creepState.memory.energyTargetId = undefined;
                 }
             } else {
-                creepState.perform(world.taskManager);
+                const task = creepState.memory.taskId
+                    ? world.taskManager.tasks.get(creepState.memory.taskId)
+                    : undefined;
+
+                if (task) {
+                    const nextAction = task.nextAction(creepState, world.resourceManager);
+
+                    nextAction?.perform(creepState);
+                }
             }
         }
     }

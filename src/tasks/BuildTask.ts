@@ -6,6 +6,8 @@ import { BuildAction } from "actions/BuildAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "./NeedEnergyPrereq";
 import { hasBodyPart } from "creeps/CreepUtils";
+import { World } from "world/World";
+import { ResourceManager } from "rooms/ResourceManager";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
     return "build-" + constructionSite.pos.roomName + "-" + constructionSite.id;
@@ -43,7 +45,7 @@ export class BuildTask extends Task<BuildTaskData> {
         return 0;
     }
 
-    public override nextAction(creepState: CreepState): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
         if (!this.constructionSite) {
             this.data.assignedCreeps = [];
             creepState.memory.taskId = undefined;
@@ -55,6 +57,6 @@ export class BuildTask extends Task<BuildTaskData> {
             return new BuildAction(this.constructionSite);
         }
 
-        return findBestEnergyTask(creepState);
+        return findBestEnergyTask(creepState, resourceManager);
     }
 }

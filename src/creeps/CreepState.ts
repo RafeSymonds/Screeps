@@ -9,14 +9,4 @@ export class CreepState {
         this.creep = creep;
         this.memory = memory || DEFAULT_CREEP_MEMORY;
     }
-
-    public perform(taskManager: TaskManager) {
-        const task = this.memory.taskId ? taskManager.tasks.get(this.memory.taskId) : undefined;
-
-        if (task) {
-            const nextAction = task.nextAction(this);
-
-            nextAction?.perform(this);
-        }
-    }
 }

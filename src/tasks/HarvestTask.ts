@@ -5,6 +5,7 @@ import { Action } from "actions/Action";
 import { HarvestAction } from "actions/HarvestAction";
 import { CreepState } from "creeps/CreepState";
 import { hasBodyPart } from "creeps/CreepUtils";
+import { ResourceManager } from "rooms/ResourceManager";
 
 export function harvestTaskName(source: Source): string {
     return "harvest-" + source.room.name + "-" + source.id;
@@ -29,22 +30,22 @@ export class HarvestTask extends Task<HarvestTaskData> {
         this.source = Game.getObjectById(data.targetId);
     }
 
-    public isStillValid(): boolean {
+    public override isStillValid(): boolean {
         return true;
     }
 
-    public canPerformTask(creepState: CreepState): boolean {
+    public override canPerformTask(creepState: CreepState): boolean {
         return hasBodyPart(creepState.creep, WORK);
     }
 
-    public score(creep: Creep): number {
+    public override score(creep: Creep): number {
         return 0;
     }
 
-    public nextAction(creep: CreepState): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
         if (!this.source) {
             this.data.assignedCreeps = [];
-            creep.memory.taskId = undefined;
+            creepState.memory.taskId = undefined;
 
             return null;
         }
