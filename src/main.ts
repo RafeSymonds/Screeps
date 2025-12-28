@@ -27,6 +27,7 @@ declare global {
         taskId?: string;
         taskTicks: number;
         energyTargetId?: Id<EnergyTarget>;
+        working: boolean;
     }
 
     interface RoomMemory {

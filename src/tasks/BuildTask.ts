@@ -7,6 +7,7 @@ import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "./NeedEnergyPrereq";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
+import { creepNeedsEnergy } from "creeps/CreepController";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
     return "build-" + constructionSite.pos.roomName + "-" + constructionSite.id;
@@ -59,12 +60,11 @@ export class BuildTask extends Task<BuildTaskData> {
             return null;
         }
 
-        // TODO: change to be smarter. near by energy grab otherwise build
-        if (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 25) {
-            return new BuildAction(this.constructionSite);
+        if (creepNeedsEnergy(creepState)) {
+            return findBestEnergyTask(creepState, null, resourceManager);
         }
 
-        return findBestEnergyTask(creepState, null, resourceManager);
+        return new BuildAction(this.constructionSite);
     }
 
     public override validCreationSetup(): void {}

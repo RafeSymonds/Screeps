@@ -7,6 +7,7 @@ import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "./NeedEnergyPrereq";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
+import { creepNeedsEnergy } from "creeps/CreepController";
 
 export function transferTaskName(structure: AnyStoreStructure): string {
     return "Transfer-" + structure.pos.roomName + "-" + structure.id;
@@ -49,7 +50,7 @@ export class TransferTask extends Task<TransferTaskData> {
             return -Infinity;
         }
 
-        return -100 - creep.pos.getRangeTo(this.structure);
+        return -100 - creep.pos.getRangeTo(this.structure) + this.priority() * 5;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
@@ -61,15 +62,34 @@ export class TransferTask extends Task<TransferTaskData> {
 
         // TODO: change this to function to determine if we have energy or not
         // TODO: change to be smarter. near by energy grab otherwise build
-        if (
-            creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) >
-            creepState.creep.store.getCapacity(RESOURCE_ENERGY) / 2
-        ) {
-            return new TransferAction(this.structure);
+        if (creepNeedsEnergy(creepState)) {
+            return findBestEnergyTask(creepState, this.structure, resourceManager);
         }
 
-        return findBestEnergyTask(creepState, this.structure, resourceManager);
+        return new TransferAction(this.structure);
     }
 
     public override validCreationSetup(): void {}
+
+    private priority(): number {
+        switch (this.structure?.structureType) {
+            case STRUCTURE_SPAWN:
+                return 10; // game cannot progress without this
+
+            case STRUCTURE_EXTENSION:
+                return 9; // spawn throughput
+
+            case STRUCTURE_TOWER:
+                return 8; // defense > economy when empty
+
+            case STRUCTURE_CONTAINER:
+                return 4; // local buffer, lower than consumers
+
+            case STRUCTURE_STORAGE:
+                return 2; // global buffer, lowest urgency
+
+            default:
+                return 0;
+        }
+    }
 }

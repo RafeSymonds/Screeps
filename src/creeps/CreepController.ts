@@ -68,3 +68,17 @@ export function tryOrMove<T extends RoomObject>(
 
     return false; // no move
 }
+
+export function creepNeedsEnergy(creepState: CreepState) {
+    const usedCapacity = creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY);
+    const freeCapacity = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY);
+
+    if (creepState.memory.working && usedCapacity === 0) {
+        creepState.memory.working = false;
+    }
+    if (!creepState.memory.working && freeCapacity === 0) {
+        creepState.memory.working = true;
+    }
+
+    return !creepState.memory.working;
+}

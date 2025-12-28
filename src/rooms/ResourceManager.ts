@@ -56,6 +56,9 @@ export class ResourceManager {
     }
 
     private isValidSourceFor(from: EnergyTarget, to: Structure | null): boolean {
+        if (to === null) {
+            return true;
+        }
         // Storage is always allowed
         if (from instanceof StructureStorage) return true;
 
