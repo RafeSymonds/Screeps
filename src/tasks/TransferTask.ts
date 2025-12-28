@@ -52,7 +52,6 @@ export class TransferTask extends Task<TransferTaskData> {
         }
 
         // TODO: change this to function to determine if we have energy or not
-        console.log(creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY));
         if (
             creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) >
             creepState.creep.store.getCapacity(RESOURCE_ENERGY) / 2

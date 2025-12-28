@@ -42,6 +42,7 @@ declare namespace NodeJS {
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
     console.log("Initial CPU Usage:", Game.cpu.getUsed());
+    const startCpu = Game.cpu.getUsed();
 
     if (!Memory.tasks) {
         Memory.tasks = [];
@@ -70,4 +71,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     Memory.creeps = world.getCreepData();
     Memory.tasks = world.getTaskData();
+
+    console.log("Final CPU Usage:", Game.cpu.getUsed());
+    console.log("Total CPU Usage: ", Game.cpu.getUsed() - startCpu);
 });

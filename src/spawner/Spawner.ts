@@ -107,7 +107,7 @@ function desiredWork(room: Room): number {
     const sourceLimit = sources * TARGET_WORK_PER_SOURCE;
     const transportLimit = Math.floor(totalCarry() / TARGET_CARRY_PER_WORK);
 
-    return Math.min(sourceLimit, transportLimit);
+    return Math.min(sourceLimit, Math.max(transportLimit, 1));
 }
 
 function shouldSpawnMiner(room: Room): boolean {
@@ -117,7 +117,7 @@ function shouldSpawnMiner(room: Room): boolean {
 function shouldSpawnHauler(room: Room): boolean {
     const sources = room.find(FIND_SOURCES).length;
     const maxUsefulWork = sources * TARGET_WORK_PER_SOURCE;
-    return totalCarry() < maxUsefulWork * TARGET_CARRY_PER_WORK;
+    return totalCarry() < maxUsefulWork * TARGET_CARRY_PER_WORK && totalWork() > 0;
 }
 
 function shouldSpawnWorker(): boolean {
@@ -137,24 +137,22 @@ export function runSpawning(): void {
 
     let body: BodyPartConstant[] | null = null;
 
+    let name = "";
     // IMPORTANT: transport enables production
     if (shouldSpawnHauler(spawn.room)) {
+        name = `hauler-${Game.time}`;
         body = getHaulerBody(energy);
     } else if (shouldSpawnMiner(spawn.room)) {
+        name = `miner-${Game.time}`;
         body = getMinerBody(energy);
     } else if (shouldSpawnWorker()) {
+        name = `worker-${Game.time}`;
         body = getWorkerBody(energy);
     } else {
         return; // system balanced
     }
 
-    const name = `creep-${Game.time}`;
-
     const result = spawn.spawnCreep(body, name, {
         memory: DEFAULT_CREEP_MEMORY
     });
-
-    if (result !== OK) {
-        console.log(`[SPAWN] Failed ${name}: ${result}`);
-    }
 }
