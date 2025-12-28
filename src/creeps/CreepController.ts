@@ -74,11 +74,15 @@ export function creepNeedsEnergy(creepState: CreepState) {
     const freeCapacity = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY);
 
     if (creepState.memory.working && usedCapacity === 0) {
+        // preemption since we need more enegy
+        // TODO: deal with what happens if we start with 0 energy
+        creepState.memory.taskId = undefined;
         creepState.memory.working = false;
     }
+
     if (!creepState.memory.working && freeCapacity === 0) {
         creepState.memory.working = true;
     }
 
-    return !creepState.memory.working;
+    return !creepState.memory.working && creepState.memory.taskId;
 }
