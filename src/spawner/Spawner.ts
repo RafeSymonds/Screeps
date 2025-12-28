@@ -86,7 +86,7 @@ export function runSpawning(): void {
         if (energy < MINER_MIN_COST) return; // wait, do NOT spawn haulers
         body = minerBody(energy);
         name = `miner-${Game.time}`;
-    } else if (haulers < Math.ceil(miners * 0.75)) {
+    } else if (haulers < Math.ceil(miners * 0.5)) {
         if (energy < HAULER_MIN_COST) return;
         body = haulerBody();
         name = `hauler-${Game.time}`;
