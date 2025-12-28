@@ -1,5 +1,5 @@
 import { World } from "world/World";
-import { AnyTask, Task } from "./Task";
+import { AnyTask } from "./Task";
 import { TaskManager } from "./TaskManager";
 
 function isCreepFree(creepMemory: CreepMemory, taskManager: TaskManager): boolean {
@@ -9,26 +9,36 @@ function isCreepFree(creepMemory: CreepMemory, taskManager: TaskManager): boolea
 export function assignCreeps(world: World) {
     for (const [, room] of world.rooms) {
         for (const creepState of room.myCreeps) {
+            if (creepState.creep.spawning) {
+                continue;
+            }
+
             if (!isCreepFree(creepState.memory, world.taskManager)) {
                 continue;
             }
 
-            for (const taskId of room.tasks) {
-                const task = world.taskManager.get(taskId);
-                if (creepState.creep.name.startsWith("h") && task) {
-                    console.log("here", creepState.creep.name, task.id(), task?.canPerformTask(creepState));
-                }
-            }
+            let bestTask: AnyTask | undefined = undefined;
+            let bestScore = -Infinity;
 
             for (const taskId of room.tasks) {
                 const task = world.taskManager.get(taskId);
 
                 if (task && task.canPerformTask(creepState) && !task.taskIsFull()) {
-                    creepState.memory.taskId = task.id();
-                    task.assignCreep(creepState.creep);
+                    let score = task.score(creepState.creep);
 
-                    break;
+                    if (score > bestScore) {
+                        bestTask = task;
+                        bestScore = score;
+                    }
                 }
+            }
+
+            if (bestTask) {
+                creepState.memory = { taskId: bestTask.id(), taskTicks: 0, energyTargetId: undefined };
+
+                bestTask.assignCreep(creepState.creep);
+
+                console.log("[Task Assigned] creep ", creepState.creep.name, " with task ", bestTask.id());
             }
         }
     }

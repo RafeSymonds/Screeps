@@ -25,11 +25,15 @@ export abstract class Task<T extends TaskData> {
     }
 
     public assignCreep(creep: Creep) {
-        this.data.assignedCreeps.push(creep.id);
+        this.data.assignedCreeps.push([creep.id, creep.name]);
     }
 
     public removeCreep(creepState: CreepState) {
-        this.data.assignedCreeps = this.data.assignedCreeps.filter(id => id !== creepState.creep.id);
+        this.data.assignedCreeps = this.data.assignedCreeps.filter(([id]) => id !== creepState.creep.id);
+    }
+
+    public removeDeadCreep(deadName: string) {
+        this.data.assignedCreeps = this.data.assignedCreeps.filter(([, name]) => name !== deadName);
     }
 }
 

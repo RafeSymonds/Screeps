@@ -3,7 +3,7 @@ import { TaskKind } from "./TaskKind";
 export type BaseTask = {
     id: string;
     room: string;
-    assignedCreeps: Id<Creep>[];
+    assignedCreeps: [Id<Creep>, string][];
 };
 
 export type BuildTaskData = BaseTask & {
@@ -19,6 +19,7 @@ export type UpgradeTaskData = BaseTask & {
 export type HarvestTaskData = BaseTask & {
     kind: TaskKind.HARVEST;
     targetId: Id<Source>;
+    maxSpots: number;
 };
 
 export type TransferTaskData = BaseTask & {

@@ -7,6 +7,8 @@ import { assignCreeps } from "tasks/TaskAssignment";
 import { performCreepActions } from "creeps/CreepController";
 import { runSpawning } from "spawner/Spawner";
 import { EnergyTarget } from "rooms/ResourceManager";
+import { DEFAULT_CREEP_MEMORY } from "creeps/CreepMemory";
+import { CreepState } from "creeps/CreepState";
 
 declare global {
     /*
@@ -52,15 +54,34 @@ export const loop = ErrorMapper.wrapLoop(() => {
         Memory.creeps = {};
     }
 
-    // TODO: deal with dead creeps somewhere in here
-
     let taskManager = new TaskManager();
+
+    // TODO: deal with dead creeps somewhere in here
+    for (const name in Memory.creeps) {
+        if (!(name in Game.creeps)) {
+            // creep is dead
+            const creepMemory = Memory.creeps[name];
+
+            if (creepMemory.taskId) {
+                const task = taskManager.get(creepMemory.taskId);
+                task?.removeDeadCreep(name);
+            }
+
+            delete Memory.creeps[name];
+        }
+    }
 
     let rooms = Object.values(Game.rooms);
 
     rooms.forEach(room => setupRoomMemory(room, taskManager));
 
     let myCreeps = Object.values(Game.creeps);
+
+    for (const creep of myCreeps) {
+        if (creep.memory === undefined) {
+            creep.memory = DEFAULT_CREEP_MEMORY;
+        }
+    }
 
     let world = new World(rooms, myCreeps, taskManager);
 

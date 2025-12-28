@@ -6,7 +6,8 @@ import { hasBodyPart } from "creeps/CreepUtils";
    ================================ */
 
 const MAX_WORK_PER_MINER = 5;
-const TARGET_WORKERS = 2;
+const TARGET_WORKERS = 30;
+const MAX_WORK_PER_SOURCE = 5;
 
 const MINER_MIN_COST = 150; // MOVE + WORK
 const HAULER_MIN_COST = 100; // CARRY + MOVE
@@ -85,11 +86,11 @@ export function runSpawning(): void {
         if (energy < MINER_MIN_COST) return; // wait, do NOT spawn haulers
         body = minerBody(energy);
         name = `miner-${Game.time}`;
-    } else if (haulers < miners * 3) {
+    } else if (haulers < Math.ceil(miners * 0.75)) {
         if (energy < HAULER_MIN_COST) return;
         body = haulerBody();
         name = `hauler-${Game.time}`;
-    } else if (miners < sources) {
+    } else if (miners < sources * MAX_WORK_PER_SOURCE) {
         /*
      3️⃣ Scale miners only if hauling matches
     */

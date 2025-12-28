@@ -6,7 +6,6 @@ import { BuildAction } from "actions/BuildAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "./NeedEnergyPrereq";
 import { hasBodyPart } from "creeps/CreepUtils";
-import { World } from "world/World";
 import { ResourceManager } from "rooms/ResourceManager";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
@@ -46,21 +45,42 @@ export class BuildTask extends Task<BuildTaskData> {
     }
 
     public override score(creep: Creep): number {
-        return 0;
+        if (!this.constructionSite) {
+            return -Infinity;
+        }
+
+        return this.priority() * 5 - creep.pos.getRangeTo(this.constructionSite);
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
         if (!this.constructionSite) {
-            this.data.assignedCreeps = [];
             creepState.memory.taskId = undefined;
 
             return null;
         }
 
-        if (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
+        // TODO: change to be smarter. near by energy grab otherwise build
+        if (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 25) {
             return new BuildAction(this.constructionSite);
         }
 
         return findBestEnergyTask(creepState, resourceManager);
+    }
+
+    private priority(): number {
+        switch (this.constructionSite?.structureType) {
+            case STRUCTURE_CONTAINER:
+                return 4;
+            case STRUCTURE_EXTENSION:
+                return 7;
+            case STRUCTURE_SPAWN:
+                return 10;
+            case STRUCTURE_STORAGE:
+                return 2;
+            case STRUCTURE_TOWER:
+                return 4;
+            default:
+                return 0;
+        }
     }
 }

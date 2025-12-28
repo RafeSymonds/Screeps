@@ -11,10 +11,7 @@ export class TaskManager {
         this.tasks = new Map();
 
         for (const task of Memory.tasks) {
-            const created = createTask(task);
-            if (created && !created.taskIsFull()) {
-                this.tasks.set(task.id, created);
-            }
+            this.add(task);
         }
     }
 

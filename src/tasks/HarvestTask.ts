@@ -12,12 +12,29 @@ export function harvestTaskName(source: Source): string {
 }
 
 export function createHarvestTaskData(source: Source): HarvestTaskData {
+    let harvestSpots = 9;
+
+    let terrain = source.room.lookForAtArea(
+        LOOK_TERRAIN,
+        source.pos.y - 1,
+        source.pos.x - 1,
+        source.pos.y + 1,
+        source.pos.x + 1,
+        true
+    );
+    terrain.forEach(terrainItem => {
+        if (terrainItem.terrain === "wall") {
+            harvestSpots -= 1;
+        }
+    });
+
     return {
         id: harvestTaskName(source),
         kind: TaskKind.HARVEST,
         room: source.room.name,
         assignedCreeps: [],
-        targetId: source.id
+        targetId: source.id,
+        maxSpots: harvestSpots
     };
 }
 
@@ -39,8 +56,8 @@ export class HarvestTask extends Task<HarvestTaskData> {
     }
 
     public override taskIsFull(): boolean {
-        let workParts = this.data.assignedCreeps.reduce((total, creepId) => {
-            const creep = Game.getObjectById(creepId);
+        let workParts = this.data.assignedCreeps.reduce((total, creepInfo) => {
+            const creep = Game.getObjectById(creepInfo[0]);
 
             if (creep) {
                 total += countBodyParts(creep, WORK);
@@ -49,18 +66,24 @@ export class HarvestTask extends Task<HarvestTaskData> {
             return total;
         }, 0);
 
-        return workParts < 5 && this.data.assignedCreeps.length < 5;
+        return (
+            workParts >= 5 ||
+            this.data.assignedCreeps.length >= 5 ||
+            this.data.assignedCreeps.length >= this.data.maxSpots
+        );
     }
 
     public override score(creep: Creep): number {
-        return 0;
+        if (!this.source) {
+            return -Infinity;
+        }
+
+        return -100 - creep.pos.getRangeTo(this.source);
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
         if (!this.source) {
-            this.data.assignedCreeps = [];
             creepState.memory.taskId = undefined;
-
             return null;
         }
 

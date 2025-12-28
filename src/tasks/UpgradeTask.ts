@@ -45,18 +45,17 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
     }
 
     public override score(creep: Creep): number {
-        return 0;
+        return -10;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
         if (!this.controller) {
-            this.data.assignedCreeps = [];
             creepState.memory.taskId = undefined;
-
             return null;
         }
 
-        if (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 50) {
+        // TODO: change to be smarter. near by energy grab otherwise build
+        if (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 25) {
             return new UpgradeAction(this.controller);
         }
 
