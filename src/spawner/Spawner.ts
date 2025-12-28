@@ -1,39 +1,42 @@
-import { DEFAULT_CREEP_MEMORY } from "creeps/CreepMemory";
+import { getDefaultCreepMemory } from "creeps/CreepMemory";
+import { CreepState } from "creeps/CreepState";
 import { hasBodyPart } from "creeps/CreepUtils";
+import { World } from "world/World";
+import { WorldRoom } from "world/WorldRoom";
 
 /* ================================
    CONSTANTS
    ================================ */
 
 const MAX_WORK_PER_MINER = 5;
-const TARGET_WORKERS = 30;
+const TARGET_WORKERS = 15;
 const MAX_WORK_PER_SOURCE = 5;
 
-const MINER_MIN_COST = 150; // MOVE + WORK
+const MINER_MIN_COST = 250; // MOVE + WORK + WORK
 const HAULER_MIN_COST = 100; // CARRY + MOVE
 
 /* ================================
    ROOM HELPERS
    ================================ */
 
-function creepsInRoom(room: Room): Creep[] {
-    return Object.values(Game.creeps).filter(c => c.room.name === room.name);
+function isMiner(creepState: CreepState): boolean {
+    return hasBodyPart(creepState.creep, WORK) && !hasBodyPart(creepState.creep, CARRY);
 }
 
-function isMiner(c: Creep): boolean {
-    return hasBodyPart(c, WORK) && !hasBodyPart(c, CARRY);
+function isHauler(creepState: CreepState): boolean {
+    return hasBodyPart(creepState.creep, CARRY) && !hasBodyPart(creepState.creep, WORK);
 }
 
-function isHauler(c: Creep): boolean {
-    return hasBodyPart(c, CARRY) && !hasBodyPart(c, WORK);
+function isWorker(creepState: CreepState): boolean {
+    return (
+        hasBodyPart(creepState.creep, WORK) &&
+        hasBodyPart(creepState.creep, CARRY) &&
+        hasBodyPart(creepState.creep, MOVE)
+    );
 }
 
-function isWorker(c: Creep): boolean {
-    return hasBodyPart(c, WORK) && hasBodyPart(c, CARRY) && hasBodyPart(c, MOVE);
-}
-
-function count(room: Room, pred: (c: Creep) => boolean): number {
-    return creepsInRoom(room).filter(pred).length;
+function count(worldRoom: WorldRoom, pred: (creepState: CreepState) => boolean): number {
+    return worldRoom.myCreeps.filter(pred).length;
 }
 
 /* ================================
@@ -41,7 +44,7 @@ function count(room: Room, pred: (c: Creep) => boolean): number {
    ================================ */
 
 function minerBody(energy: number): BodyPartConstant[] {
-    const work = Math.min(MAX_WORK_PER_MINER, Math.max(1, Math.floor((energy - 50) / 100)));
+    const work = Math.min(MAX_WORK_PER_MINER, Math.max(2, Math.floor((energy - 50) / 100)));
     return [MOVE, ...Array(work).fill(WORK)];
 }
 
@@ -63,17 +66,20 @@ function workerBody(energy: number): BodyPartConstant[] {
    MAIN SPAWNING LOGIC
    ================================ */
 
-export function runSpawning(): void {
-    const spawn = Object.values(Game.spawns)[0];
-    if (!spawn || spawn.spawning) return;
+function roomSpawning(worldRoom: WorldRoom): void {
+    const room = worldRoom.room;
 
-    const room = spawn.room;
+    const spawns = room.find(FIND_MY_SPAWNS);
+
+    if (spawns.length === 0) {
+        return;
+    }
+
     const energy = room.energyAvailable;
 
-    const miners = count(room, isMiner);
-    const haulers = count(room, isHauler);
-    const workers = count(room, isWorker);
-    const sources = room.find(FIND_SOURCES).length;
+    const miners = count(worldRoom, isMiner);
+    const haulers = count(worldRoom, isHauler);
+    const workers = count(worldRoom, isWorker);
 
     let body: BodyPartConstant[] | null = null;
     let name = "";
@@ -86,11 +92,11 @@ export function runSpawning(): void {
         if (energy < MINER_MIN_COST) return; // wait, do NOT spawn haulers
         body = minerBody(energy);
         name = `miner-${Game.time}`;
-    } else if (haulers < Math.ceil(miners * 0.5)) {
+    } else if (haulers < Math.ceil(miners * 0.75)) {
         if (energy < HAULER_MIN_COST) return;
         body = haulerBody();
         name = `hauler-${Game.time}`;
-    } else if (miners < sources * MAX_WORK_PER_SOURCE) {
+    } else if (miners < room.memory.numHarvestSpots) {
         /*
      3️⃣ Scale miners only if hauling matches
     */
@@ -107,7 +113,11 @@ export function runSpawning(): void {
         return;
     }
 
-    spawn.spawnCreep(body, name, {
-        memory: DEFAULT_CREEP_MEMORY
+    spawns[0].spawnCreep(body, name, {
+        memory: getDefaultCreepMemory()
     });
+}
+
+export function runSpawning(world: World): void {
+    world.rooms.forEach(worldRoom => roomSpawning(worldRoom));
 }

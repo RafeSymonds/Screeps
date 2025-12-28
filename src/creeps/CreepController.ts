@@ -2,8 +2,8 @@ import { World } from "world/World";
 import { CreepState } from "./CreepState";
 import { EnergyTarget } from "rooms/ResourceManager";
 import { CollectAction } from "actions/CollectionAction";
-import { DEFAULT_CREEP_MEMORY } from "./CreepMemory";
 import { TaskManager } from "tasks/TaskManager";
+import { getDefaultCreepMemory } from "./CreepMemory";
 
 export function performCreepActions(world: World) {
     for (const [, room] of world.rooms) {
@@ -51,7 +51,7 @@ export function removeCreepTask(creepState: CreepState, taskManager: TaskManager
         }
     }
 
-    creepState.memory = DEFAULT_CREEP_MEMORY;
+    creepState.memory = getDefaultCreepMemory();
 }
 
 export function tryOrMove<T extends RoomObject>(

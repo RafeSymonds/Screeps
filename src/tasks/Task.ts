@@ -20,6 +20,8 @@ export abstract class Task<T extends TaskData> {
 
     public abstract nextAction(creep: CreepState, resourceManager: ResourceManager): Action | null;
 
+    public abstract validCreationSetup(): void;
+
     public id() {
         return this.data.id;
     }

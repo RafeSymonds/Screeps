@@ -7,8 +7,7 @@ import { assignCreeps } from "tasks/TaskAssignment";
 import { performCreepActions } from "creeps/CreepController";
 import { runSpawning } from "spawner/Spawner";
 import { EnergyTarget } from "rooms/ResourceManager";
-import { DEFAULT_CREEP_MEMORY } from "creeps/CreepMemory";
-import { CreepState } from "creeps/CreepState";
+import { getDefaultCreepMemory } from "creeps/CreepMemory";
 
 declare global {
     /*
@@ -30,7 +29,10 @@ declare global {
         energyTargetId?: Id<EnergyTarget>;
     }
 
-    interface RoomMemory {}
+    interface RoomMemory {
+        // early game max number of harvesters to spawn
+        numHarvestSpots: number;
+    }
 }
 
 // Syntax for adding proprties to `global` (ex "global.log")
@@ -52,6 +54,10 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     if (!Memory.creeps) {
         Memory.creeps = {};
+    }
+
+    if (!Memory.rooms) {
+        Memory.rooms = {};
     }
 
     let taskManager = new TaskManager();
@@ -79,13 +85,13 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     for (const creep of myCreeps) {
         if (creep.memory === undefined) {
-            creep.memory = DEFAULT_CREEP_MEMORY;
+            creep.memory = getDefaultCreepMemory();
         }
     }
 
     let world = new World(rooms, myCreeps, taskManager);
 
-    runSpawning();
+    runSpawning(world);
 
     assignCreeps(world);
     performCreepActions(world);

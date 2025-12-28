@@ -70,4 +70,6 @@ export class TransferTask extends Task<TransferTaskData> {
 
         return findBestEnergyTask(creepState, resourceManager);
     }
+
+    public override validCreationSetup(): void {}
 }

@@ -61,4 +61,6 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
 
         return findBestEnergyTask(creepState, resourceManager);
     }
+
+    public override validCreationSetup(): void {}
 }

@@ -10,8 +10,12 @@ export class TaskManager {
     constructor() {
         this.tasks = new Map();
 
-        for (const task of Memory.tasks) {
-            this.add(task);
+        for (const taskData of Memory.tasks) {
+            let task = createTask(taskData);
+
+            if (task) {
+                this.tasks.set(taskData.id, task);
+            }
         }
     }
 
@@ -26,6 +30,7 @@ export class TaskManager {
         let task = createTask(taskData);
 
         if (task) {
+            task.validCreationSetup();
             this.tasks.set(taskData.id, task);
         }
     }

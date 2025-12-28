@@ -4,7 +4,17 @@ import { TaskManager } from "tasks/TaskManager";
 import { createtransferTaskData as createTransferTaskData } from "tasks/TransferTask";
 import { createUpgradeTaskData } from "tasks/UpgradeTask";
 
+export function getDefaultRoomMemory(): RoomMemory {
+    return { numHarvestSpots: 0 };
+}
+
 export function setupRoomMemory(room: Room, taskManager: TaskManager) {
+    if (room.memory === undefined || room.memory.numHarvestSpots === undefined) {
+        room.memory = getDefaultRoomMemory();
+    }
+
+    console.log("inital room amount", room.memory.numHarvestSpots);
+
     const sources = room.find(FIND_SOURCES);
 
     sources.forEach(source => {
@@ -19,12 +29,20 @@ export function setupRoomMemory(room: Room, taskManager: TaskManager) {
         taskManager.add(taskData);
     });
 
-    const extensions = room
-        .find(FIND_MY_STRUCTURES)
-        .filter((s): s is StructureExtension => s.structureType === STRUCTURE_EXTENSION);
+    const myStructures = room.find(FIND_MY_STRUCTURES);
+
+    const extensions = myStructures.filter((s): s is StructureExtension => s.structureType === STRUCTURE_EXTENSION);
     console.log("extensions", extensions.length);
     extensions.forEach(extension => {
         const taskData = createTransferTaskData(extension);
+        taskManager.add(taskData);
+    });
+
+    const containers = room
+        .find(FIND_STRUCTURES)
+        .filter((s): s is StructureContainer => s.structureType == STRUCTURE_CONTAINER);
+    containers.forEach(container => {
+        const taskData = createTransferTaskData(container);
         taskManager.add(taskData);
     });
 

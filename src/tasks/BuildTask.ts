@@ -67,6 +67,8 @@ export class BuildTask extends Task<BuildTaskData> {
         return findBestEnergyTask(creepState, resourceManager);
     }
 
+    public override validCreationSetup(): void {}
+
     private priority(): number {
         switch (this.constructionSite?.structureType) {
             case STRUCTURE_CONTAINER:
