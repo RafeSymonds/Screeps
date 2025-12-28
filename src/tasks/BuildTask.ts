@@ -64,7 +64,7 @@ export class BuildTask extends Task<BuildTaskData> {
             return new BuildAction(this.constructionSite);
         }
 
-        return findBestEnergyTask(creepState, resourceManager);
+        return findBestEnergyTask(creepState, null, resourceManager);
     }
 
     public override validCreationSetup(): void {}

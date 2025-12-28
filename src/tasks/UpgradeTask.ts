@@ -59,7 +59,7 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
             return new UpgradeAction(this.controller);
         }
 
-        return findBestEnergyTask(creepState, resourceManager);
+        return findBestEnergyTask(creepState, null, resourceManager);
     }
 
     public override validCreationSetup(): void {}

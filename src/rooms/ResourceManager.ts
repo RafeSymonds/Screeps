@@ -7,13 +7,25 @@ type EnergySource = {
     amount: number;
 };
 
+export function containerIsSourceTied(container: StructureContainer): boolean {
+    return (
+        container.pos.findInRange(FIND_SOURCES, 1).length > 0 || container.pos.findInRange(FIND_MINERALS, 1).length > 0
+    );
+}
+
 export class ResourceManager {
     private resourcesPerRoom = new Map<string, EnergySource[]>();
     private reserved = new Map<Id<EnergyTarget>, number>();
 
+    private sourceContainers = new Set<Id<StructureContainer>>();
+    private needyContainers = new Set<Id<StructureContainer>>();
+
     constructor(worldRooms: WorldRoom[]) {
         // Recompute reservations every tick from creep intent
+        // Recompute containers as well
         for (const room of worldRooms) {
+            this.analyzeContainers(room.room);
+
             for (const creepState of room.myCreeps) {
                 const targetId = creepState.memory.energyTargetId;
                 if (!targetId) continue;
@@ -24,6 +36,41 @@ export class ResourceManager {
                 this.reserve(targetId, reserveAmount);
             }
         }
+    }
+
+    private analyzeContainers(room: Room) {
+        for (const structure of room.find(FIND_STRUCTURES)) {
+            if (!(structure instanceof StructureContainer)) {
+                continue;
+            }
+
+            // Source-tied container → never a destination
+            const isSourceTied = containerIsSourceTied(structure);
+
+            if (isSourceTied) {
+                this.sourceContainers.add(structure.id);
+            } else {
+                this.needyContainers.add(structure.id);
+            }
+        }
+    }
+
+    private isValidSourceFor(from: EnergyTarget, to: Structure | null): boolean {
+        // Storage is always allowed
+        if (from instanceof StructureStorage) return true;
+
+        // Resource piles, tombstones, ruins are always valid sources
+        if (!(from instanceof StructureContainer)) return true;
+
+        // Never pull from a container that itself needs energy
+        if (this.needyContainers.has(from.id)) return false;
+
+        // If destination is a container and BOTH need energy → disallow
+        if (to instanceof StructureContainer && this.needyContainers.has(to.id) && this.needyContainers.has(from.id)) {
+            return false;
+        }
+
+        return true;
     }
 
     private reserve(id: Id<EnergyTarget>, amount: number) {
@@ -76,7 +123,7 @@ export class ResourceManager {
         return sources;
     }
 
-    public findBestEnergySource(creep: Creep): EnergyTarget | null {
+    public findBestEnergySource(creep: Creep, destination: Structure | null): EnergyTarget | null {
         const sources = this.getRoomSources(creep.room);
         if (sources.length === 0) return null;
 
@@ -84,6 +131,10 @@ export class ResourceManager {
         let bestScore = -Infinity;
 
         for (const { target, amount } of sources) {
+            if (!this.isValidSourceFor(target, destination)) {
+                continue;
+            }
+
             const reserved = this.getReserved(target.id);
 
             const creepFreeCapacity = creep.store.getFreeCapacity(RESOURCE_ENERGY);

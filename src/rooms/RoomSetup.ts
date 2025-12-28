@@ -3,6 +3,7 @@ import { createHarvestTaskData } from "tasks/HarvestTask";
 import { TaskManager } from "tasks/TaskManager";
 import { createtransferTaskData as createTransferTaskData } from "tasks/TransferTask";
 import { createUpgradeTaskData } from "tasks/UpgradeTask";
+import { containerIsSourceTied } from "./ResourceManager";
 
 export function getDefaultRoomMemory(): RoomMemory {
     return { numHarvestSpots: 0 };
@@ -42,8 +43,10 @@ export function setupRoomMemory(room: Room, taskManager: TaskManager) {
         .find(FIND_STRUCTURES)
         .filter((s): s is StructureContainer => s.structureType == STRUCTURE_CONTAINER);
     containers.forEach(container => {
-        const taskData = createTransferTaskData(container);
-        taskManager.add(taskData);
+        if (containerIsSourceTied(container)) {
+            const taskData = createTransferTaskData(container);
+            taskManager.add(taskData);
+        }
     });
 
     const constructionSites = room.find(FIND_CONSTRUCTION_SITES);
