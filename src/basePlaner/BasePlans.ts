@@ -49,6 +49,11 @@ function placeRelative(
 
     // Lazy rampart placement early game
     if (structure === "rampart" && rcl < 5 && !isCoreRampart(offset)) return;
+    //TODO: remove this hard coding of ramprt
+    if (structure === "rampart") return;
+
+    // Lazy road placement
+    if (structure === "road" && !roadAllowed(offset, rcl)) return;
 
     room.createConstructionSite(pos, structure);
 }
@@ -71,4 +76,19 @@ function getAnchorSpawn(room: Room): StructureSpawn | null {
 function isCoreRampart(offset: Offset): boolean {
     // Protect spawn + immediate core early
     return offset.x === 0 && offset.y === 0;
+}
+
+function roadAllowed(offset: Offset, rcl: number): boolean {
+    // Core cross only
+    if (rcl <= 3) {
+        return (offset.x === 0 && Math.abs(offset.y) <= 2) || (offset.y === 0 && Math.abs(offset.x) <= 2);
+    }
+
+    // Internal bunker circulation
+    if (rcl <= 5) {
+        return Math.abs(offset.x) <= 4 && Math.abs(offset.y) <= 4;
+    }
+
+    // Full road network
+    return true;
 }

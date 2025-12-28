@@ -17,7 +17,7 @@ const MINER_MIN_COST = 250; // MOVE + 2x WORK
 const HAULER_MIN_COST = 100; // CARRY + MOVE
 
 // Hauling math
-const CARRY_PER_WORK = 1; // tune per distance / roads
+const CARRY_PER_WORK = 1.5; // tune per distance / roads
 
 /* ================================
    ROLE HELPERS
