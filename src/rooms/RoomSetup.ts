@@ -43,7 +43,7 @@ export function setupRoomMemory(room: Room, taskManager: TaskManager) {
         .find(FIND_STRUCTURES)
         .filter((s): s is StructureContainer => s.structureType == STRUCTURE_CONTAINER);
     containers.forEach(container => {
-        if (containerIsSourceTied(container)) {
+        if (!containerIsSourceTied(container)) {
             const taskData = createTransferTaskData(container);
             taskManager.add(taskData);
         }
