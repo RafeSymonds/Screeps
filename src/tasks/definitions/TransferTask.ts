@@ -17,7 +17,7 @@ export function createtransferTaskData(structure: AnyStoreStructure): TransferTa
     return {
         id: transferTaskName(structure),
         kind: TaskKind.TRANSFER,
-        room: structure.pos.roomName,
+        targetRoom: structure.pos.roomName,
         assignedCreeps: [],
         structureId: structure.id
     };

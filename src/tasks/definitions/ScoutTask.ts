@@ -16,7 +16,7 @@ export function createScoutTaskData(roomToScout: string): ScoutTaskData {
     return {
         id: scoutTaskName(roomToScout),
         kind: TaskKind.SCOUT,
-        room: roomToScout,
+        targetRoom: roomToScout,
         assignedCreeps: []
     };
 }
@@ -44,8 +44,8 @@ export class ScoutTask extends Task<ScoutTaskData> {
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
-        if (creepState.creep.room.name !== this.data.room) {
-            return new MoveAction(new RoomPosition(25, 25, this.data.room));
+        if (creepState.creep.room.name !== this.data.targetRoom) {
+            return new MoveAction(new RoomPosition(25, 25, this.data.targetRoom));
         }
 
         recordRoom(creepState.creep.room);

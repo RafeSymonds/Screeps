@@ -31,7 +31,7 @@ export function createHarvestTaskData(source: Source): HarvestTaskData {
     return {
         id: harvestTaskName(source),
         kind: TaskKind.HARVEST,
-        room: source.room.name,
+        targetRoom: source.room.name,
         assignedCreeps: [],
         targetId: source.id,
         maxSpots: harvestSpots

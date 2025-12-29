@@ -37,6 +37,19 @@ export abstract class Task<T extends TaskData> {
     public removeDeadCreep(deadName: string) {
         this.data.assignedCreeps = this.data.assignedCreeps.filter(([, name]) => name !== deadName);
     }
+
+    public roomCanConsiderTask(room: Room): boolean {
+        if (room.name == this.data.targetRoom) {
+            return true;
+        }
+
+        const distance = Game.map.getRoomLinearDistance(room.name, this.data.targetRoom);
+        if (distance <= room.memory.assistRadius) {
+            return true;
+        }
+
+        return false;
+    }
 }
 
 export type AnyTask = Task<TaskData>;

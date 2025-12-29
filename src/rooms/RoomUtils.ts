@@ -20,3 +20,7 @@ export function roomsWithin(room: string, maxDepth: number): Set<string> {
 
     return result;
 }
+
+export function ownedRooms(): Room[] {
+    return Object.values(Game.rooms).filter(r => r.controller?.my);
+}

@@ -17,7 +17,7 @@ export function createUpgradeTaskData(controller: StructureController): UpgradeT
     return {
         id: upgradeTaskName(controller),
         kind: TaskKind.UPGRADE,
-        room: controller.pos.roomName,
+        targetRoom: controller.pos.roomName,
         assignedCreeps: [],
         controllerId: controller.id
     };

@@ -6,7 +6,7 @@ import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
 import { containerIsSourceTied } from "./ResourceManager";
 
 export function getDefaultRoomMemory(): RoomMemory {
-    return { numHarvestSpots: 0, anchorSpawnId: undefined };
+    return { numHarvestSpots: 0, anchorSpawnId: undefined, assistRadius: 0 };
 }
 
 export function setupRoomMemory(room: Room, taskManager: TaskManager) {

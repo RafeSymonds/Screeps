@@ -10,15 +10,15 @@ import { findBestEnergyTask } from "tasks/requirements/EnergyRequirement";
 import { creepStoreFull } from "creeps/CreepController";
 import { getRemoteRoomMemory } from "rooms/RemoteMiningData";
 
-export function remoteHaulTaskName(source: Source): string {
-    return "RemoteHaul-" + source.room.name + "-" + source.id;
+export function remoteHaulTaskName(sourceId: Id<Source>, sourcePos: RoomPosition): string {
+    return "RemoteHaul-" + sourcePos.roomName + "-" + sourceId;
 }
 
-export function createRemoteHaulTaskData(source: Source): RemoteHaulTaskData {
+export function createRemoteHaulTaskData(sourceId: Id<Source>, sourcePos: RoomPosition): RemoteHaulTaskData {
     return {
-        id: remoteHaulTaskName(source),
+        id: remoteHaulTaskName(sourceId, sourcePos),
         kind: TaskKind.REMOTE_HAUL,
-        room: source.room.name,
+        targetRoom: sourcePos.roomName,
         assignedCreeps: []
     };
 }
@@ -40,11 +40,11 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override taskIsFull(): boolean {
-        return Game.time - getRemoteRoomMemory(this.data.room).lastHarvestTick < HARVEST_TIMEOUT;
+        return Game.time - getRemoteRoomMemory(this.data.targetRoom).lastHarvestTick < HARVEST_TIMEOUT;
     }
 
     public override score(creep: Creep): number {
-        return -1000 - Game.map.getRoomLinearDistance(creep.room.name, this.data.room) * 50;
+        return -1000 - Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 50;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
@@ -54,8 +54,8 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
         }
 
         // check to see if we are in the remote room
-        if (creepState.creep.room.name !== this.data.room) {
-            return new MoveAction(new RoomPosition(25, 25, this.data.room));
+        if (creepState.creep.room.name !== this.data.targetRoom) {
+            return new MoveAction(new RoomPosition(25, 25, this.data.targetRoom));
         }
 
         // if we are full or we have stopped working, go back to owner room

@@ -2,7 +2,7 @@ import { TaskKind } from "./TaskKind";
 
 export type BaseTask = {
     id: string;
-    room: string;
+    targetRoom: string;
     assignedCreeps: [Id<Creep>, string][];
 };
 
@@ -25,8 +25,8 @@ export type HarvestTaskData = BaseTask & {
 export type RemoteHarvestTaskData = BaseTask & {
     kind: TaskKind.REMOTE_HARVEST;
     targetId: Id<Source>;
-    maxSpots: number;
     sourcePos: RoomPosition;
+    ownerRoom: string;
 };
 
 export type RemoteHaulTaskData = BaseTask & {

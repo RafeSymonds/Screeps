@@ -17,7 +17,7 @@ export function createBuildTaskData(constructionSite: ConstructionSite): BuildTa
     return {
         id: buildTaskName(constructionSite),
         kind: TaskKind.BUILD,
-        room: constructionSite.pos.roomName,
+        targetRoom: constructionSite.pos.roomName,
         assignedCreeps: [],
         constructionId: constructionSite.id
     };

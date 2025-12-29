@@ -4,40 +4,73 @@ import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { HarvestAction } from "actions/HarvestAction";
 import { CreepState } from "creeps/CreepState";
-import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
+import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
 import { getRemoteRoomMemory, updateRemoteRoomMemory } from "rooms/RemoteMiningData";
+import { ownedRooms } from "rooms/RoomUtils";
 
-export function remoteHarvestTaskName(source: Source): string {
-    return "RemoteHarvest-" + source.room.name + "-" + source.id;
+const MAX_REMOTE_DISTANCE = 4; // don’t claim absurdly far rooms
+const HYSTERESIS_BONUS = 2; // bias toward current owner
+
+export function ownerRoomForRemoteHarvest(remoteRoom: string): string | undefined {
+    const rooms = ownedRooms();
+
+    if (rooms.length === 0) {
+        return undefined;
+    }
+
+    const previousOwner = Memory.remoteRooms[remoteRoom]?.ownerRoom;
+
+    let bestRoom: Room | null = null;
+    let bestScore = -Infinity;
+
+    for (const room of rooms) {
+        const distance = Game.map.getRoomLinearDistance(room.name, remoteRoom);
+
+        if (distance > MAX_REMOTE_DISTANCE) {
+            continue;
+        }
+
+        // Base score: closer is better
+        let score = -distance * 10;
+
+        // Bias toward previous owner to prevent thrash
+        if (room.name === previousOwner) {
+            score += HYSTERESIS_BONUS * 10;
+        }
+
+        // TODO: add in better indicators
+        // score += economyScore(room);
+        // score += safetyScore(room);
+        // score += infrastructureScore(room);
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestRoom = room;
+        }
+    }
+
+    return bestRoom?.name;
 }
 
-export function createRemoteHarvestTaskData(source: Source): RemoteHarvestTaskData {
-    let harvestSpots = 9;
+export function remoteHarvestTaskName(sourceId: Id<Source>, sourcePos: RoomPosition, ownerRoom: string): string {
+    return "RemoteHarvest-" + ownerRoom + "-" + sourcePos.roomName + "-" + sourceId;
+}
 
-    let terrain = source.room.lookForAtArea(
-        LOOK_TERRAIN,
-        source.pos.y - 1,
-        source.pos.x - 1,
-        source.pos.y + 1,
-        source.pos.x + 1,
-        true
-    );
-    terrain.forEach(terrainItem => {
-        if (terrainItem.terrain === "wall") {
-            harvestSpots -= 1;
-        }
-    });
-
+export function createRemoteHarvestTaskData(
+    sourceId: Id<Source>,
+    sourcePos: RoomPosition,
+    ownerRoom: string
+): RemoteHarvestTaskData {
     return {
-        id: remoteHarvestTaskName(source),
+        id: remoteHarvestTaskName(sourceId, sourcePos, ownerRoom),
         kind: TaskKind.REMOTE_HARVEST,
-        room: source.room.name,
+        targetRoom: sourcePos.roomName,
         assignedCreeps: [],
-        targetId: source.id,
-        maxSpots: harvestSpots,
-        sourcePos: source.pos
+        targetId: sourceId,
+        sourcePos: sourcePos,
+        ownerRoom: ownerRoom
     };
 }
 
@@ -59,21 +92,7 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
     }
 
     public override taskIsFull(): boolean {
-        let workParts = this.data.assignedCreeps.reduce((total, creepInfo) => {
-            const creep = Game.getObjectById(creepInfo[0]);
-
-            if (creep) {
-                total += countBodyParts(creep, WORK);
-            }
-
-            return total;
-        }, 0);
-
-        return (
-            workParts >= 5 ||
-            this.data.assignedCreeps.length >= 5 ||
-            this.data.assignedCreeps.length >= this.data.maxSpots
-        );
+        return this.data.assignedCreeps.length > 0;
     }
 
     public override score(creep: Creep): number {
@@ -86,16 +105,12 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
         }
 
         // update that we are still harvesting
-        const remoteRoomMemory = getRemoteRoomMemory(this.data.room);
+        const remoteRoomMemory = getRemoteRoomMemory(this.data.targetRoom);
         remoteRoomMemory.lastHarvestTick = Game.time;
-        updateRemoteRoomMemory(this.data.room, remoteRoomMemory);
+        updateRemoteRoomMemory(this.data.targetRoom, remoteRoomMemory);
 
         return new HarvestAction(this.source);
     }
 
-    public override validCreationSetup(): void {
-        if (this.source) {
-            this.source.room.memory.numHarvestSpots += this.data.maxSpots;
-        }
-    }
+    public override validCreationSetup(): void {}
 }
