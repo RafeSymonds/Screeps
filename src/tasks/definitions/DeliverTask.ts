@@ -73,7 +73,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
     public override validCreationSetup(): void {}
 
     public requirements(): TaskRequirements {
-        const energyPerTick = 15;
+        const energyPerTick = 5;
 
         const distance = 8;
         const roundTrip = distance * 2;

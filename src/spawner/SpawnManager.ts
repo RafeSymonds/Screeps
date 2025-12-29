@@ -39,6 +39,8 @@ const SPAWN_EPT = 8; // spawn + extensions while spawning
 const TOWER_IDLE_EPT = 1;
 const TOWER_COMBAT_EPT = 10;
 const CONTROLLER_MAX_WORK = 15; // max WORK you want on upgrading
+const WORKER_SURPLUS_EPT = 4;
+const WORKER_EPT_PER_WORK = 3;
 
 /* ================================
    BODY BUILDERS
@@ -90,6 +92,14 @@ function isWorker(cs: CreepState): boolean {
 
 function isScout(cs: CreepState): boolean {
     return hasBodyPart(cs.creep, MOVE) && !hasBodyPart(cs.creep, WORK) && !hasBodyPart(cs.creep, CARRY);
+}
+
+function countCreeps(creeps: CreepState[], pred: (creepState: CreepState) => boolean): number {
+    let count = 0;
+    for (const creep of creeps) {
+        if (pred(creep)) count++;
+    }
+    return count;
 }
 
 /* ================================
@@ -188,14 +198,16 @@ Bootstrap rules:
 
 */
 
-function selectSpawnIntent(demand: Totals, supply: Totals): SpawnIntent | null {
+function selectSpawnIntent(demand: Totals, supply: Totals, worldRoom: WorldRoom): SpawnIntent | null {
     const mineDeficit = Math.max(0, demand.mine - supply.mine);
     const workDeficit = Math.max(0, demand.work - supply.work);
     const carryDeficit = Math.max(0, demand.carry - supply.carry);
     const scoutDeficit = Math.max(0, demand.scout - supply.scout);
 
+    const workerBurnEpt = supply.work * WORKER_EPT_PER_WORK;
+
     const productionEpt = productionEptFromMiningWork(supply.mine);
-    const sinkEpt = demand.ept;
+    const sinkEpt = demand.ept + workerBurnEpt;
 
     console.log(
         "[SPAWN]",
@@ -219,12 +231,10 @@ function selectSpawnIntent(demand: Totals, supply: Totals): SpawnIntent | null {
     }
 
     // 2️⃣ If sinks want more energy than we produce, add mining (up to demand).
-    if (sinkEpt > productionEpt && mineDeficit > 0) {
-        return { kind: SpawnIntentKind.MINER, mine: mineDeficit };
-    }
-
-    // 3️⃣ Fill remaining mining capacity demand (if logistics is not behind)
-    if (mineDeficit > 0 && carryDeficit === 0) {
+    if (
+        countCreeps(worldRoom.myCreeps, isMiner) < worldRoom.room.memory.numHarvestSpots &&
+        ((sinkEpt > productionEpt && mineDeficit > 0) || (mineDeficit > 0 && carryDeficit === 0))
+    ) {
         return { kind: SpawnIntentKind.MINER, mine: mineDeficit };
     }
 
@@ -233,11 +243,11 @@ function selectSpawnIntent(demand: Totals, supply: Totals): SpawnIntent | null {
     }
 
     // 4️⃣ General labor (only when we’re not logistics-starved)
-    if (workDeficit > 0) {
+    if (workDeficit > 0 && productionEpt > sinkEpt + WORKER_SURPLUS_EPT) {
         return {
             kind: SpawnIntentKind.WORKER,
             work: workDeficit,
-            carry: carryDeficit
+            carry: 0
         };
     }
 
@@ -269,7 +279,7 @@ export class SpawnManager {
 
         demand.ept += sinkEpt;
 
-        const intent = selectSpawnIntent(demand, supply);
+        const intent = selectSpawnIntent(demand, supply, worldRoom.myCreeps);
         if (!intent) return;
 
         const energy = room.energyAvailable;
