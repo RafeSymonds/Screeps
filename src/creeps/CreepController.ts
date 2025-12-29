@@ -69,6 +69,12 @@ export function tryOrMove<T extends RoomObject>(
     return false; // no move
 }
 
+export function creepStoreFull(creep: Creep) {
+    const freeCapacity = creep.store.getFreeCapacity(RESOURCE_ENERGY);
+
+    return freeCapacity === 0;
+}
+
 export function creepNeedsEnergy(creepState: CreepState) {
     const usedCapacity = creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY);
     const freeCapacity = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY);

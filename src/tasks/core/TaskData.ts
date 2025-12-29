@@ -26,6 +26,13 @@ export type RemoteHarvestTaskData = BaseTask & {
     kind: TaskKind.REMOTE_HARVEST;
     targetId: Id<Source>;
     maxSpots: number;
+    sourcePos: RoomPosition;
+};
+
+export type RemoteHaulTaskData = BaseTask & {
+    kind: TaskKind.REMOTE_HAUL;
+    targetId: Id<Source>;
+    sourcePos: RoomPosition;
 };
 
 export type TransferTaskData = BaseTask & {
@@ -33,7 +40,13 @@ export type TransferTaskData = BaseTask & {
     structureId: Id<AnyStoreStructure>;
 };
 
-export type TaskData = BuildTaskData | UpgradeTaskData | HarvestTaskData | RemoteHarvestTaskData | TransferTaskData;
+export type TaskData =
+    | BuildTaskData
+    | UpgradeTaskData
+    | HarvestTaskData
+    | RemoteHarvestTaskData
+    | RemoteHaulTaskData
+    | TransferTaskData;
 
 export type RoomTaskData = {
     name: string;

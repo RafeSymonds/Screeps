@@ -9,3 +9,7 @@ export class CreepState {
         this.memory = memory || getDefaultCreepMemory(creep.room.name);
     }
 }
+
+export function clearCreepTask(creepState: CreepState) {
+    creepState.memory.taskId = undefined;
+}
