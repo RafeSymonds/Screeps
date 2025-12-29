@@ -4,5 +4,6 @@ export enum TaskKind {
     REMOTE_HARVEST,
     REMOTE_HAUL,
     TRANSFER,
-    UPGRADE
+    UPGRADE,
+    SCOUT
 }

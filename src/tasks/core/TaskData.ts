@@ -40,13 +40,18 @@ export type TransferTaskData = BaseTask & {
     structureId: Id<AnyStoreStructure>;
 };
 
+export type ScoutTaskData = BaseTask & {
+    kind: TaskKind.SCOUT;
+};
+
 export type TaskData =
     | BuildTaskData
     | UpgradeTaskData
     | HarvestTaskData
     | RemoteHarvestTaskData
     | RemoteHaulTaskData
-    | TransferTaskData;
+    | TransferTaskData
+    | ScoutTaskData;
 
 export type RoomTaskData = {
     name: string;

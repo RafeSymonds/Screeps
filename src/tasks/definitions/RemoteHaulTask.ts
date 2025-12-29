@@ -13,23 +13,7 @@ export function remoteHaulTaskName(source: Source): string {
     return "RemoteHaul-" + source.room.name + "-" + source.id;
 }
 
-export function createRemoteHaulaskData(source: Source): RemoteHaulTaskData {
-    let harvestSpots = 9;
-
-    let terrain = source.room.lookForAtArea(
-        LOOK_TERRAIN,
-        source.pos.y - 1,
-        source.pos.x - 1,
-        source.pos.y + 1,
-        source.pos.x + 1,
-        true
-    );
-    terrain.forEach(terrainItem => {
-        if (terrainItem.terrain === "wall") {
-            harvestSpots -= 1;
-        }
-    });
-
+export function createRemoteHaulTaskData(source: Source): RemoteHaulTaskData {
     return {
         id: remoteHaulTaskName(source),
         kind: TaskKind.REMOTE_HAUL,
