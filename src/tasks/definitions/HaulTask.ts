@@ -1,5 +1,5 @@
 import { TaskKind } from "../core/TaskKind";
-import { TransferTaskData } from "../core/TaskData";
+import { HaulTaskData } from "../core/TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { TransferAction } from "actions/TransferAction";
@@ -8,25 +8,26 @@ import { findBestEnergyTask } from "../requirements/EnergyRequirement";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy } from "creeps/CreepController";
+import { TaskRequirements } from "tasks/core/TaskRequirements";
 
-export function transferTaskName(structure: AnyStoreStructure): string {
+export function haulTaskName(structure: AnyStoreStructure): string {
     return "Transfer-" + structure.pos.roomName + "-" + structure.id;
 }
 
-export function createtransferTaskData(structure: AnyStoreStructure): TransferTaskData {
+export function createHaulTaskData(structure: AnyStoreStructure): HaulTaskData {
     return {
-        id: transferTaskName(structure),
-        kind: TaskKind.TRANSFER,
+        id: haulTaskName(structure),
+        kind: TaskKind.HAUL,
         targetRoom: structure.pos.roomName,
         assignedCreeps: [],
         structureId: structure.id
     };
 }
 
-export class TransferTask extends Task<TransferTaskData> {
+export class HaulTask extends Task<HaulTaskData> {
     structure: AnyStoreStructure | null;
 
-    constructor(data: TransferTaskData) {
+    constructor(data: HaulTaskData) {
         super(data);
         this.data = data;
 
@@ -70,6 +71,10 @@ export class TransferTask extends Task<TransferTaskData> {
     }
 
     public override validCreationSetup(): void {}
+
+    public requirements(): TaskRequirements {
+        return { carry: 2 };
+    }
 
     private priority(): number {
         switch (this.structure?.structureType) {

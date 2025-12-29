@@ -10,7 +10,6 @@ function needsScouting(roomName: string): boolean {
 
 export function scoutFrontier(home: string, radius: number, taskManager: TaskManager) {
     for (const room of roomsWithin(home, radius)) {
-        console.log("scouting", needsScouting(room));
         if (needsScouting(room)) {
             const taskData = createScoutTaskData(room);
 

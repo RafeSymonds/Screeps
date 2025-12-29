@@ -6,6 +6,8 @@ import { HarvestAction } from "actions/HarvestAction";
 import { CreepState } from "creeps/CreepState";
 import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
+import { worker } from "cluster";
+import { TaskRequirements } from "tasks/core/TaskRequirements";
 
 export function harvestTaskName(source: Source): string {
     return "harvest-" + source.room.name + "-" + source.id;
@@ -94,5 +96,11 @@ export class HarvestTask extends Task<HarvestTaskData> {
         if (this.source) {
             this.source.room.memory.numHarvestSpots += this.data.maxSpots;
         }
+    }
+
+    public override requirements(): TaskRequirements {
+        return {
+            work: 5
+        };
     }
 }

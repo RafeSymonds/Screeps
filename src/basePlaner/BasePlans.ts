@@ -6,7 +6,7 @@ import { Offset, RCL_LIMITS, STRUCTURE_RCL, PlannedStructure, RELATIVE_BUNKER } 
 
 export function runRelativeBasePlanner(room: Room): void {
     const controller = room.controller;
-    if (!controller) return;
+    if (!controller || !controller.my) return;
 
     const anchor = getAnchorSpawn(room);
     if (!anchor) return;

@@ -7,6 +7,7 @@ import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { ScoutTaskData } from "tasks/core/TaskData";
 import { recordRoom } from "rooms/RoomIntel";
+import { TaskRequirements } from "tasks/core/TaskRequirements";
 
 export function scoutTaskName(originRoom: string): string {
     return "Scout-" + originRoom;
@@ -53,4 +54,10 @@ export class ScoutTask extends Task<ScoutTaskData> {
     }
 
     public override validCreationSetup(): void {}
+
+    public override requirements(): TaskRequirements {
+        return {
+            vision: true
+        };
+    }
 }

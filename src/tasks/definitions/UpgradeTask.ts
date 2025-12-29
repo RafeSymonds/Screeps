@@ -8,6 +8,7 @@ import { findBestEnergyTask } from "../requirements/EnergyRequirement";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy } from "creeps/CreepController";
+import { TaskRequirements } from "tasks/core/TaskRequirements";
 
 export function upgradeTaskName(controller: StructureController): string {
     return "upgrade-" + controller.pos.roomName + "-" + controller.id;
@@ -63,4 +64,8 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
     }
 
     public override validCreationSetup(): void {}
+
+    public requirements(): TaskRequirements {
+        return { work: 1 };
+    }
 }

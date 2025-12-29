@@ -8,6 +8,7 @@ import { findBestEnergyTask } from "../requirements/EnergyRequirement";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy } from "creeps/CreepController";
+import { TaskRequirements } from "tasks/core/TaskRequirements";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
     return "build-" + constructionSite.pos.roomName + "-" + constructionSite.id;
@@ -68,6 +69,12 @@ export class BuildTask extends Task<BuildTaskData> {
     }
 
     public override validCreationSetup(): void {}
+
+    public override requirements(): TaskRequirements {
+        return {
+            work: 1
+        };
+    }
 
     private priority(): number {
         switch (this.constructionSite?.structureType) {

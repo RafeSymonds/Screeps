@@ -4,6 +4,7 @@ import { createHarvestTaskData } from "tasks/definitions/HarvestTask";
 import { createtransferTaskData } from "tasks/definitions/TransferTask";
 import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
 import { containerIsSourceTied } from "rooms/ResourceManager";
+import { createBuildTaskData } from "tasks/definitions/BuildTask";
 
 export class EconomyPlan extends Plan {
     public override run(world: World): void {
@@ -43,6 +44,13 @@ export class EconomyPlan extends Plan {
                 if (room.controller) {
                     taskManager.add(createUpgradeTaskData(room.controller));
                 }
+
+                const constructionSites = room.find(FIND_CONSTRUCTION_SITES);
+
+                constructionSites.forEach(constructionSite => {
+                    const taskData = createBuildTaskData(constructionSite);
+                    taskManager.add(taskData);
+                });
             }
         }
     }

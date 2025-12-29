@@ -2,6 +2,7 @@ import { Action } from "actions/Action";
 import { TaskData } from "../core/TaskData";
 import { CreepState } from "creeps/CreepState";
 import { ResourceManager } from "rooms/ResourceManager";
+import { TaskRequirements } from "tasks/core/TaskRequirements";
 
 export abstract class Task<T extends TaskData> {
     data: T;
@@ -21,6 +22,8 @@ export abstract class Task<T extends TaskData> {
     public abstract nextAction(creep: CreepState, resourceManager: ResourceManager): Action | null;
 
     public abstract validCreationSetup(): void;
+
+    public abstract requirements(): TaskRequirements;
 
     public id() {
         return this.data.id;

@@ -9,6 +9,7 @@ import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
 import { getRemoteRoomMemory, updateRemoteRoomMemory } from "rooms/RemoteMiningData";
 import { ownedRooms } from "rooms/RoomUtils";
+import { TaskRequirements } from "tasks/core/TaskRequirements";
 
 const MAX_REMOTE_DISTANCE = 4; // don’t claim absurdly far rooms
 const HYSTERESIS_BONUS = 2; // bias toward current owner
@@ -113,4 +114,8 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
     }
 
     public override validCreationSetup(): void {}
+
+    public requirements(): TaskRequirements {
+        return { work: 5 };
+    }
 }

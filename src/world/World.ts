@@ -4,16 +4,20 @@ import { TaskData } from "tasks/core/TaskData";
 import { TaskManager } from "tasks/core/TaskManager";
 import { mapToArray } from "utils/MapUtils";
 import { CreepState } from "creeps/CreepState";
+import { SpawnManager } from "managers/SpawnManager";
 
 export class World {
     taskManager: TaskManager;
+
+    spawnManager: SpawnManager;
 
     rooms: Map<string, WorldRoom>;
 
     resourceManager: ResourceManager;
 
-    constructor(rooms: Room[], myCreeps: CreepState[], taskManager: TaskManager) {
+    constructor(rooms: Room[], myCreeps: CreepState[], taskManager: TaskManager, spawnManager: SpawnManager) {
         this.taskManager = taskManager;
+        this.spawnManager = spawnManager;
 
         const worldRooms = rooms.map(room => new WorldRoom(room, myCreeps));
 

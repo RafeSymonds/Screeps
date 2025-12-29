@@ -9,6 +9,7 @@ import { MoveAction } from "actions/MoveAction";
 import { findBestEnergyTask } from "tasks/requirements/EnergyRequirement";
 import { creepStoreFull } from "creeps/CreepController";
 import { getRemoteRoomMemory } from "rooms/RemoteMiningData";
+import { TaskRequirements } from "tasks/core/TaskRequirements";
 
 export function remoteHaulTaskName(sourceId: Id<Source>, sourcePos: RoomPosition): string {
     return "RemoteHaul-" + sourcePos.roomName + "-" + sourceId;
@@ -73,4 +74,8 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override validCreationSetup(): void {}
+
+    public requirements(): TaskRequirements {
+        return { carry: 10 };
+    }
 }
