@@ -171,11 +171,6 @@ function selectSpawnIntent(demand: CapabilityTotals, supply: CapabilityTotals): 
 
     console.log("[FLOW]", `prod:${flow.production} trans:${flow.transport} cons:${flow.consumption}`);
 
-    // 1️⃣ Vision (binary, independent)
-    if (visionDeficit > 0) {
-        return { kind: SpawnIntentKind.SCOUT };
-    }
-
     // 2️⃣ Transport bottleneck
     // Producing energy we cannot move
     if (flow.production > flow.transport) {
@@ -198,6 +193,11 @@ function selectSpawnIntent(demand: CapabilityTotals, supply: CapabilityTotals): 
             work: demand.work - supply.work,
             carry: demand.carry - supply.carry
         };
+    }
+
+    // 1️⃣ Vision (binary, independent)
+    if (visionDeficit > 0) {
+        return { kind: SpawnIntentKind.SCOUT };
     }
 
     return null;

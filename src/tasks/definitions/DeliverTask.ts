@@ -75,7 +75,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
     public requirements(): TaskRequirements {
         const energyPerTick = 5;
 
-        const distance = 20;
+        const distance = 8;
         const roundTrip = distance * 2;
 
         return {
