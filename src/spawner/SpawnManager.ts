@@ -279,7 +279,7 @@ export class SpawnManager {
 
         demand.ept += sinkEpt;
 
-        const intent = selectSpawnIntent(demand, supply, worldRoom.myCreeps);
+        const intent = selectSpawnIntent(demand, supply, worldRoom);
         if (!intent) return;
 
         const energy = room.energyAvailable;
