@@ -9,6 +9,7 @@ import { runSpawning } from "spawner/Spawner";
 import { EnergyTarget } from "rooms/ResourceManager";
 import { getDefaultCreepMemory } from "creeps/CreepMemory";
 import { runRelativeBasePlanner } from "basePlaner/BasePlans";
+import { NeighborMap } from "rooms/RoomTopology";
 
 declare global {
     /*
@@ -22,7 +23,7 @@ declare global {
     // Memory extension samples
     interface Memory {
         tasks: TaskData[];
-        remoteRooms: Record<string, RemoteRoomMemory>;
+        remoteRooms: Record<string, RemoteMiningData>;
     }
 
     interface CreepMemory {
@@ -33,13 +34,26 @@ declare global {
         ownerRoom: string;
     }
 
-    interface RoomMemory {
-        // early game max number of harvesters to spawn
-        numHarvestSpots: number;
-        anchorSpawnId?: Id<StructureSpawn>;
+    interface RoomTopology {
+        neighbors: NeighborMap;
     }
 
-    interface RemoteRoomMemory {
+    interface RoomIntel {
+        lastScouted: number;
+        owner?: string;
+        reservedBy?: string;
+    }
+
+    interface RoomMemory {
+        topology?: RoomTopology;
+        intel?: RoomIntel;
+
+        // Base-specific (only meaningful for owned rooms)
+        anchorSpawnId?: Id<StructureSpawn>;
+        numHarvestSpots: number;
+    }
+
+    interface RemoteMiningData {
         lastHarvestTick: number;
     }
 }

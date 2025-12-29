@@ -8,7 +8,7 @@ import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
 import { findBestEnergyTask } from "tasks/requirements/EnergyRequirement";
 import { creepStoreFull } from "creeps/CreepController";
-import { getRemoteRoomMemory } from "rooms/RemoteRoomManager";
+import { getRemoteRoomMemory } from "rooms/RemoteMiningData";
 
 export function remoteHaulTaskName(source: Source): string {
     return "RemoteHaul-" + source.room.name + "-" + source.id;

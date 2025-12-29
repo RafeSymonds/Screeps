@@ -6,6 +6,9 @@ import { TaskData } from "./TaskData";
 import { TaskKind } from "./TaskKind";
 import { TransferTask } from "../definitions/TransferTask";
 import { UpgradeTask } from "../definitions/UpgradeTask";
+import { RemoteHaulTask } from "tasks/definitions/RemoteHaulTask";
+import { RemoteHarvestTask } from "tasks/definitions/RemoteHarvestTask";
+import { ScoutTask } from "tasks/definitions/ScoutTask";
 
 function constructTask(data: TaskData): AnyTask {
     switch (data.kind) {
@@ -18,8 +21,17 @@ function constructTask(data: TaskData): AnyTask {
         case TaskKind.HARVEST:
             return new HarvestTask(data);
 
+        case TaskKind.REMOTE_HARVEST:
+            return new RemoteHarvestTask(data);
+
+        case TaskKind.REMOTE_HAUL:
+            return new RemoteHaulTask(data);
+
         case TaskKind.TRANSFER:
             return new TransferTask(data);
+
+        case TaskKind.SCOUT:
+            return new ScoutTask(data);
     }
 }
 

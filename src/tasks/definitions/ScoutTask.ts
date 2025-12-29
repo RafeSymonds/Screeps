@@ -1,28 +1,27 @@
+import { MoveAction } from "actions/MoveAction";
 import { TaskKind } from "../core/TaskKind";
-import { RemoteHaulTaskData, ScoutTaskData } from "../core/TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
-import { clearCreepTask, CreepState } from "creeps/CreepState";
+import { CreepState } from "creeps/CreepState";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
-import { MoveAction } from "actions/MoveAction";
-import { findBestEnergyTask } from "tasks/requirements/EnergyRequirement";
-import { creepStoreFull } from "creeps/CreepController";
+import { ScoutTaskData } from "tasks/core/TaskData";
+import { recordRoom } from "rooms/RoomIntel";
 
 export function scoutTaskName(originRoom: string): string {
     return "Scout-" + originRoom;
 }
 
-export function createScoutTaskData(originRoom: string): ScoutTaskData {
+export function createScoutTaskData(roomToScout: string): ScoutTaskData {
     return {
-        id: scoutTaskName(originRoom),
+        id: scoutTaskName(roomToScout),
         kind: TaskKind.SCOUT,
-        room: originRoom,
+        room: roomToScout,
         assignedCreeps: []
     };
 }
 
-export class RemoteHaulTask extends Task<ScoutTaskData> {
+export class ScoutTask extends Task<ScoutTaskData> {
     constructor(data: ScoutTaskData) {
         super(data);
         this.data = data;
@@ -33,7 +32,7 @@ export class RemoteHaulTask extends Task<ScoutTaskData> {
     }
 
     public override canPerformTask(creepState: CreepState): boolean {
-        return hasBodyPart(creepState.creep, CARRY);
+        return hasBodyPart(creepState.creep, MOVE);
     }
 
     public override taskIsFull(): boolean {
@@ -45,6 +44,11 @@ export class RemoteHaulTask extends Task<ScoutTaskData> {
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
+        if (creepState.creep.room.name !== this.data.room) {
+            return new MoveAction(new RoomPosition(25, 25, this.data.room));
+        }
+
+        recordRoom(creepState.creep.room);
         return null;
     }
 

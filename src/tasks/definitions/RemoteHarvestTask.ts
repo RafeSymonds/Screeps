@@ -7,7 +7,7 @@ import { CreepState } from "creeps/CreepState";
 import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
-import { getRemoteRoomMemory, updateRemoteRoomMemory } from "rooms/RemoteRoomManager";
+import { getRemoteRoomMemory, updateRemoteRoomMemory } from "rooms/RemoteMiningData";
 
 export function remoteHarvestTaskName(source: Source): string {
     return "RemoteHarvest-" + source.room.name + "-" + source.id;
@@ -93,5 +93,9 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
         return new HarvestAction(this.source);
     }
 
-    public override validCreationSetup(): void {}
+    public override validCreationSetup(): void {
+        if (this.source) {
+            this.source.room.memory.numHarvestSpots += this.data.maxSpots;
+        }
+    }
 }

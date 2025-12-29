@@ -4,6 +4,7 @@ import { CreepState } from "creeps/CreepState";
 import { TaskIdSet } from "tasks/definitions/Task";
 import { TaskManager } from "tasks/core/TaskManager";
 import { filterMapToArray } from "utils/MapUtils";
+import { scoutFrontier } from "rooms/RoomScouting";
 
 export class WorldRoom {
     room: Room;
