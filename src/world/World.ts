@@ -1,7 +1,7 @@
 import { ResourceManager } from "rooms/ResourceManager";
 import { WorldRoom } from "./WorldRoom";
-import { TaskData } from "tasks/TaskData";
-import { TaskManager } from "tasks/TaskManager";
+import { TaskData } from "tasks/core/TaskData";
+import { TaskManager } from "tasks/core/TaskManager";
 import { mapToArray } from "utils/MapUtils";
 
 export class World {

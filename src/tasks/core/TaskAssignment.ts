@@ -1,5 +1,5 @@
 import { World } from "world/World";
-import { AnyTask } from "./Task";
+import { AnyTask } from "../definitions/Task";
 import { TaskManager } from "./TaskManager";
 
 function isCreepFree(creepMemory: CreepMemory, taskManager: TaskManager): boolean {

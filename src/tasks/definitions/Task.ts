@@ -1,5 +1,5 @@
 import { Action } from "actions/Action";
-import { TaskData } from "./TaskData";
+import { TaskData } from "../core/TaskData";
 import { CreepState } from "creeps/CreepState";
 import { ResourceManager } from "rooms/ResourceManager";
 

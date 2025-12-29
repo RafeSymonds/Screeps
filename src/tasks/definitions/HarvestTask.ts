@@ -1,5 +1,5 @@
-import { TaskKind } from "./TaskKind";
-import { HarvestTaskData } from "./TaskData";
+import { TaskKind } from "../core/TaskKind";
+import { HarvestTaskData } from "../core/TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { HarvestAction } from "actions/HarvestAction";

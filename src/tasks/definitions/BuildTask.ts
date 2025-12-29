@@ -1,10 +1,10 @@
-import { TaskKind } from "./TaskKind";
-import { BuildTaskData } from "./TaskData";
+import { TaskKind } from "../core/TaskKind";
+import { BuildTaskData } from "../core/TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { BuildAction } from "actions/BuildAction";
 import { CreepState } from "creeps/CreepState";
-import { findBestEnergyTask } from "./NeedEnergyPrereq";
+import { findBestEnergyTask } from "../requirements/EnergyRequirement";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy } from "creeps/CreepController";

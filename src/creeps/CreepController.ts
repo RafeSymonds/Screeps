@@ -2,7 +2,7 @@ import { World } from "world/World";
 import { CreepState } from "./CreepState";
 import { EnergyTarget } from "rooms/ResourceManager";
 import { CollectAction } from "actions/CollectionAction";
-import { TaskManager } from "tasks/TaskManager";
+import { TaskManager } from "tasks/core/TaskManager";
 import { getDefaultCreepMemory } from "./CreepMemory";
 import { max } from "lodash";
 

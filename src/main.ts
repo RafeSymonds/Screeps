@@ -1,9 +1,9 @@
-import { TaskData } from "tasks/TaskData";
+import { TaskData } from "tasks/core/TaskData";
 import { ErrorMapper } from "utils/ErrorMapper";
 import { World } from "world/World";
 import { setupRoomMemory } from "rooms/RoomSetup";
-import { TaskManager } from "tasks/TaskManager";
-import { assignCreeps } from "tasks/TaskAssignment";
+import { TaskManager } from "tasks/core/TaskManager";
+import { assignCreeps } from "tasks/core/TaskAssignment";
 import { performCreepActions } from "creeps/CreepController";
 import { runSpawning } from "spawner/Spawner";
 import { EnergyTarget } from "rooms/ResourceManager";

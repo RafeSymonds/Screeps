@@ -1,8 +1,8 @@
-import { createBuildTaskData } from "tasks/BuildTask";
-import { createHarvestTaskData } from "tasks/HarvestTask";
-import { TaskManager } from "tasks/TaskManager";
-import { createtransferTaskData as createTransferTaskData } from "tasks/TransferTask";
-import { createUpgradeTaskData } from "tasks/UpgradeTask";
+import { createBuildTaskData } from "tasks/definitions/BuildTask";
+import { createHarvestTaskData } from "tasks/definitions/HarvestTask";
+import { TaskManager } from "tasks/core/TaskManager";
+import { createtransferTaskData as createTransferTaskData } from "tasks/definitions/TransferTask";
+import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
 import { containerIsSourceTied } from "./ResourceManager";
 
 export function getDefaultRoomMemory(): RoomMemory {

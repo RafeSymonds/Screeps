@@ -1,4 +1,4 @@
-import { AnyTask } from "./Task";
+import { AnyTask } from "../definitions/Task";
 import { TaskData } from "./TaskData";
 import { createTask } from "./TaskCreation";
 

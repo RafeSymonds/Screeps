@@ -1,11 +1,11 @@
-import { BuildTask } from "./BuildTask";
-import { HarvestTask } from "./HarvestTask";
-import { AnyTask } from "./Task";
+import { BuildTask } from "../definitions/BuildTask";
+import { HarvestTask } from "../definitions/HarvestTask";
+import { AnyTask } from "../definitions/Task";
 import { TaskData } from "./TaskData";
 
 import { TaskKind } from "./TaskKind";
-import { TransferTask } from "./TransferTask";
-import { UpgradeTask } from "./UpgradeTask";
+import { TransferTask } from "../definitions/TransferTask";
+import { UpgradeTask } from "../definitions/UpgradeTask";
 
 function constructTask(data: TaskData): AnyTask {
     switch (data.kind) {
