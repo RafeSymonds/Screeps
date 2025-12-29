@@ -4,12 +4,12 @@ import { World } from "world/World";
 import { TaskManager } from "tasks/core/TaskManager";
 import { assignCreeps } from "tasks/core/TaskAssignment";
 import { performCreepActions } from "creeps/CreepController";
-import { runSpawning } from "spawner/Spawner";
 import { EnergyTarget } from "rooms/ResourceManager";
 import { getCreepMemory, getDefaultCreepMemory } from "creeps/CreepMemory";
 import { NeighborMap } from "rooms/RoomTopology";
 import { runPlans } from "plans/core/PlanManager";
 import { CreepState } from "creeps/CreepState";
+import { SpawnManager } from "spawner/SpawnManager";
 
 declare global {
     /*
@@ -132,7 +132,8 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     runPlans(world);
 
-    runSpawning(world);
+    let spawnManager = new SpawnManager();
+    spawnManager.run(world);
 
     assignCreeps(world);
     performCreepActions(world);

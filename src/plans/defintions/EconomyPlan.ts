@@ -1,7 +1,7 @@
 import { Plan } from "./Plan";
 import { World } from "world/World";
 import { createHarvestTaskData } from "tasks/definitions/HarvestTask";
-import { createtransferTaskData } from "tasks/definitions/TransferTask";
+import { createDeliverTaskData } from "tasks/definitions/DeliverTask";
 import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
 import { containerIsSourceTied } from "rooms/ResourceManager";
 import { createBuildTaskData } from "tasks/definitions/BuildTask";
@@ -26,7 +26,7 @@ export class EconomyPlan extends Plan {
                 //
                 for (const s of room.find(FIND_MY_STRUCTURES)) {
                     if (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) {
-                        taskManager.add(createtransferTaskData(s));
+                        taskManager.add(createDeliverTaskData(s));
                     }
                 }
 
@@ -34,7 +34,7 @@ export class EconomyPlan extends Plan {
                     .find(FIND_STRUCTURES)
                     .filter((s): s is StructureContainer => s.structureType === STRUCTURE_EXTENSION)) {
                     if (!containerIsSourceTied(container)) {
-                        taskManager.add(createtransferTaskData(container));
+                        taskManager.add(createDeliverTaskData(container));
                     }
                 }
 

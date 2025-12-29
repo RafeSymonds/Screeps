@@ -1,6 +1,7 @@
 import { AnyTask } from "../definitions/Task";
 import { TaskData } from "./TaskData";
 import { createTask } from "./TaskCreation";
+import { filterMapToArray } from "utils/MapUtils";
 
 type TaskMap = Map<string, AnyTask>;
 
@@ -37,5 +38,9 @@ export class TaskManager {
 
     public get(taskId: string): AnyTask | undefined {
         return this.tasks.get(taskId);
+    }
+
+    public getTasksForRoom(room: Room): AnyTask[] {
+        return filterMapToArray(this.tasks, task => task.roomCanConsiderTask(room));
     }
 }

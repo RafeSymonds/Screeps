@@ -75,7 +75,15 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
 
     public override validCreationSetup(): void {}
 
-    public requirements(): TaskRequirements {
-        return { carry: 10 };
+    requirements(): TaskRequirements {
+        const energyPerTick = 10;
+
+        // TODO: calculate better
+        const distance = 50;
+        const roundTrip = distance * 2;
+
+        return {
+            carry: Math.ceil((energyPerTick * roundTrip) / 50)
+        };
     }
 }

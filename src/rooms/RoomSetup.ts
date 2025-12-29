@@ -1,7 +1,7 @@
 import { createBuildTaskData } from "tasks/definitions/BuildTask";
 import { createHarvestTaskData } from "tasks/definitions/HarvestTask";
 import { TaskManager } from "tasks/core/TaskManager";
-import { createtransferTaskData as createTransferTaskData } from "tasks/definitions/TransferTask";
+import { createDeliverTaskData as createTransferTaskData } from "tasks/definitions/DeliverTask";
 import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
 import { containerIsSourceTied } from "./ResourceManager";
 

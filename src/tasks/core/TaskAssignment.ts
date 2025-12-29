@@ -23,9 +23,7 @@ export function assignCreeps(world: World) {
             let bestTask: AnyTask | undefined = undefined;
             let bestScore = -Infinity;
 
-            const tasks = filterMapToArray(world.taskManager.tasks, task => task.roomCanConsiderTask(worldRoom.room));
-
-            for (const task of tasks) {
+            for (const task of world.taskManager.getTasksForRoom(worldRoom.room)) {
                 if (task && task.canPerformTask(creepState) && !task.taskIsFull()) {
                     let score = task.score(creepState.creep);
 

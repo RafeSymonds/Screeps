@@ -1,5 +1,5 @@
 import { TaskKind } from "../core/TaskKind";
-import { HaulTaskData } from "../core/TaskData";
+import { DeliverTaskData } from "../core/TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { TransferAction } from "actions/TransferAction";
@@ -10,24 +10,24 @@ import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 
-export function haulTaskName(structure: AnyStoreStructure): string {
+export function deliverTaskName(structure: AnyStoreStructure): string {
     return "Transfer-" + structure.pos.roomName + "-" + structure.id;
 }
 
-export function createHaulTaskData(structure: AnyStoreStructure): HaulTaskData {
+export function createDeliverTaskData(structure: AnyStoreStructure): DeliverTaskData {
     return {
-        id: haulTaskName(structure),
-        kind: TaskKind.HAUL,
+        id: deliverTaskName(structure),
+        kind: TaskKind.DELIVER,
         targetRoom: structure.pos.roomName,
         assignedCreeps: [],
         structureId: structure.id
     };
 }
 
-export class HaulTask extends Task<HaulTaskData> {
+export class DeliverTask extends Task<DeliverTaskData> {
     structure: AnyStoreStructure | null;
 
-    constructor(data: HaulTaskData) {
+    constructor(data: DeliverTaskData) {
         super(data);
         this.data = data;
 
@@ -73,7 +73,14 @@ export class HaulTask extends Task<HaulTaskData> {
     public override validCreationSetup(): void {}
 
     public requirements(): TaskRequirements {
-        return { carry: 2 };
+        const energyPerTick = 5;
+
+        const distance = 20;
+        const roundTrip = distance * 2;
+
+        return {
+            carry: Math.ceil((energyPerTick * roundTrip) / 50)
+        };
     }
 
     private priority(): number {

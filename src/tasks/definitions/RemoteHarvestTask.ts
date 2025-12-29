@@ -116,6 +116,6 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
     public override validCreationSetup(): void {}
 
     public requirements(): TaskRequirements {
-        return { work: 5 };
+        return { mine: 5 };
     }
 }

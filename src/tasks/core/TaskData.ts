@@ -33,8 +33,8 @@ export type RemoteHaulTaskData = BaseTask & {
     kind: TaskKind.REMOTE_HAUL;
 };
 
-export type HaulTaskData = BaseTask & {
-    kind: TaskKind.HAUL;
+export type DeliverTaskData = BaseTask & {
+    kind: TaskKind.DELIVER;
     structureId: Id<AnyStoreStructure>;
 };
 
@@ -48,7 +48,7 @@ export type TaskData =
     | HarvestTaskData
     | RemoteHarvestTaskData
     | RemoteHaulTaskData
-    | HaulTaskData
+    | DeliverTaskData
     | ScoutTaskData;
 
 export type RoomTaskData = {

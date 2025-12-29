@@ -100,7 +100,7 @@ export class HarvestTask extends Task<HarvestTaskData> {
 
     public override requirements(): TaskRequirements {
         return {
-            work: 5
+            mine: 5
         };
     }
 }
