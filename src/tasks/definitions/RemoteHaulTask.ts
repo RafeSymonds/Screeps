@@ -8,7 +8,6 @@ import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
 import { findBestEnergyTask } from "tasks/requirements/EnergyRequirement";
 import { creepStoreFull } from "creeps/CreepController";
-import { getRemoteRoomMemory } from "rooms/RemoteMiningData";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 
 export function remoteHaulTaskName(sourceId: Id<Source>, sourcePos: RoomPosition): string {
@@ -41,7 +40,13 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override taskIsFull(): boolean {
-        return Game.time - getRemoteRoomMemory(this.data.targetRoom).lastHarvestTick < HARVEST_TIMEOUT;
+        const roomMemory = Memory.rooms[this.data.targetRoom];
+
+        if (!roomMemory || !roomMemory.remoteMining) {
+            return true;
+        }
+
+        return Game.time - roomMemory.remoteMining.lastHarvestTick < HARVEST_TIMEOUT;
     }
 
     public override score(creep: Creep): number {
@@ -61,7 +66,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
 
         // if we are full or we have stopped working, go back to owner room
         if (creepStoreFull(creepState.creep) || !creepState.memory.working) {
-            return new MoveAction(new RoomPosition(50, 50, creepState.memory.ownerRoom));
+            return new MoveAction(new RoomPosition(25, 25, creepState.memory.ownerRoom));
         }
 
         const energyTask = findBestEnergyTask(creepState, null, resourceManager);

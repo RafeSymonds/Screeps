@@ -23,7 +23,6 @@ declare global {
     // Memory extension samples
     interface Memory {
         tasks: TaskData[];
-        remoteRooms: Record<string, RemoteMiningData>;
     }
 
     interface CreepMemory {
@@ -47,6 +46,7 @@ declare global {
     interface RoomMemory {
         topology?: RoomTopology;
         intel?: RoomIntel;
+        remoteMining?: RemoteMiningData;
 
         // Base-specific (only meaningful for owned rooms)
         anchorSpawnId?: Id<StructureSpawn>;
@@ -85,10 +85,6 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     if (!Memory.rooms) {
         Memory.rooms = {};
-    }
-
-    if (!Memory.remoteRooms) {
-        Memory.remoteRooms = {};
     }
 
     let rooms = Object.values(Game.rooms);

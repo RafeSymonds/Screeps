@@ -33,7 +33,11 @@ export class ScoutTask extends Task<ScoutTaskData> {
     }
 
     public override canPerformTask(creepState: CreepState): boolean {
-        return hasBodyPart(creepState.creep, MOVE);
+        return (
+            hasBodyPart(creepState.creep, MOVE) &&
+            !hasBodyPart(creepState.creep, WORK) &&
+            !hasBodyPart(creepState.creep, CARRY)
+        );
     }
 
     public override taskIsFull(): boolean {
@@ -41,7 +45,8 @@ export class ScoutTask extends Task<ScoutTaskData> {
     }
 
     public override score(creep: Creep): number {
-        return 0;
+        console.log(Game.time - (Memory.rooms[this.data.targetRoom]?.intel?.lastScouted || 0));
+        return Game.time - (Memory.rooms[this.data.targetRoom]?.intel?.lastScouted || 0);
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {

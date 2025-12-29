@@ -7,20 +7,22 @@ export class RemoteMiningPlan extends Plan {
     public override run(world: World) {
         const taskManager = world.taskManager;
 
-        for (const remoteRoomName in Memory.remoteRooms) {
-            const remoteMiningData = Memory.remoteRooms[remoteRoomName];
+        for (const remoteRoomName in Memory.rooms) {
+            const roomData = Memory.rooms[remoteRoomName];
 
-            // TODO: Decide if remote is worth mining
+            if (!roomData.intel?.owner && roomData.remoteMining) {
+                // TODO: Decide if remote is worth mining
 
-            const ownerRoom = ownerRoomForRemoteHarvest(remoteRoomName);
+                const ownerRoom = ownerRoomForRemoteHarvest(remoteRoomName);
 
-            if (!ownerRoom) {
-                continue;
-            }
+                if (!ownerRoom) {
+                    continue;
+                }
 
-            for (const [sourceId, sourcePos] of remoteMiningData.sources) {
-                taskManager.add(createRemoteHarvestTaskData(sourceId, sourcePos, ownerRoom));
-                taskManager.add(createRemoteHaulTaskData(sourceId, sourcePos));
+                for (const [sourceId, sourcePos] of roomData.remoteMining?.sources) {
+                    taskManager.add(createRemoteHarvestTaskData(sourceId, sourcePos, ownerRoom));
+                    taskManager.add(createRemoteHaulTaskData(sourceId, sourcePos));
+                }
             }
         }
     }

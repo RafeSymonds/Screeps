@@ -15,6 +15,12 @@ export function recordRoom(room: Room) {
         mem.topology = recordTopology(room.name);
     }
 
+    if (!mem.remoteMining) {
+        const sources = room.find(FIND_SOURCES).map((source): [Id<Source>, RoomPosition] => [source.id, source.pos]);
+
+        mem.remoteMining = { lastHarvestTick: -1, sources: sources, ownerRoom: undefined };
+    }
+
     // Intel: refreshed
     mem.intel = {
         lastScouted: Game.time,

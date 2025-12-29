@@ -7,7 +7,6 @@ import { CreepState } from "creeps/CreepState";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
-import { getRemoteRoomMemory, updateRemoteRoomMemory } from "rooms/RemoteMiningData";
 import { ownedRooms } from "rooms/RoomUtils";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 
@@ -21,7 +20,13 @@ export function ownerRoomForRemoteHarvest(remoteRoom: string): string | undefine
         return undefined;
     }
 
-    const previousOwner = Memory.remoteRooms[remoteRoom]?.ownerRoom;
+    const roomMemory = Memory.rooms[remoteRoom];
+
+    if (!roomMemory || !roomMemory.remoteMining) {
+        return undefined;
+    }
+
+    const previousOwner = roomMemory.remoteMining.ownerRoom;
 
     let bestRoom: Room | null = null;
     let bestScore = -Infinity;
@@ -97,18 +102,26 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
     }
 
     public override score(creep: Creep): number {
-        return -1000 + creep.pos.getRangeTo(this.data.sourcePos);
+        return -1000;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
-        if (!this.source) {
-            return new MoveAction(this.data.sourcePos);
+        if (creepState.creep.room.name !== this.data.targetRoom || !this.source) {
+            const pos = this.data.sourcePos;
+            return new MoveAction(new RoomPosition(pos.x, pos.y, pos.roomName));
         }
 
         // update that we are still harvesting
-        const remoteRoomMemory = getRemoteRoomMemory(this.data.targetRoom);
-        remoteRoomMemory.lastHarvestTick = Game.time;
-        updateRemoteRoomMemory(this.data.targetRoom, remoteRoomMemory);
+        const roomMemory = Memory.rooms[this.data.targetRoom];
+
+        if (!roomMemory || !roomMemory.remoteMining) {
+            return null;
+        }
+
+        console.log("remote harvest harvest action");
+
+        roomMemory.remoteMining.lastHarvestTick = Game.time;
+        Memory.rooms[this.data.targetRoom] = roomMemory;
 
         return new HarvestAction(this.source);
     }
