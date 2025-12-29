@@ -26,8 +26,8 @@ export abstract class Task<T extends TaskData> {
         return this.data.id;
     }
 
-    public assignCreep(creep: Creep) {
-        this.data.assignedCreeps.push([creep.id, creep.name]);
+    public assignCreep(creepState: CreepState) {
+        this.data.assignedCreeps.push([creepState.creep.id, creepState.creep.name]);
     }
 
     public removeCreep(creepState: CreepState) {

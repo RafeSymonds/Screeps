@@ -31,8 +31,6 @@ export type RemoteHarvestTaskData = BaseTask & {
 
 export type RemoteHaulTaskData = BaseTask & {
     kind: TaskKind.REMOTE_HAUL;
-    targetId: Id<Source>;
-    sourcePos: RoomPosition;
 };
 
 export type TransferTaskData = BaseTask & {

@@ -4,6 +4,7 @@ import { EnergyTarget } from "rooms/ResourceManager";
 import { CollectAction } from "actions/CollectionAction";
 import { TaskManager } from "tasks/core/TaskManager";
 import { getDefaultCreepMemory } from "./CreepMemory";
+import { AnyTask } from "tasks/definitions/Task";
 
 export function performCreepActions(world: World) {
     for (const [, room] of world.rooms) {
@@ -34,6 +35,13 @@ export function performCreepActions(world: World) {
             }
         }
     }
+}
+
+export function updateCreepMemoryForTask(creepState: CreepState, task: AnyTask) {
+    creepState.memory.taskId = task.id();
+    creepState.memory.taskTicks = 0;
+    creepState.memory.energyTargetId = undefined;
+    creepState.memory.working = true;
 }
 
 export function assignCreepEnegyPickup(creep: CreepState, energyTarget: EnergyTarget) {

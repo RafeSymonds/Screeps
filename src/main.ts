@@ -22,6 +22,7 @@ declare global {
     // Memory extension samples
     interface Memory {
         tasks: TaskData[];
+        remoteRooms: Record<string, RemoteRoomMemory>;
     }
 
     interface CreepMemory {
@@ -36,6 +37,10 @@ declare global {
         // early game max number of harvesters to spawn
         numHarvestSpots: number;
         anchorSpawnId?: Id<StructureSpawn>;
+    }
+
+    interface RemoteRoomMemory {
+        lastHarvestTick: number;
     }
 }
 
@@ -62,6 +67,10 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     if (!Memory.rooms) {
         Memory.rooms = {};
+    }
+
+    if (!Memory.remoteRooms) {
+        Memory.remoteRooms = {};
     }
 
     let rooms = Object.values(Game.rooms);

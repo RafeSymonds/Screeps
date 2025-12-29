@@ -1,6 +1,7 @@
 import { World } from "world/World";
 import { AnyTask } from "../definitions/Task";
 import { TaskManager } from "./TaskManager";
+import { updateCreepMemoryForTask } from "creeps/CreepController";
 
 function isCreepFree(creepMemory: CreepMemory, taskManager: TaskManager): boolean {
     return creepMemory.taskId === undefined || !taskManager.tasks.has(creepMemory.taskId);
@@ -34,9 +35,9 @@ export function assignCreeps(world: World) {
             }
 
             if (bestTask) {
-                creepState.memory = { taskId: bestTask.id(), taskTicks: 0, energyTargetId: undefined, working: true };
+                bestTask.assignCreep(creepState);
 
-                bestTask.assignCreep(creepState.creep);
+                updateCreepMemoryForTask(creepState, bestTask);
 
                 console.log("[Task Assigned] creep ", creepState.creep.name, " with task ", bestTask.id());
             }

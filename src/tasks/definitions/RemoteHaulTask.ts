@@ -2,12 +2,13 @@ import { TaskKind } from "../core/TaskKind";
 import { RemoteHaulTaskData } from "../core/TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
-import { clearCreepTask, CreepState } from "creeps/CreepState";
+import { CreepState } from "creeps/CreepState";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
 import { findBestEnergyTask } from "tasks/requirements/EnergyRequirement";
 import { creepStoreFull } from "creeps/CreepController";
+import { getRemoteRoomMemory } from "rooms/RemoteRoomManager";
 
 export function remoteHaulTaskName(source: Source): string {
     return "RemoteHaul-" + source.room.name + "-" + source.id;
@@ -18,19 +19,16 @@ export function createRemoteHaulTaskData(source: Source): RemoteHaulTaskData {
         id: remoteHaulTaskName(source),
         kind: TaskKind.REMOTE_HAUL,
         room: source.room.name,
-        assignedCreeps: [],
-        targetId: source.id,
-        sourcePos: source.pos
+        assignedCreeps: []
     };
 }
 
-export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
-    source: Source | null;
+const HARVEST_TIMEOUT = 50;
 
+export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     constructor(data: RemoteHaulTaskData) {
         super(data);
         this.data = data;
-        this.source = Game.getObjectById(data.targetId);
     }
 
     public override isStillValid(): boolean {
@@ -42,23 +40,22 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override taskIsFull(): boolean {
-        return false;
+        return Game.time - getRemoteRoomMemory(this.data.room).lastHarvestTick < HARVEST_TIMEOUT;
     }
 
     public override score(creep: Creep): number {
-        return -1000 + creep.pos.getRangeTo(this.data.sourcePos);
+        return -1000 - Game.map.getRoomLinearDistance(creep.room.name, this.data.room) * 50;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
         if (creepState.creep.room.name === creepState.memory.ownerRoom && creepStoreFull(creepState.creep)) {
-            super.removeCreep(creepState);
-            clearCreepTask(creepState);
+            // we are done since we are back in our main room
             return null;
         }
 
         // check to see if we are in the remote room
-        if (creepState.creep.room.name !== this.data.sourcePos.roomName) {
-            return new MoveAction(this.data.sourcePos);
+        if (creepState.creep.room.name !== this.data.room) {
+            return new MoveAction(new RoomPosition(25, 25, this.data.room));
         }
 
         // if we are full or we have stopped working, go back to owner room
