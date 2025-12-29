@@ -10,6 +10,7 @@ import { EnergyTarget } from "rooms/ResourceManager";
 import { getDefaultCreepMemory } from "creeps/CreepMemory";
 import { runRelativeBasePlanner } from "basePlaner/BasePlans";
 import { NeighborMap } from "rooms/RoomTopology";
+import { scoutFrontier } from "rooms/RoomScouting";
 
 declare global {
     /*
@@ -106,9 +107,13 @@ export const loop = ErrorMapper.wrapLoop(() => {
         }
     }
 
-    rooms.forEach(room => setupRoomMemory(room, taskManager));
+    for (const room of rooms) {
+        setupRoomMemory(room, taskManager);
 
-    rooms.forEach(room => runRelativeBasePlanner(room));
+        runRelativeBasePlanner(room);
+
+        scoutFrontier(room.name, 1, taskManager);
+    }
 
     let myCreeps = Object.values(Game.creeps);
 

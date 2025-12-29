@@ -7,7 +7,7 @@ export function roomsWithin(room: string, maxDepth: number): Set<string> {
         const [current, depth] = queue.shift()!;
         if (depth === maxDepth) continue;
 
-        const exits = Memory.rooms[current]?.topology?.exits;
+        const exits = Memory.rooms[current]?.topology?.neighbors;
         if (!exits) continue;
 
         for (const next of Object.values(exits)) {
