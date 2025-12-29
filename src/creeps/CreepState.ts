@@ -6,6 +6,6 @@ export class CreepState {
 
     constructor(creep: Creep, memory: CreepMemory | null) {
         this.creep = creep;
-        this.memory = memory || getDefaultCreepMemory();
+        this.memory = memory || getDefaultCreepMemory(creep.room.name);
     }
 }

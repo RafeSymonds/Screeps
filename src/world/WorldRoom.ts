@@ -18,7 +18,7 @@ export class WorldRoom {
     constructor(room: Room, myCreeps: Creep[], taskManager: TaskManager) {
         this.room = room;
 
-        const creepsInRoom = myCreeps.filter(creep => creep.room.name === room.name);
+        const creepsInRoom = myCreeps.filter(creep => creep.memory.ownerRoom === room.name);
         this.myCreeps = creepsInRoom.map(creep => new CreepState(creep, getCreepMemory(creep.name)));
         this.myCreeps.forEach(creepState => tryPreemptCreep(creepState));
 

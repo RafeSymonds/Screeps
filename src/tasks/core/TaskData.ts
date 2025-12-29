@@ -22,12 +22,18 @@ export type HarvestTaskData = BaseTask & {
     maxSpots: number;
 };
 
+export type RemoteHarvestTaskData = BaseTask & {
+    kind: TaskKind.REMOTE_HARVEST;
+    targetId: Id<Source>;
+    maxSpots: number;
+};
+
 export type TransferTaskData = BaseTask & {
     kind: TaskKind.TRANSFER;
     structureId: Id<AnyStoreStructure>;
 };
 
-export type TaskData = BuildTaskData | UpgradeTaskData | HarvestTaskData | TransferTaskData;
+export type TaskData = BuildTaskData | UpgradeTaskData | HarvestTaskData | RemoteHarvestTaskData | TransferTaskData;
 
 export type RoomTaskData = {
     name: string;

@@ -1,5 +1,5 @@
 import { TaskKind } from "../core/TaskKind";
-import { HarvestTaskData } from "../core/TaskData";
+import { RemoteHarvestTaskData } from "../core/TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { HarvestAction } from "actions/HarvestAction";
@@ -7,11 +7,11 @@ import { CreepState } from "creeps/CreepState";
 import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 
-export function harvestTaskName(source: Source): string {
-    return "harvest-" + source.room.name + "-" + source.id;
+export function remoteHarvestTaskName(source: Source): string {
+    return "RemoteHarvest-" + source.room.name + "-" + source.id;
 }
 
-export function createHarvestTaskData(source: Source): HarvestTaskData {
+export function createRemoteHarvestTaskData(source: Source): RemoteHarvestTaskData {
     let harvestSpots = 9;
 
     let terrain = source.room.lookForAtArea(
@@ -29,8 +29,8 @@ export function createHarvestTaskData(source: Source): HarvestTaskData {
     });
 
     return {
-        id: harvestTaskName(source),
-        kind: TaskKind.HARVEST,
+        id: remoteHarvestTaskName(source),
+        kind: TaskKind.REMOTE_HARVEST,
         room: source.room.name,
         assignedCreeps: [],
         targetId: source.id,
@@ -38,10 +38,10 @@ export function createHarvestTaskData(source: Source): HarvestTaskData {
     };
 }
 
-export class HarvestTask extends Task<HarvestTaskData> {
+export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
     source: Source | null;
 
-    constructor(data: HarvestTaskData) {
+    constructor(data: RemoteHarvestTaskData) {
         super(data);
         this.data = data;
         this.source = Game.getObjectById(data.targetId);
@@ -78,7 +78,7 @@ export class HarvestTask extends Task<HarvestTaskData> {
             return -Infinity;
         }
 
-        return -100 - creep.pos.getRangeTo(this.source);
+        return -1000;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
@@ -93,7 +93,6 @@ export class HarvestTask extends Task<HarvestTaskData> {
     public override validCreationSetup(): void {
         if (this.source) {
             this.source.room.memory.numHarvestSpots += this.data.maxSpots;
-            console.log("ajsdfasdfasdf", this.source.room.memory.numHarvestSpots, this.data.maxSpots);
         }
     }
 }

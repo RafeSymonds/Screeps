@@ -93,7 +93,6 @@ export class HarvestTask extends Task<HarvestTaskData> {
     public override validCreationSetup(): void {
         if (this.source) {
             this.source.room.memory.numHarvestSpots += this.data.maxSpots;
-            console.log("ajsdfasdfasdf", this.source.room.memory.numHarvestSpots, this.data.maxSpots);
         }
     }
 }

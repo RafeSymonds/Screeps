@@ -152,7 +152,7 @@ function roomSpawning(worldRoom: WorldRoom): void {
     }
 
     spawns[0].spawnCreep(body, name, {
-        memory: getDefaultCreepMemory()
+        memory: getDefaultCreepMemory(room.name)
     });
 }
 

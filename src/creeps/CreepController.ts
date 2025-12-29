@@ -4,7 +4,6 @@ import { EnergyTarget } from "rooms/ResourceManager";
 import { CollectAction } from "actions/CollectionAction";
 import { TaskManager } from "tasks/core/TaskManager";
 import { getDefaultCreepMemory } from "./CreepMemory";
-import { max } from "lodash";
 
 export function performCreepActions(world: World) {
     for (const [, room] of world.rooms) {
@@ -52,7 +51,7 @@ export function removeCreepTask(creepState: CreepState, taskManager: TaskManager
         }
     }
 
-    creepState.memory = getDefaultCreepMemory();
+    creepState.memory = getDefaultCreepMemory(creepState.memory.ownerRoom);
 }
 
 export function tryOrMove<T extends RoomObject>(

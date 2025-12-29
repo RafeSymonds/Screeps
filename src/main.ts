@@ -29,6 +29,7 @@ declare global {
         taskTicks: number;
         energyTargetId?: Id<EnergyTarget>;
         working: boolean;
+        ownerRoom: string;
     }
 
     interface RoomMemory {
@@ -90,7 +91,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     for (const creep of myCreeps) {
         if (creep.memory === undefined) {
-            creep.memory = getDefaultCreepMemory();
+            creep.memory = getDefaultCreepMemory(creep.room.name);
         }
     }
 
