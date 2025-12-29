@@ -11,10 +11,6 @@ export class WorldRoom {
 
     tasks: TaskIdSet;
 
-    // sources: Source[];
-    // structures: Structure[];
-    // constructionSites: ConstructionSite[];
-
     constructor(room: Room, myCreeps: Creep[], taskManager: TaskManager) {
         this.room = room;
 
