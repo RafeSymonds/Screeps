@@ -6,11 +6,10 @@ export class WorldRoom {
     room: Room;
     myCreeps: CreepState[];
 
-    constructor(room: Room, myCreeps: Creep[]) {
+    constructor(room: Room, myCreeps: CreepState[]) {
         this.room = room;
 
-        const creepsInRoom = myCreeps.filter(creep => creep.memory.ownerRoom === room.name);
-        this.myCreeps = creepsInRoom.map(creep => new CreepState(creep, getCreepMemory(creep.name)));
+        this.myCreeps = myCreeps.filter(creep => creep.memory.ownerRoom === room.name);
         this.myCreeps.forEach(creepState => tryPreemptCreep(creepState));
     }
 }

@@ -31,7 +31,7 @@ export class EconomyPlan extends Plan {
 
                 for (const container of room
                     .find(FIND_STRUCTURES)
-                    .filter(s => s.structureType === STRUCTURE_CONTAINER)) {
+                    .filter((s): s is StructureContainer => s.structureType === STRUCTURE_EXTENSION)) {
                     if (!containerIsSourceTied(container)) {
                         taskManager.add(createtransferTaskData(container));
                     }

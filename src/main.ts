@@ -1,16 +1,15 @@
 import { TaskData } from "tasks/core/TaskData";
 import { ErrorMapper } from "utils/ErrorMapper";
 import { World } from "world/World";
-import { setupRoomMemory } from "rooms/RoomSetup";
 import { TaskManager } from "tasks/core/TaskManager";
 import { assignCreeps } from "tasks/core/TaskAssignment";
 import { performCreepActions } from "creeps/CreepController";
 import { runSpawning } from "spawner/Spawner";
 import { EnergyTarget } from "rooms/ResourceManager";
-import { getDefaultCreepMemory } from "creeps/CreepMemory";
-import { runRelativeBasePlanner } from "basePlaner/BasePlans";
+import { getCreepMemory, getDefaultCreepMemory } from "creeps/CreepMemory";
 import { NeighborMap } from "rooms/RoomTopology";
-import { scoutFrontier } from "rooms/RoomScouting";
+import { runPlans } from "plans/core/PlanManager";
+import { CreepState } from "creeps/CreepState";
 
 declare global {
     /*
@@ -111,23 +110,27 @@ export const loop = ErrorMapper.wrapLoop(() => {
         }
     }
 
-    for (const room of rooms) {
-        setupRoomMemory(room, taskManager);
-
-        runRelativeBasePlanner(room);
-
-        scoutFrontier(room.name, 1, taskManager);
-    }
+    // for (const room of rooms) {
+    //     setupRoomMemory(room, taskManager);
+    //
+    //     runRelativeBasePlanner(room);
+    //
+    //     scoutFrontier(room.name, 1, taskManager);
+    // }
 
     let myCreeps = Object.values(Game.creeps);
 
     for (const creep of myCreeps) {
-        if (creep.memory === undefined) {
+        if (creep.memory === undefined || creep.memory.ownerRoom === undefined) {
             creep.memory = getDefaultCreepMemory(creep.room.name);
         }
     }
 
-    let world = new World(rooms, myCreeps, taskManager);
+    const myCreepStates = myCreeps.map(creep => new CreepState(creep, getCreepMemory(creep.name)));
+
+    let world = new World(rooms, myCreepStates, taskManager);
+
+    runPlans(world);
 
     runSpawning(world);
 
