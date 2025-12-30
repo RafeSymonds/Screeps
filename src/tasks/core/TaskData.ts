@@ -33,9 +33,19 @@ export type RemoteHaulTaskData = BaseTask & {
     kind: TaskKind.REMOTE_HAUL;
 };
 
+export type DeliverTaskTargetData =
+    | {
+          kind: "structure";
+          structureId: Id<AnyStoreStructure>;
+      }
+    | {
+          kind: "position";
+          position: RoomPosition;
+      };
+
 export type DeliverTaskData = BaseTask & {
     kind: TaskKind.DELIVER;
-    structureId: Id<AnyStoreStructure>;
+    target: DeliverTaskTargetData;
 };
 
 export type ScoutTaskData = BaseTask & {

@@ -3,6 +3,7 @@ import { DeliverTaskData } from "../core/TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { TransferAction } from "actions/TransferAction";
+import { DropAction } from "actions/DropAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "../requirements/EnergyRequirement";
 import { hasBodyPart } from "creeps/CreepUtils";
@@ -11,32 +12,69 @@ import { creepNeedsEnergy } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
 
-export function deliverTaskName(structure: AnyStoreStructure): string {
-    return "Transfer-" + structure.pos.roomName + "-" + structure.id;
+type DeliverTaskTarget = AnyStoreStructure | RoomPosition;
+
+function isStructureTarget(target: DeliverTaskTarget): target is AnyStoreStructure {
+    return "structureType" in target;
 }
 
-export function createDeliverTaskData(structure: AnyStoreStructure): DeliverTaskData {
+function positionSignature(pos: RoomPosition): string {
+    return `${pos.roomName}-${pos.x}-${pos.y}`;
+}
+
+export function deliverTaskName(target: DeliverTaskTarget): string {
+    if (isStructureTarget(target)) {
+        return `Transfer-${target.pos.roomName}-${target.id}`;
+    }
+
+    return `Transfer-${positionSignature(target)}`;
+}
+
+export function createDeliverTaskData(target: DeliverTaskTarget): DeliverTaskData {
+    if (isStructureTarget(target)) {
+        return {
+            id: deliverTaskName(target),
+            kind: TaskKind.DELIVER,
+            targetRoom: target.pos.roomName,
+            assignedCreeps: [],
+            target: {
+                kind: "structure",
+                structureId: target.id
+            }
+        };
+    }
+
+    const position = new RoomPosition(target.x, target.y, target.roomName);
+
     return {
-        id: deliverTaskName(structure),
+        id: deliverTaskName(target),
         kind: TaskKind.DELIVER,
-        targetRoom: structure.pos.roomName,
+        targetRoom: target.roomName,
         assignedCreeps: [],
-        structureId: structure.id
+        target: {
+            kind: "position",
+            position
+        }
     };
 }
 
 export class DeliverTask extends Task<DeliverTaskData> {
-    structure: AnyStoreStructure | null;
+    target: AnyStoreStructure | RoomPosition | null;
 
     constructor(data: DeliverTaskData) {
         super(data);
         this.data = data;
 
-        this.structure = Game.getObjectById(data.structureId);
+        if (data.target.kind === "structure") {
+            this.target = Game.getObjectById(data.target.structureId);
+        } else {
+            const pos = data.target.position;
+            this.target = new RoomPosition(pos.x, pos.y, pos.roomName);
+        }
     }
 
     public override isStillValid(): boolean {
-        return this.structure !== null;
+        return this.target !== null;
     }
 
     public canPerformTask(creepState: CreepState, world: World): boolean {
@@ -47,19 +85,30 @@ export class DeliverTask extends Task<DeliverTaskData> {
     }
 
     public taskIsFull(): boolean {
-        return this.structure === undefined || this.structure?.store.getFreeCapacity(RESOURCE_ENERGY) === 0;
+        if (this.target === null) {
+            return true;
+        }
+
+        if (this.target instanceof Structure) {
+            return this.target.store.getFreeCapacity(RESOURCE_ENERGY) === 0;
+        }
+
+        return false;
     }
 
     public override score(creep: Creep): number {
-        if (!this.structure) {
+        if (!this.target) {
             return -Infinity;
         }
 
-        return -100 - creep.pos.getRangeTo(this.structure) + this.priority() * 5;
+        return -100 - creep.pos.getRangeTo(this.target) + this.priority() * 5;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
-        if (!this.structure || this.structure.store.getFreeCapacity(RESOURCE_ENERGY) === 0) {
+        if (
+            !this.target ||
+            (this.target instanceof Structure && this.target.store.getFreeCapacity(RESOURCE_ENERGY) === 0)
+        ) {
             console.log("clearing trafer task", this.id());
             creepState.memory.taskId = undefined;
             return null;
@@ -68,10 +117,15 @@ export class DeliverTask extends Task<DeliverTaskData> {
         // TODO: change this to function to determine if we have energy or not
         // TODO: change to be smarter. near by energy grab otherwise build
         if (creepNeedsEnergy(creepState)) {
-            return findBestEnergyTask(creepState, this.structure, resourceManager);
+            const destination = this.target instanceof Structure ? this.target : null;
+            return findBestEnergyTask(creepState, destination, resourceManager);
         }
 
-        return new TransferAction(this.structure);
+        if (this.target instanceof Structure) {
+            return new TransferAction(this.target);
+        }
+
+        return new DropAction(this.target);
     }
 
     public override validCreationSetup(): void {}
@@ -90,7 +144,12 @@ export class DeliverTask extends Task<DeliverTaskData> {
     }
 
     private priority(): number {
-        switch (this.structure?.structureType) {
+        const structure = this.target instanceof Structure ? this.target : null;
+        if (!structure) {
+            return -10;
+        }
+
+        switch (structure.structureType) {
             case STRUCTURE_SPAWN:
                 return 10; // game cannot progress without this
 

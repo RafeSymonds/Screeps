@@ -1,7 +1,7 @@
 export type RequirementSpec =
     | number
     | {
-          parts: number;
+          parts?: number;
           creeps?: number;
       };
 
@@ -22,7 +22,7 @@ export function requirementParts(spec?: RequirementSpec): number {
         return spec;
     }
 
-    return spec.parts;
+    return spec.parts ?? 0;
 }
 
 export function requirementCreeps(spec?: RequirementSpec): number {
