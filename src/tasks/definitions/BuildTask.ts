@@ -77,7 +77,9 @@ export class BuildTask extends Task<BuildTaskData> {
 
     public override requirements(): TaskRequirements {
         return {
-            work: 1
+            work: {
+                parts: 1
+            }
         };
     }
 

@@ -71,6 +71,10 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
     public override validCreationSetup(): void {}
 
     public requirements(): TaskRequirements {
-        return { work: 15 };
+        return {
+            work: {
+                parts: 15
+            }
+        };
     }
 }

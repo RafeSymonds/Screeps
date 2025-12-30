@@ -83,7 +83,9 @@ export class DeliverTask extends Task<DeliverTaskData> {
         const roundTrip = distance * 2;
 
         return {
-            carry: Math.ceil((energyPerTick * roundTrip) / 50)
+            carry: {
+                parts: Math.ceil((energyPerTick * roundTrip) / 50)
+            }
         };
     }
 

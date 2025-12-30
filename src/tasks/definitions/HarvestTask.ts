@@ -101,7 +101,10 @@ export class HarvestTask extends Task<HarvestTaskData> {
 
     public override requirements(): TaskRequirements {
         return {
-            mine: 5
+            mine: {
+                parts: 5,
+                creeps: Math.max(1, this.data.maxSpots)
+            }
         };
     }
 }

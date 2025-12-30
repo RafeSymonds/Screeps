@@ -2,7 +2,7 @@ import { World } from "world/World";
 import { WorldRoom } from "world/WorldRoom";
 import { getDefaultCreepMemory } from "creeps/CreepMemory";
 import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
-import { TaskRequirements } from "tasks/core/TaskRequirements";
+import { TaskRequirements, requirementCreeps, requirementParts } from "tasks/core/TaskRequirements";
 import { CreepState } from "creeps/CreepState";
 
 /* ============================================================
@@ -105,24 +105,41 @@ function isScout(cs: CreepState): boolean {
 
 type SupplyTotals = {
     mine: number; // WORK on miners
+    minerCreeps: number;
     carry: number; // total CARRY
+    haulerCreeps: number;
     work: number; // WORK on workers
+    workerCreeps: number;
     scout: number;
 };
 
 function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
-    const supply: SupplyTotals = { mine: 0, carry: 0, work: 0, scout: 0 };
+    const supply: SupplyTotals = {
+        mine: 0,
+        minerCreeps: 0,
+        carry: 0,
+        haulerCreeps: 0,
+        work: 0,
+        workerCreeps: 0,
+        scout: 0
+    };
 
     for (const cs of worldRoom.myCreeps) {
         if (isMiner(cs)) {
             supply.mine += countBodyParts(cs.creep, WORK);
+            supply.minerCreeps += 1;
         } else if (isWorker(cs)) {
             supply.work += countBodyParts(cs.creep, WORK);
+            supply.workerCreeps += 1;
             supply.carry += countBodyParts(cs.creep, CARRY);
         } else if (isScout(cs)) {
             supply.scout += 1;
         } else {
-            supply.carry += countBodyParts(cs.creep, CARRY);
+            const carryParts = countBodyParts(cs.creep, CARRY);
+            supply.carry += carryParts;
+            if (carryParts > 0) {
+                supply.haulerCreeps += 1;
+            }
         }
     }
 
@@ -135,19 +152,37 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
 
 type DemandTotals = {
     mine: number;
+    minerCreeps: number;
     work: number;
+    workerCreeps: number;
     carryHint: number;
+    haulerCreeps: number;
     scout: number;
 };
 
 function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTotals {
-    const demand: DemandTotals = { mine: 0, work: 0, carryHint: 0, scout: 0 };
+    const demand: DemandTotals = {
+        mine: 0,
+        minerCreeps: 0,
+        work: 0,
+        workerCreeps: 0,
+        carryHint: 0,
+        haulerCreeps: 0,
+        scout: 0
+    };
 
     for (const task of tasks) {
         const r = task.requirements();
-        if (r.mine) demand.mine += r.mine;
-        if (r.work) demand.work += r.work;
-        if (r.carry) demand.carryHint += r.carry;
+
+        demand.mine += requirementParts(r.mine);
+        demand.minerCreeps += requirementCreeps(r.mine);
+
+        demand.work += requirementParts(r.work);
+        demand.workerCreeps += requirementCreeps(r.work);
+
+        demand.carryHint += requirementParts(r.carry);
+        demand.haulerCreeps += requirementCreeps(r.carry);
+
         if (r.vision) demand.scout += 1;
     }
 
@@ -189,26 +224,44 @@ function selectSpawnIntent(room: Room, supply: SupplyTotals, demand: DemandTotal
     const targetMine = demand.mine;
     const targetCarry = effectiveCarryDemand(supply, demand);
 
+    const targetMinerCreeps = demand.minerCreeps;
+    const targetHaulerCreeps = demand.haulerCreeps;
+    const targetWorkerCreeps = demand.workerCreeps;
+
     const minerDeficit = targetMine - supply.mine;
     const carryDeficit = targetCarry - supply.carry;
 
+    const minerCreepDeficit = targetMinerCreeps - supply.minerCreeps;
+    const haulerCreepDeficit = targetHaulerCreeps - supply.haulerCreeps;
+    const workerCreepDeficit = targetWorkerCreeps - supply.workerCreeps;
+
     const workDeficit = demand.work - supply.work;
-    const scoutDeficit = demand.scout - supply.scout;
 
     // 0️⃣ Bootstrap mining
-    if (supply.mine === 0 && minerDeficit > 0) {
+    if (supply.mine === 0 && (minerDeficit > 0 || minerCreepDeficit > 0)) {
         return { kind: SpawnIntentKind.MINER };
     }
+    // 0️⃣ Bootstrap hauling
+    if (supply.carry === 0 && (carryDeficit > 0 || haulerCreepDeficit > 0)) {
+        return { kind: SpawnIntentKind.HAULER };
+    }
+
+    const needsMiner = minerDeficit > 0 || minerCreepDeficit > 0;
+    const needsHauler = carryDeficit > 0 || haulerCreepDeficit > 0;
 
     // 2️⃣ Balance mining vs hauling
-    if (minerDeficit > 0 || carryDeficit > 0) {
-        const minerScore =
-            minerDeficit > 0 ? imbalance(supply.mine + 1, supply.carry, targetMine, targetCarry) : Infinity;
+    if (needsMiner || needsHauler) {
+        const minerScore = needsMiner
+            ? minerDeficit > 0
+                ? imbalance(supply.mine + 1, supply.carry, targetMine, targetCarry)
+                : 0
+            : Infinity;
 
-        const carryScore =
-            carryDeficit > 0
+        const carryScore = needsHauler
+            ? carryDeficit > 0
                 ? imbalance(supply.mine, supply.carry + desiredHaulerCarry(room), targetMine, targetCarry)
-                : Infinity;
+                : 0
+            : Infinity;
 
         if (minerScore <= carryScore) {
             return { kind: SpawnIntentKind.MINER };
@@ -218,12 +271,12 @@ function selectSpawnIntent(room: Room, supply: SupplyTotals, demand: DemandTotal
     }
 
     // 1️⃣ Scout
-    if (demand.scout > 0 && supply.scout == 0) {
+    if (demand.scout > 0 && supply.scout === 0) {
         return { kind: SpawnIntentKind.SCOUT };
     }
 
     // 3️⃣ Workers last
-    if (workDeficit > 0) {
+    if (workDeficit > 0 || workerCreepDeficit > 0) {
         return { kind: SpawnIntentKind.WORKER };
     }
 
