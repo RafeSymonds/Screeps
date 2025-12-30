@@ -14,6 +14,14 @@ const ENERGY_PER_WORK_PER_TICK = 2;
 
 // Hauling
 const CARRY_CAPACITY = 50;
+const HAUL_TICKS_PER_TRIP = 50; // avg; remotes already encoded in mining tasks
+
+// Hauler sizing
+const MIN_HAULER_CARRY = 2;
+const MAX_HAULER_CARRY = 16;
+
+// Weighting
+const TASK_CARRY_WEIGHT = 0.35; // tasks influence hauling, but never dominate
 
 /* ============================================================
    SPAWN INTENTS
@@ -28,9 +36,9 @@ export enum SpawnIntentKind {
 
 type SpawnIntent =
     | { kind: SpawnIntentKind.SCOUT }
-    | { kind: SpawnIntentKind.MINER; mine: number }
-    | { kind: SpawnIntentKind.HAULER; carryNeeded: number }
-    | { kind: SpawnIntentKind.WORKER; work: number };
+    | { kind: SpawnIntentKind.MINER }
+    | { kind: SpawnIntentKind.HAULER }
+    | { kind: SpawnIntentKind.WORKER };
 
 /* ============================================================
    BODY BUILDERS
@@ -40,29 +48,28 @@ function scoutBody(): BodyPartConstant[] {
     return [MOVE];
 }
 
-function minerBody(energy: number, mineNeeded: number): BodyPartConstant[] {
+function minerBody(energy: number): BodyPartConstant[] {
     const maxWork = Math.floor((energy - 50) / 100);
-    const work = Math.max(1, Math.min(mineNeeded, maxWork));
+    const work = Math.max(1, maxWork);
     return [MOVE, ...Array(work).fill(WORK)];
 }
 
 function desiredHaulerCarry(room: Room): number {
     const cap = room.energyCapacityAvailable;
 
-    // Stepwise, stable progression
-    if (cap < 550) return 2; // RCL 1–2
-    if (cap < 800) return 4; // RCL 3
-    if (cap < 1300) return 6; // RCL 4
-    if (cap < 1800) return 8; // RCL 5
-    if (cap < 2300) return 12; // RCL 6
-    return 16; // RCL 7+
+    if (cap < 550) return 2;
+    if (cap < 800) return 4;
+    if (cap < 1300) return 6;
+    if (cap < 1800) return 8;
+    if (cap < 2300) return 12;
+    return 16;
 }
 
-function haulerBody(room: Room, energy: number, carryNeeded: number): BodyPartConstant[] {
-    const targetCarry = desiredHaulerCarry(room);
+function haulerBody(room: Room, energy: number): BodyPartConstant[] {
+    const target = desiredHaulerCarry(room);
+    const maxFromEnergy = Math.floor(energy / 100);
 
-    // Don’t oversize if demand is small
-    const carry = Math.max(2, Math.min(carryNeeded, targetCarry, Math.floor(energy / 100)));
+    const carry = Math.max(MIN_HAULER_CARRY, Math.min(target, maxFromEnergy, MAX_HAULER_CARRY));
 
     const body: BodyPartConstant[] = [];
     for (let i = 0; i < carry; i++) body.push(CARRY, MOVE);
@@ -97,14 +104,14 @@ function isScout(cs: CreepState): boolean {
    ============================================================ */
 
 type SupplyTotals = {
-    mine: number; // WORK parts on miners
-    work: number; // WORK parts on workers
-    carry: number; // total CARRY parts
+    mine: number; // WORK on miners
+    carry: number; // total CARRY
+    work: number; // WORK on workers
     scout: number;
 };
 
 function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
-    const supply: SupplyTotals = { mine: 0, work: 0, carry: 0, scout: 0 };
+    const supply: SupplyTotals = { mine: 0, carry: 0, work: 0, scout: 0 };
 
     for (const cs of worldRoom.myCreeps) {
         if (isMiner(cs)) {
@@ -129,88 +136,95 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
 type DemandTotals = {
     mine: number;
     work: number;
+    carryHint: number;
     scout: number;
 };
 
 function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTotals {
-    const demand: DemandTotals = { mine: 0, work: 0, scout: 0 };
+    const demand: DemandTotals = { mine: 0, work: 0, carryHint: 0, scout: 0 };
 
     for (const task of tasks) {
         const r = task.requirements();
-
         if (r.mine) demand.mine += r.mine;
         if (r.work) demand.work += r.work;
+        if (r.carry) demand.carryHint += r.carry;
         if (r.vision) demand.scout += 1;
     }
 
     return demand;
 }
 
-function imbalanceScore(supplyMine: number, supplyCarry: number, targetMine: number, targetCarry: number): number {
+/* ============================================================
+   HAULING DEMAND (MINING-BASED, TASK-NUDGED)
+   ============================================================ */
+
+function haulingFromMining(supplyMine: number): number {
+    const energyPerTick = supplyMine * ENERGY_PER_WORK_PER_TICK;
+    const energyPerTrip = energyPerTick * HAUL_TICKS_PER_TRIP;
+    return Math.ceil(energyPerTrip / CARRY_CAPACITY);
+}
+
+function effectiveCarryDemand(supply: SupplyTotals, demand: DemandTotals): number {
+    const miningBased = haulingFromMining(supply.mine);
+    const taskBased = demand.carryHint;
+
+    return Math.ceil(miningBased * (1 - TASK_CARRY_WEIGHT) + taskBased * TASK_CARRY_WEIGHT);
+}
+
+/* ============================================================
+   IMBALANCE SCORING
+   ============================================================ */
+
+function imbalance(supplyMine: number, supplyCarry: number, targetMine: number, targetCarry: number): number {
     const mineRatio = supplyMine / Math.max(1, targetMine);
     const carryRatio = supplyCarry / Math.max(1, targetCarry);
     return Math.abs(mineRatio - carryRatio);
 }
 
 /* ============================================================
-   HAULING DEMAND (DERIVED FROM MINING)
-   ============================================================ */
-
-function deriveHaulingDemand(supply: SupplyTotals): number {
-    const energyPerTick = supply.mine * ENERGY_PER_WORK_PER_TICK;
-    return Math.ceil(energyPerTick / CARRY_CAPACITY);
-}
-
-/* ============================================================
    SPAWN DECISION
    ============================================================ */
 
-function selectSpawnIntent(supply: SupplyTotals, demand: DemandTotals, room: Room): SpawnIntent | null {
-    const minerDeficit = Math.max(0, demand.mine - supply.mine);
+function selectSpawnIntent(room: Room, supply: SupplyTotals, demand: DemandTotals): SpawnIntent | null {
+    const targetMine = demand.mine;
+    const targetCarry = effectiveCarryDemand(supply, demand);
 
-    const haulDemand = deriveHaulingDemand(supply);
-    const carryDeficit = Math.max(0, haulDemand - supply.carry);
+    const minerDeficit = targetMine - supply.mine;
+    const carryDeficit = targetCarry - supply.carry;
 
-    const workDeficit = Math.max(0, demand.work - supply.work);
-    const scoutDeficit = Math.max(0, demand.scout - supply.scout);
+    const workDeficit = demand.work - supply.work;
+    const scoutDeficit = demand.scout - supply.scout;
 
     // 0️⃣ Bootstrap mining
-    if (minerDeficit > 0 && supply.mine === 0) {
-        return { kind: SpawnIntentKind.MINER, mine: minerDeficit };
+    if (supply.mine === 0 && minerDeficit > 0) {
+        return { kind: SpawnIntentKind.MINER };
     }
 
-    // 1️⃣ Bootstrap hauling (mining-limited)
-    if (carryDeficit > 0 && supply.carry === 0) {
-        return { kind: SpawnIntentKind.HAULER, carryNeeded: carryDeficit };
+    // 2️⃣ Balance mining vs hauling
+    if (minerDeficit > 0 || carryDeficit > 0) {
+        const minerScore =
+            minerDeficit > 0 ? imbalance(supply.mine + 1, supply.carry, targetMine, targetCarry) : Infinity;
+
+        const carryScore =
+            carryDeficit > 0
+                ? imbalance(supply.mine, supply.carry + desiredHaulerCarry(room), targetMine, targetCarry)
+                : Infinity;
+
+        if (minerScore <= carryScore) {
+            return { kind: SpawnIntentKind.MINER };
+        } else {
+            return { kind: SpawnIntentKind.HAULER };
+        }
     }
 
-    // 2️⃣ Scouting
-    if (demand.scout > 0 && supply.scout === 0) {
+    // 1️⃣ Scout
+    if (demand.scout > 0 && supply.scout == 0) {
         return { kind: SpawnIntentKind.SCOUT };
     }
 
-    if (minerDeficit > 0 || carryDeficit > 0) {
-        const mineAfter = imbalanceScore(supply.mine + 1, supply.carry, demand.mine, haulDemand);
-
-        const carryAfter = imbalanceScore(
-            supply.mine,
-            supply.carry + desiredHaulerCarry(room),
-            demand.mine,
-            haulDemand
-        );
-
-        if (minerDeficit > 0 && mineAfter <= carryAfter) {
-            return { kind: SpawnIntentKind.MINER, mine: minerDeficit };
-        }
-
-        if (carryDeficit > 0) {
-            return { kind: SpawnIntentKind.HAULER, carryNeeded: carryDeficit };
-        }
-    }
-
-    // 5️⃣ Workers last
+    // 3️⃣ Workers last
     if (workDeficit > 0) {
-        return { kind: SpawnIntentKind.WORKER, work: workDeficit };
+        return { kind: SpawnIntentKind.WORKER };
     }
 
     return null;
@@ -236,7 +250,7 @@ export class SpawnManager {
         const tasks = world.taskManager.getTasksForRoom(room);
         const demand = deriveDemand(tasks);
 
-        const intent = selectSpawnIntent(supply, demand, worldRoom.room);
+        const intent = selectSpawnIntent(room, supply, demand);
         if (!intent) return;
 
         const energy = room.energyAvailable;
@@ -247,10 +261,10 @@ export class SpawnManager {
                 body = scoutBody();
                 break;
             case SpawnIntentKind.MINER:
-                body = minerBody(energy, intent.mine);
+                body = minerBody(energy);
                 break;
             case SpawnIntentKind.HAULER:
-                body = haulerBody(room, energy, intent.carryNeeded);
+                body = haulerBody(room, energy);
                 break;
             case SpawnIntentKind.WORKER:
                 body = workerBody(energy);
