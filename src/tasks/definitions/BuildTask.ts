@@ -9,6 +9,7 @@ import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
+import { World } from "world/World";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
     return "build-" + constructionSite.pos.roomName + "-" + constructionSite.id;
@@ -38,8 +39,12 @@ export class BuildTask extends Task<BuildTaskData> {
         return this.constructionSite !== null;
     }
 
-    public canPerformTask(creepState: CreepState): boolean {
-        return hasBodyPart(creepState.creep, WORK) && hasBodyPart(creepState.creep, CARRY);
+    public canPerformTask(creepState: CreepState, world: World): boolean {
+        return (
+            hasBodyPart(creepState.creep, WORK) &&
+            hasBodyPart(creepState.creep, CARRY) &&
+            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name)
+        );
     }
 
     public override taskIsFull(): boolean {

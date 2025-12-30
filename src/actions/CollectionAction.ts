@@ -1,6 +1,6 @@
 import { CreepState } from "creeps/CreepState";
 import { Action } from "./Action";
-import { EnergyTarget } from "rooms/ResourceManager";
+import { EnergyTarget } from "rooms/RoomEnergyState";
 
 export class CollectAction extends Action {
     target: EnergyTarget;

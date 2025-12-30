@@ -8,6 +8,7 @@ import { ResourceManager } from "rooms/ResourceManager";
 import { ScoutTaskData } from "tasks/core/TaskData";
 import { recordRoom } from "rooms/RoomIntel";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
+import { World } from "world/World";
 
 export function scoutTaskName(originRoom: string): string {
     return "Scout-" + originRoom;
@@ -32,7 +33,7 @@ export class ScoutTask extends Task<ScoutTaskData> {
         return true;
     }
 
-    public override canPerformTask(creepState: CreepState): boolean {
+    public override canPerformTask(creepState: CreepState, _world: World): boolean {
         return (
             hasBodyPart(creepState.creep, MOVE) &&
             !hasBodyPart(creepState.creep, WORK) &&

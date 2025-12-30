@@ -3,6 +3,7 @@ import { TaskData } from "../core/TaskData";
 import { CreepState } from "creeps/CreepState";
 import { ResourceManager } from "rooms/ResourceManager";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
+import { World } from "world/World";
 
 export abstract class Task<T extends TaskData> {
     data: T;
@@ -13,7 +14,7 @@ export abstract class Task<T extends TaskData> {
 
     public abstract isStillValid(): boolean;
 
-    public abstract canPerformTask(creepState: CreepState): boolean;
+    public abstract canPerformTask(creepState: CreepState, world: World): boolean;
 
     public abstract taskIsFull(): boolean;
 

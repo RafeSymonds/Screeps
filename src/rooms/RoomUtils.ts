@@ -37,3 +37,9 @@ export function roomsWithin(roomName: string, maxDepth: number): Set<string> {
 export function ownedRooms(): Room[] {
     return Object.values(Game.rooms).filter(r => r.controller?.my);
 }
+
+export function containerIsSourceTied(container: StructureContainer): boolean {
+    return (
+        container.pos.findInRange(FIND_SOURCES, 1).length > 0 || container.pos.findInRange(FIND_MINERALS, 1).length > 0
+    );
+}

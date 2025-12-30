@@ -3,7 +3,7 @@ import { World } from "world/World";
 import { createHarvestTaskData } from "tasks/definitions/HarvestTask";
 import { createDeliverTaskData } from "tasks/definitions/DeliverTask";
 import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
-import { containerIsSourceTied } from "rooms/ResourceManager";
+import { containerIsSourceTied } from "rooms/RoomUtils";
 import { createBuildTaskData } from "tasks/definitions/BuildTask";
 
 export class EconomyPlan extends Plan {

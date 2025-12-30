@@ -3,7 +3,7 @@ import { createHarvestTaskData } from "tasks/definitions/HarvestTask";
 import { TaskManager } from "tasks/core/TaskManager";
 import { createDeliverTaskData as createTransferTaskData } from "tasks/definitions/DeliverTask";
 import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
-import { containerIsSourceTied } from "./ResourceManager";
+import { containerIsSourceTied } from "./RoomUtils";
 
 export function getDefaultRoomMemory(): RoomMemory {
     return { numHarvestSpots: 0, anchorSpawnId: undefined, assistRadius: 0 };

@@ -8,6 +8,7 @@ import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { worker } from "cluster";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
+import { World } from "world/World";
 
 export function harvestTaskName(source: Source): string {
     return "harvest-" + source.room.name + "-" + source.id;
@@ -53,7 +54,7 @@ export class HarvestTask extends Task<HarvestTaskData> {
         return true;
     }
 
-    public override canPerformTask(creepState: CreepState): boolean {
+    public override canPerformTask(creepState: CreepState, _world: World): boolean {
         return hasBodyPart(creepState.creep, WORK);
     }
 

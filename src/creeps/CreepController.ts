@@ -1,6 +1,6 @@
 import { World } from "world/World";
 import { CreepState } from "./CreepState";
-import { EnergyTarget } from "rooms/ResourceManager";
+import { EnergyTarget } from "rooms/RoomEnergyState";
 import { CollectAction } from "actions/CollectionAction";
 import { TaskManager } from "tasks/core/TaskManager";
 import { getDefaultCreepMemory } from "./CreepMemory";
@@ -77,10 +77,17 @@ export function tryOrMove<T extends RoomObject>(
     return false; // no move
 }
 
-export function creepStoreFull(creep: Creep) {
+export function creepStoreFull(creep: Creep): boolean {
     const freeCapacity = creep.store.getFreeCapacity(RESOURCE_ENERGY);
 
     return freeCapacity === 0;
+}
+
+export function creepStoreFullPercentage(creep: Creep) {
+    const freeCapacity = creep.store.getFreeCapacity(RESOURCE_ENERGY);
+    const totalCapacity = creep.store.getCapacity(RESOURCE_ENERGY);
+
+    return freeCapacity / totalCapacity;
 }
 
 export function creepNeedsEnergy(creepState: CreepState) {

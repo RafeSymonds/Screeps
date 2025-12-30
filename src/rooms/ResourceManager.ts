@@ -1,5 +1,6 @@
 import { WorldRoom } from "world/WorldRoom";
 import { RoomEnergyState, EnergyTarget } from "./RoomEnergyState";
+import { CreepState } from "creeps/CreepState";
 
 export class ResourceManager {
     private roomStates = new Map<string, RoomEnergyState>();
@@ -23,6 +24,15 @@ export class ResourceManager {
 
     getRoomEnergy(roomName: string): number {
         return this.roomStates.get(roomName)?.getAvailableEnergy() ?? 0;
+    }
+
+    roomHasEnoughEnergy(creepState: CreepState, roomName: string): boolean {
+        const roomEnergy = this.getRoomEnergy(roomName);
+
+        const creepCapacity = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY);
+
+        // Require at least half a load
+        return roomEnergy >= creepCapacity * 0.5;
     }
 
     findEnergy(creep: Creep, destination: Structure | null): EnergyTarget | null {

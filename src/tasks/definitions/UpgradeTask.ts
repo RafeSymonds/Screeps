@@ -9,6 +9,7 @@ import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
+import { World } from "world/World";
 
 export function upgradeTaskName(controller: StructureController): string {
     return "upgrade-" + controller.pos.roomName + "-" + controller.id;
@@ -38,8 +39,12 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
         return this.controller !== null;
     }
 
-    public canPerformTask(creepState: CreepState): boolean {
-        return hasBodyPart(creepState.creep, WORK) && hasBodyPart(creepState.creep, CARRY);
+    public canPerformTask(creepState: CreepState, world: World): boolean {
+        return (
+            hasBodyPart(creepState.creep, WORK) &&
+            hasBodyPart(creepState.creep, CARRY) &&
+            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name)
+        );
     }
 
     public taskIsFull(): boolean {

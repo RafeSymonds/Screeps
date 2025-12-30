@@ -4,7 +4,7 @@ import { World } from "world/World";
 import { TaskManager } from "tasks/core/TaskManager";
 import { assignCreeps } from "tasks/core/TaskAssignment";
 import { performCreepActions } from "creeps/CreepController";
-import { EnergyTarget } from "rooms/ResourceManager";
+import { EnergyTarget } from "rooms/RoomEnergyState";
 import { getCreepMemory, getDefaultCreepMemory } from "creeps/CreepMemory";
 import { NeighborMap } from "rooms/RoomTopology";
 import { runPlans } from "plans/core/PlanManager";

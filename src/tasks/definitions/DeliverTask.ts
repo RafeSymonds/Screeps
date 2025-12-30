@@ -9,6 +9,7 @@ import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
+import { World } from "world/World";
 
 export function deliverTaskName(structure: AnyStoreStructure): string {
     return "Transfer-" + structure.pos.roomName + "-" + structure.id;
@@ -38,8 +39,11 @@ export class DeliverTask extends Task<DeliverTaskData> {
         return this.structure !== null;
     }
 
-    public canPerformTask(creepState: CreepState): boolean {
-        return hasBodyPart(creepState.creep, CARRY);
+    public canPerformTask(creepState: CreepState, world: World): boolean {
+        return (
+            hasBodyPart(creepState.creep, CARRY) &&
+            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name)
+        );
     }
 
     public taskIsFull(): boolean {

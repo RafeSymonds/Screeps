@@ -7,8 +7,9 @@ import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
 import { findBestEnergyTask } from "tasks/requirements/EnergyRequirement";
-import { creepStoreFull } from "creeps/CreepController";
+import { creepStoreFull, creepStoreFullPercentage } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
+import { World } from "world/World";
 
 export function remoteHaulTaskName(sourceId: Id<Source>, sourcePos: RoomPosition): string {
     return "RemoteHaul-" + sourcePos.roomName + "-" + sourceId;
@@ -35,8 +36,12 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
         return true;
     }
 
-    public override canPerformTask(creepState: CreepState): boolean {
-        return hasBodyPart(creepState.creep, CARRY);
+    public override canPerformTask(creepState: CreepState, world: World): boolean {
+        return (
+            hasBodyPart(creepState.creep, CARRY) &&
+            world.resourceManager.roomHasEnoughEnergy(creepState, this.data.targetRoom) &&
+            creepStoreFullPercentage(creepState.creep) < 0.25
+        );
     }
 
     public override taskIsFull(): boolean {
@@ -73,6 +78,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
 
         if (!energyTask) {
             creepState.memory.working = false;
+            return new MoveAction(new RoomPosition(25, 25, creepState.memory.ownerRoom));
         }
 
         return energyTask;

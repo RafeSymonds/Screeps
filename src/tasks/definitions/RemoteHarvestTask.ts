@@ -9,6 +9,7 @@ import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
 import { ownedRooms } from "rooms/RoomUtils";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
+import { World } from "world/World";
 
 const MAX_REMOTE_DISTANCE = 4; // don’t claim absurdly far rooms
 const HYSTERESIS_BONUS = 2; // bias toward current owner
@@ -93,7 +94,7 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
         return true;
     }
 
-    public override canPerformTask(creepState: CreepState): boolean {
+    public override canPerformTask(creepState: CreepState, _world: World): boolean {
         return hasBodyPart(creepState.creep, WORK);
     }
 
