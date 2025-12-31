@@ -78,10 +78,15 @@ export class DeliverTask extends Task<DeliverTaskData> {
     }
 
     public canPerformTask(creepState: CreepState, world: World): boolean {
-        return (
-            hasBodyPart(creepState.creep, CARRY) &&
-            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name)
-        );
+        if (!hasBodyPart(creepState.creep, CARRY)) {
+            return false;
+        }
+
+        if (this.target instanceof Structure) {
+            return world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
+        }
+
+        return true;
     }
 
     public taskIsFull(): boolean {
