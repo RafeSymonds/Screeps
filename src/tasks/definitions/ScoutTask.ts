@@ -41,7 +41,7 @@ export class ScoutTask extends Task<ScoutTaskData> {
         );
     }
 
-    public override taskIsFull(): boolean {
+    protected override taskIsFull(): boolean {
         return false;
     }
 

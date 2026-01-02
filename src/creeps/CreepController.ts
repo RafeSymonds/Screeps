@@ -70,7 +70,11 @@ export function creepNeedsEnergy(creepState: CreepState) {
     return !creepState.memory.working;
 }
 
-export function tryPreemptCreep(creepState: CreepState) {
+export function tryPreemptCreep(creepState: CreepState, taskManager: TaskManager) {
+    if (!creepState.memory.taskId) {
+        return;
+    }
+
     const usedCapacity = creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY);
     const maxCapacity = creepState.creep.store.getCapacity(RESOURCE_ENERGY);
 
@@ -80,7 +84,12 @@ export function tryPreemptCreep(creepState: CreepState) {
 
     if (creepState.memory.working && usedCapacity === 0) {
         // preemption since we need more enegy
-        // TODO: deal with what happens if we start with 0 energy
+
+        const task = taskManager.get(creepState.memory.taskId);
+        if (task) {
+            task.removeCreep(creepState);
+        }
+
         creepState.memory.taskId = undefined;
     }
 }

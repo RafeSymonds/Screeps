@@ -98,7 +98,7 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
         return hasBodyPart(creepState.creep, WORK);
     }
 
-    public override taskIsFull(): boolean {
+    protected override taskIsFull(): boolean {
         return this.data.assignedCreeps.length > 0;
     }
 

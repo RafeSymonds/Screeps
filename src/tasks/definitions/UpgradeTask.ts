@@ -47,7 +47,7 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
         );
     }
 
-    public taskIsFull(): boolean {
+    protected taskIsFull(): boolean {
         return false;
     }
 

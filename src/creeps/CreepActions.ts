@@ -23,9 +23,13 @@ export function performCreepActions(world: World) {
                 if (task) {
                     const nextAction = task.nextAction(creepState, world.resourceManager);
 
+                    console.log("Next action is ", nextAction);
+
                     if (nextAction) {
                         nextAction.perform(creepState);
                     } else {
+                        console.log("next action was null so removing creep from task");
+
                         removeCreepTask(creepState, world.taskManager);
                     }
                 }

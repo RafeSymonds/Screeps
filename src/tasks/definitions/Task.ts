@@ -8,6 +8,8 @@ import { World } from "world/World";
 export abstract class Task<T extends TaskData> {
     data: T;
 
+    protected reservedWork = 0;
+
     constructor(data: T) {
         this.data = data;
     }
@@ -16,7 +18,11 @@ export abstract class Task<T extends TaskData> {
 
     public abstract canPerformTask(creepState: CreepState, world: World): boolean;
 
-    public abstract taskIsFull(): boolean;
+    protected abstract taskIsFull(): boolean;
+
+    public canAcceptCreep(_creepState: CreepState, _world: World): boolean {
+        return !this.taskIsFull();
+    }
 
     public abstract score(creep: Creep): number;
 
@@ -35,7 +41,7 @@ export abstract class Task<T extends TaskData> {
     }
 
     public removeCreep(creepState: CreepState) {
-        this.data.assignedCreeps = this.data.assignedCreeps.filter(([id]) => id !== creepState.creep.id);
+        this.data.assignedCreeps = this.data.assignedCreeps.filter(([id, _]) => id !== creepState.creep.id);
     }
 
     public removeDeadCreep(deadName: string) {

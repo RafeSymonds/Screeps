@@ -44,7 +44,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
         );
     }
 
-    public override taskIsFull(): boolean {
+    protected override taskIsFull(): boolean {
         const roomMemory = Memory.rooms[this.data.targetRoom];
 
         if (!roomMemory || !roomMemory.remoteMining) {

@@ -47,7 +47,7 @@ export class BuildTask extends Task<BuildTaskData> {
         );
     }
 
-    public override taskIsFull(): boolean {
+    protected override taskIsFull(): boolean {
         return false;
     }
 

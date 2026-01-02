@@ -6,11 +6,17 @@ import { TransferAction } from "actions/TransferAction";
 import { DropAction } from "actions/DropAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "../requirements/EnergyRequirement";
-import { hasBodyPart } from "creeps/CreepUtils";
+import { hasBodyPart, countBodyParts } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy, creepStoreFullPercentage } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
+import { words } from "lodash";
+import { constants } from "buffer";
+
+/* ============================================================
+   TYPES
+   ============================================================ */
 
 type DeliverTaskTarget = AnyStoreStructure | RoomPosition;
 
@@ -21,6 +27,10 @@ function isStructureTarget(target: DeliverTaskTarget): target is AnyStoreStructu
 function positionSignature(pos: RoomPosition): string {
     return `${pos.roomName}-${pos.x}-${pos.y}`;
 }
+
+/* ============================================================
+   TASK DATA CREATION
+   ============================================================ */
 
 export function deliverTaskName(target: DeliverTaskTarget): string {
     if (isStructureTarget(target)) {
@@ -44,7 +54,7 @@ export function createDeliverTaskData(target: DeliverTaskTarget): DeliverTaskDat
         };
     }
 
-    const position = new RoomPosition(target.x, target.y, target.roomName);
+    const pos = new RoomPosition(target.x, target.y, target.roomName);
 
     return {
         id: deliverTaskName(target),
@@ -53,13 +63,23 @@ export function createDeliverTaskData(target: DeliverTaskTarget): DeliverTaskDat
         assignedCreeps: [],
         target: {
             kind: "position",
-            position
+            position: pos
         }
     };
 }
 
+/* ============================================================
+   DELIVER TASK
+   ============================================================ */
+
 export class DeliverTask extends Task<DeliverTaskData> {
-    target: AnyStoreStructure | RoomPosition | null;
+    target: DeliverTaskTarget | null;
+
+    /** Total energy reserved to be delivered */
+    private reservedEnergy = 0;
+
+    /** Per-creep reservation so we can release cleanly */
+    private reservedBy = new Map<Id<Creep>, number>();
 
     constructor(data: DeliverTaskData) {
         super(data);
@@ -68,16 +88,82 @@ export class DeliverTask extends Task<DeliverTaskData> {
         if (data.target.kind === "structure") {
             this.target = Game.getObjectById(data.target.structureId);
         } else {
-            const pos = data.target.position;
-            this.target = new RoomPosition(pos.x, pos.y, pos.roomName);
+            const p = data.target.position;
+            this.target = new RoomPosition(p.x, p.y, p.roomName);
         }
+
+        this.rebuildReservationsFromAssigned();
     }
+
+    /* ============================================================
+       VALIDITY
+       ============================================================ */
 
     public override isStillValid(): boolean {
         return this.target !== null;
     }
 
-    public canPerformTask(creepState: CreepState, world: World): boolean {
+    /* ============================================================
+       CAPACITY / RESERVATION LOGIC
+       ============================================================ */
+
+    private creepCarryCapacity(creep: Creep): number {
+        return countBodyParts(creep, CARRY) * 50;
+    }
+
+    /**
+     * Rebuild reservations from assigned creeps.
+     * Called on construction to survive reloads / tick boundaries.
+     */
+    private rebuildReservationsFromAssigned(): void {
+        this.reservedEnergy = 0;
+        this.reservedBy.clear();
+
+        if (!this.target || !(this.target instanceof Structure)) return;
+
+        let remaining = this.target.store.getFreeCapacity(RESOURCE_ENERGY);
+        if (remaining <= 0) return;
+
+        for (const [id] of this.data.assignedCreeps) {
+            const creep = Game.getObjectById(id);
+            if (!creep) continue;
+
+            const claim = Math.min(this.creepCarryCapacity(creep), remaining);
+            if (claim <= 0) continue;
+
+            this.reservedBy.set(creep.id, claim);
+            this.reservedEnergy += claim;
+            remaining -= claim;
+
+            if (remaining <= 0) break;
+        }
+    }
+
+    /* ============================================================
+       ASSIGNMENT GATE
+       ============================================================ */
+
+    public override canAcceptCreep(creepState: CreepState, world: World): boolean {
+        if (!super.canAcceptCreep(creepState, world) || !this.target || !hasBodyPart(creepState.creep, CARRY)) {
+            return false;
+        }
+
+        // Position drops: no capacity limit yet
+        if (!(this.target instanceof Structure)) {
+            return true;
+        }
+
+        const free = this.target.store.getFreeCapacity(RESOURCE_ENERGY);
+        const remaining = free - this.reservedEnergy;
+
+        return remaining > 0;
+    }
+
+    /* ============================================================
+       TASK API
+       ============================================================ */
+
+    public override canPerformTask(creepState: CreepState, world: World): boolean {
         if (!hasBodyPart(creepState.creep, CARRY)) {
             return false;
         }
@@ -88,10 +174,8 @@ export class DeliverTask extends Task<DeliverTaskData> {
         );
     }
 
-    public taskIsFull(): boolean {
-        if (this.target === null) {
-            return true;
-        }
+    protected override taskIsFull(): boolean {
+        if (!this.target) return true;
 
         if (this.target instanceof Structure) {
             return this.target.store.getFreeCapacity(RESOURCE_ENERGY) === 0;
@@ -101,25 +185,24 @@ export class DeliverTask extends Task<DeliverTaskData> {
     }
 
     public override score(creep: Creep): number {
-        if (!this.target) {
-            return -Infinity;
-        }
+        if (!this.target) return -Infinity;
 
-        return -100 - creep.pos.getRangeTo(this.target) + this.priority() * 5;
+        const dist = creep.pos.getRangeTo(this.target);
+        return -100 - dist + this.priority() * 5;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
+        console.log("[DELIVER TASK] starting next action");
+
         if (
             !this.target ||
             (this.target instanceof Structure && this.target.store.getFreeCapacity(RESOURCE_ENERGY) === 0)
         ) {
-            console.log("clearing trafer task", this.id());
+            console.log("[DELIVER TASK] no action for creep ");
             creepState.memory.taskId = undefined;
             return null;
         }
 
-        // TODO: change this to function to determine if we have energy or not
-        // TODO: change to be smarter. near by energy grab otherwise build
         if (creepNeedsEnergy(creepState)) {
             return findBestEnergyTask(creepState, this.target, resourceManager);
         }
@@ -131,11 +214,43 @@ export class DeliverTask extends Task<DeliverTaskData> {
         return new DropAction(this.target);
     }
 
+    public override assignCreep(creepState: CreepState, world: World): void {
+        super.assignCreep(creepState, world);
+
+        // Pre-reserve pickup energy immediately if needed
+        if (creepNeedsEnergy(creepState)) {
+            findBestEnergyTask(creepState, this.target, world.resourceManager);
+        }
+
+        if (!this.target || !(this.target instanceof Structure)) return;
+
+        const remaining = this.target.store.getFreeCapacity(RESOURCE_ENERGY) - this.reservedEnergy;
+        if (remaining <= 0) return;
+
+        const claim = Math.min(this.creepCarryCapacity(creepState.creep), remaining);
+        if (claim <= 0) return;
+
+        this.reservedBy.set(creepState.creep.id, claim);
+        this.reservedEnergy += claim;
+    }
+
+    public override removeCreep(creepState: CreepState): void {
+        console.log("[DELIVER TASK] remote creep start with ", this.data.assignedCreeps.length, "creeps");
+
+        super.removeCreep(creepState);
+
+        console.log("[DELIVER TASK] remote creep end with ", this.data.assignedCreeps.length, "creeps");
+        const claim = this.reservedBy.get(creepState.creep.id);
+        if (claim) {
+            this.reservedEnergy = Math.max(0, this.reservedEnergy - claim);
+            this.reservedBy.delete(creepState.creep.id);
+        }
+    }
+
     public override validCreationSetup(): void {}
 
     public override requirements(): TaskRequirements {
         const energyPerTick = 10;
-
         const distance = 8;
         const roundTrip = distance * 2;
 
@@ -146,37 +261,25 @@ export class DeliverTask extends Task<DeliverTaskData> {
         };
     }
 
-    public override assignCreep(creepState: CreepState, world: World): void {
-        super.assignCreep(creepState, world);
-
-        // check to see if creep needs energy and if so just find best energy now and reserve it
-        if (creepNeedsEnergy(creepState)) {
-            findBestEnergyTask(creepState, this.target, world.resourceManager);
-        }
-    }
+    /* ============================================================
+       PRIORITY
+       ============================================================ */
 
     private priority(): number {
         const structure = this.target instanceof Structure ? this.target : null;
-        if (!structure) {
-            return -10;
-        }
+        if (!structure) return -10;
 
         switch (structure.structureType) {
             case STRUCTURE_SPAWN:
-                return 10; // game cannot progress without this
-
+                return 10;
             case STRUCTURE_EXTENSION:
-                return 9; // spawn throughput
-
+                return 9;
             case STRUCTURE_TOWER:
-                return 8; // defense > economy when empty
-
+                return 8;
             case STRUCTURE_CONTAINER:
-                return 4; // local buffer, lower than consumers
-
+                return 4;
             case STRUCTURE_STORAGE:
-                return 2; // global buffer, lowest urgency
-
+                return 2;
             default:
                 return 0;
         }

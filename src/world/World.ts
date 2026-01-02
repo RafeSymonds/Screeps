@@ -17,7 +17,7 @@ export class World {
 
         console.log("Managing", rooms.length, "rooms");
 
-        const worldRooms = rooms.map(room => new WorldRoom(room, myCreeps));
+        const worldRooms = rooms.map(room => new WorldRoom(room, myCreeps, taskManager));
 
         this.rooms = new Map<string, WorldRoom>(worldRooms.map(worldRoom => [worldRoom.room.name, worldRoom]));
 

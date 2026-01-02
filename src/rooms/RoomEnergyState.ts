@@ -142,16 +142,16 @@ export class RoomEnergyState {
     isValidSourceFor(from: EnergyTarget, to: Structure | RoomPosition | null): boolean {
         if (to === null) return true;
 
+        if (to instanceof RoomPosition && from.pos.getRangeTo(to) <= 2) {
+            return false;
+        }
+
         if (from instanceof StructureStorage) return true;
         if (!(from instanceof StructureContainer)) return true;
 
         if (this.needyContainers.has(from.id)) return false;
 
         if (to instanceof StructureContainer && this.needyContainers.has(to.id) && this.needyContainers.has(from.id)) {
-            return false;
-        }
-
-        if (to instanceof RoomPosition && from.pos.getRangeTo(to) < 2) {
             return false;
         }
 

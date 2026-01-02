@@ -58,7 +58,7 @@ export class HarvestTask extends Task<HarvestTaskData> {
         return hasBodyPart(creepState.creep, WORK);
     }
 
-    public override taskIsFull(): boolean {
+    protected override taskIsFull(): boolean {
         let workParts = this.data.assignedCreeps.reduce((total, creepInfo) => {
             const creep = Game.getObjectById(creepInfo[0]);
 
