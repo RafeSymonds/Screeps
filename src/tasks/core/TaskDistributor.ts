@@ -14,9 +14,5 @@ export function roomCanConsiderTask(room: Room, task: AnyTask): boolean {
         return distance <= room.memory.remoteRadius;
     }
 
-    if (distance <= room.memory.assistRadius) {
-        return true;
-    }
-
-    return false;
+    return distance <= room.memory.assistRadius;
 }
