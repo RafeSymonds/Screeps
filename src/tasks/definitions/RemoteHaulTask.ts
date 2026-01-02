@@ -86,6 +86,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
 
         const energyTask = findBestEnergyTask(creepState, null, resourceManager);
 
+        // if there are no energy pickups, just go home
         if (!energyTask) {
             creepState.memory.working = false;
 
@@ -95,7 +96,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
             return new MoveAction(new RoomPosition(25, 25, creepState.memory.ownerRoom));
         }
 
-        return null;
+        return energyTask;
     }
 
     public override validCreationSetup(): void {}
@@ -115,7 +116,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     requirements(): TaskRequirements {
-        const energyPerTick = 10;
+        const energyPerTick = 5;
 
         // TODO: calculate better
         const distance = 50;
