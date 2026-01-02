@@ -246,7 +246,7 @@ function selectSpawnIntent(room: Room, supply: SupplyTotals, demand: DemandTotal
         return { kind: SpawnIntentKind.HAULER };
     }
 
-    const needsMiner = minerDeficit > 0 || minerCreepDeficit > 0;
+    const needsMiner = minerDeficit > 0 && minerCreepDeficit > 0;
     const needsHauler = carryDeficit > 0 || haulerCreepDeficit > 0;
 
     // 2️⃣ Balance mining vs hauling

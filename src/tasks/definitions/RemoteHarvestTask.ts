@@ -119,8 +119,6 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
             return null;
         }
 
-        console.log("remote harvest harvest action");
-
         roomMemory.remoteMining.lastHarvestTick = Game.time;
         Memory.rooms[this.data.targetRoom] = roomMemory;
 

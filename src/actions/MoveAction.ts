@@ -1,5 +1,6 @@
 import { CreepState } from "creeps/CreepState";
 import { Action } from "./Action";
+import { moveTo } from "creeps/CreepController";
 
 export class MoveAction extends Action {
     target: RoomPosition;
@@ -10,6 +11,6 @@ export class MoveAction extends Action {
     }
 
     public override perform(creepState: CreepState): void {
-        creepState.creep.moveTo(this.target);
+        moveTo(creepState, this.target);
     }
 }

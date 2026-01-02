@@ -5,7 +5,7 @@ import { ResourceManager as ResourceManager } from "rooms/ResourceManager";
 
 export function findBestEnergyTask(
     creepState: CreepState,
-    destination: Structure | null,
+    destination: Structure | RoomPosition | null,
     resourceManager: ResourceManager
 ) {
     let energySource = resourceManager.findEnergy(creepState.creep, destination);

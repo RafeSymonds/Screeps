@@ -19,6 +19,8 @@ export class ResourceManager {
                     this.roomStates.get(room.room.name)!.reserve(id, amt);
                 }
             }
+
+            // console.log(`[RESOURCE MANAGER] Room ${room.room.name} has ${this.getRoomEnergy(room.room.name)}`);
         }
     }
 
@@ -35,7 +37,7 @@ export class ResourceManager {
         return roomEnergy >= creepCapacity * 0.5;
     }
 
-    findEnergy(creep: Creep, destination: Structure | null): EnergyTarget | null {
+    findEnergy(creep: Creep, destination: Structure | RoomPosition | null): EnergyTarget | null {
         return this.roomStates.get(creep.room.name)?.findBestSource(creep, destination) ?? null;
     }
 }

@@ -1,3 +1,4 @@
+import { moveTo } from "creeps/CreepController";
 import { Action } from "./Action";
 import { CreepState } from "creeps/CreepState";
 
@@ -16,7 +17,7 @@ export class DropAction extends Action {
         const range = creep.pos.getRangeTo(this.target);
 
         if (range > 2) {
-            creep.moveTo(this.target);
+            moveTo(creepState, this.target);
             return;
         }
 

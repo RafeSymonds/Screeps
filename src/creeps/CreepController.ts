@@ -5,6 +5,7 @@ import { CollectAction } from "actions/CollectionAction";
 import { TaskManager } from "tasks/core/TaskManager";
 import { getDefaultCreepMemory } from "./CreepMemory";
 import { AnyTask } from "tasks/definitions/Task";
+import { moveAtTickEnd } from "./EndTickCreepLogic";
 
 export function performCreepActions(world: World) {
     for (const [, room] of world.rooms) {
@@ -33,6 +34,12 @@ export function performCreepActions(world: World) {
                     }
                 }
             }
+        }
+    }
+
+    for (const [, room] of world.rooms) {
+        for (const creepState of room.myCreeps) {
+            moveAtTickEnd(creepState);
         }
     }
 }
@@ -84,10 +91,10 @@ export function creepStoreFull(creep: Creep): boolean {
 }
 
 export function creepStoreFullPercentage(creep: Creep) {
-    const freeCapacity = creep.store.getFreeCapacity(RESOURCE_ENERGY);
+    const usedCapacity = creep.store.getUsedCapacity(RESOURCE_ENERGY);
     const totalCapacity = creep.store.getCapacity(RESOURCE_ENERGY);
 
-    return freeCapacity / totalCapacity;
+    return usedCapacity / totalCapacity;
 }
 
 export function creepNeedsEnergy(creepState: CreepState) {
@@ -116,4 +123,9 @@ export function tryPreemptCreep(creepState: CreepState) {
         // TODO: deal with what happens if we start with 0 energy
         creepState.memory.taskId = undefined;
     }
+}
+
+export function moveTo(creepState: CreepState, target: RoomPosition | { pos: RoomPosition }) {
+    creepState.creep.moveTo(target);
+    creepState.moved = true;
 }

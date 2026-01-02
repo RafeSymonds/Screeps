@@ -10,7 +10,6 @@ function isCreepFree(creepMemory: CreepMemory, taskManager: TaskManager): boolea
 
 export function assignCreeps(world: World) {
     for (const [, worldRoom] of world.rooms) {
-        console.log("trying to assign creep in room", worldRoom.myCreeps.length);
         for (const creepState of worldRoom.myCreeps) {
             if (creepState.creep.spawning) {
                 continue;

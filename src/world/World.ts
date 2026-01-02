@@ -15,6 +15,8 @@ export class World {
     constructor(rooms: Room[], myCreeps: CreepState[], taskManager: TaskManager) {
         this.taskManager = taskManager;
 
+        console.log("Managing", rooms.length, "rooms");
+
         const worldRooms = rooms.map(room => new WorldRoom(room, myCreeps));
 
         this.rooms = new Map<string, WorldRoom>(worldRooms.map(worldRoom => [worldRoom.room.name, worldRoom]));

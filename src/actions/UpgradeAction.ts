@@ -1,5 +1,6 @@
 import { CreepState } from "creeps/CreepState";
 import { Action } from "./Action";
+import { moveTo } from "creeps/CreepController";
 
 export class UpgradeAction extends Action {
     target: StructureController;
@@ -13,7 +14,7 @@ export class UpgradeAction extends Action {
         const creep = creepState.creep;
 
         if (creep.upgradeController(this.target) === ERR_NOT_IN_RANGE) {
-            creep.moveTo(this.target);
+            moveTo(creepState, this.target);
         }
     }
 }

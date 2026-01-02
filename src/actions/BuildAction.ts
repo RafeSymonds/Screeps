@@ -1,5 +1,6 @@
 import { CreepState } from "creeps/CreepState";
 import { Action } from "./Action";
+import { moveTo } from "creeps/CreepController";
 
 export class BuildAction extends Action {
     target: ConstructionSite;
@@ -13,7 +14,7 @@ export class BuildAction extends Action {
         const creep = creepState.creep;
 
         if (creep.build(this.target) === ERR_NOT_IN_RANGE) {
-            creep.moveTo(this.target);
+            moveTo(creepState, this.target);
         }
     }
 }

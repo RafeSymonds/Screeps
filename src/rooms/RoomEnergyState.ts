@@ -84,7 +84,7 @@ export class RoomEnergyState {
         return total;
     }
 
-    isValidSourceFor(from: EnergyTarget, to: Structure | null): boolean {
+    isValidSourceFor(from: EnergyTarget, to: Structure | RoomPosition | null): boolean {
         if (to === null) return true;
 
         if (from instanceof StructureStorage) return true;
@@ -96,10 +96,14 @@ export class RoomEnergyState {
             return false;
         }
 
+        if (to instanceof RoomPosition && from.pos.getRangeTo(to) < 2) {
+            return false;
+        }
+
         return true;
     }
 
-    findBestSource(creep: Creep, destination: Structure | null): EnergyTarget | null {
+    findBestSource(creep: Creep, destination: Structure | RoomPosition | null): EnergyTarget | null {
         let best: EnergyTarget | null = null;
         let bestScore = -Infinity;
 

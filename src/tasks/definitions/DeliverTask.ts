@@ -8,7 +8,7 @@ import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "../requirements/EnergyRequirement";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
-import { creepNeedsEnergy } from "creeps/CreepController";
+import { creepNeedsEnergy, creepStoreFullPercentage } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
 
@@ -82,11 +82,10 @@ export class DeliverTask extends Task<DeliverTaskData> {
             return false;
         }
 
-        if (this.target instanceof Structure) {
-            return world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
-        }
-
-        return true;
+        return (
+            creepStoreFullPercentage(creepState.creep) >= 0.5 ||
+            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name)
+        );
     }
 
     public taskIsFull(): boolean {
@@ -122,8 +121,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
         // TODO: change this to function to determine if we have energy or not
         // TODO: change to be smarter. near by energy grab otherwise build
         if (creepNeedsEnergy(creepState)) {
-            const destination = this.target instanceof Structure ? this.target : null;
-            return findBestEnergyTask(creepState, destination, resourceManager);
+            return findBestEnergyTask(creepState, this.target, resourceManager);
         }
 
         if (this.target instanceof Structure) {
@@ -136,7 +134,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
     public override validCreationSetup(): void {}
 
     public requirements(): TaskRequirements {
-        const energyPerTick = 5;
+        const energyPerTick = 10;
 
         const distance = 8;
         const roundTrip = distance * 2;

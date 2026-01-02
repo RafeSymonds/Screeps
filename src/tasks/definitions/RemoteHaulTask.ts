@@ -37,6 +37,14 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override canPerformTask(creepState: CreepState, world: World): boolean {
+        // if (hasBodyPart(creepState.creep, CARRY)) {
+        //     console.log(
+        //         "remote haul",
+        //         creepState.creep.name,
+        //         world.resourceManager.roomHasEnoughEnergy(creepState, this.data.targetRoom),
+        //         creepStoreFullPercentage(creepState.creep) < 0.25
+        //     );
+        // }
         return (
             hasBodyPart(creepState.creep, CARRY) &&
             world.resourceManager.roomHasEnoughEnergy(creepState, this.data.targetRoom) &&
@@ -51,7 +59,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
             return true;
         }
 
-        return Game.time - roomMemory.remoteMining.lastHarvestTick < HARVEST_TIMEOUT;
+        return Game.time - roomMemory.remoteMining.lastHarvestTick > HARVEST_TIMEOUT;
     }
 
     public override score(creep: Creep): number {

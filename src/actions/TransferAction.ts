@@ -1,5 +1,6 @@
 import { CreepState } from "creeps/CreepState";
 import { Action } from "./Action";
+import { moveTo } from "creeps/CreepController";
 
 export class TransferAction extends Action {
     structure: AnyStoreStructure;
@@ -13,7 +14,7 @@ export class TransferAction extends Action {
         const creep = creepState.creep;
 
         if (creep.transfer(this.structure, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-            creep.moveTo(this.structure);
+            moveTo(creepState, this.structure);
         }
     }
 }
