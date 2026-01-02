@@ -65,6 +65,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
             (creepStoreFull(creepState.creep) || !creepState.memory.working)
         ) {
             // we are done since we are back in our main room
+            creepState.memory.taskId = undefined;
             creepState.memory.remoteEnergyReserved = undefined;
             creepState.memory.remoteEnergyRoom = undefined;
             return null;
@@ -94,7 +95,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
             return new MoveAction(new RoomPosition(25, 25, creepState.memory.ownerRoom));
         }
 
-        return energyTask;
+        return null;
     }
 
     public override validCreationSetup(): void {}

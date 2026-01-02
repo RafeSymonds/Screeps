@@ -2,43 +2,69 @@ import { World } from "world/World";
 import { AnyTask } from "../definitions/Task";
 import { TaskManager } from "./TaskManager";
 import { updateCreepMemoryForTask } from "creeps/CreepController";
+import { CreepState } from "creeps/CreepState";
 
-function isCreepFree(creepMemory: CreepMemory, taskManager: TaskManager): boolean {
-    return creepMemory.taskId === undefined || !taskManager.tasks.has(creepMemory.taskId);
+function isCreepFree(creep: CreepState, taskManager: TaskManager): boolean {
+    return creep.memory.taskId === undefined || !taskManager.tasks.has(creep.memory.taskId);
 }
+
+type Candidate = {
+    creep: CreepState;
+    task: AnyTask;
+    score: number;
+};
 
 export function assignCreeps(world: World) {
     for (const [, worldRoom] of world.rooms) {
-        for (const creepState of worldRoom.myCreeps) {
-            if (creepState.creep.spawning) {
-                continue;
+        const room = worldRoom.room;
+
+        /* --------------------------------------------
+           1️⃣ Gather free creeps
+           -------------------------------------------- */
+
+        const freeCreeps = worldRoom.myCreeps.filter(c => !c.creep.spawning && isCreepFree(c, world.taskManager));
+
+        if (freeCreeps.length === 0) continue;
+
+        const tasks = world.taskManager.getTasksForRoom(room);
+        if (tasks.length === 0) continue;
+
+        /* --------------------------------------------
+           2️⃣ Build all viable pairs
+           -------------------------------------------- */
+
+        const candidates: Candidate[] = [];
+
+        for (const creepState of freeCreeps) {
+            for (const task of tasks) {
+                if (!task.canPerformTask(creepState, world)) continue;
+                if (!task.canAcceptCreep(creepState, world)) continue;
+
+                const score = task.score(creepState.creep);
+
+                candidates.push({ creep: creepState, task, score });
             }
+        }
 
-            if (!isCreepFree(creepState.memory, world.taskManager)) {
-                continue;
-            }
+        if (candidates.length === 0) continue;
 
-            let bestTask: AnyTask | undefined = undefined;
-            let bestScore = -Infinity;
+        /* --------------------------------------------
+           3️⃣ Assign greedily by best marginal value
+           -------------------------------------------- */
 
-            for (const task of world.taskManager.getTasksForRoom(worldRoom.room)) {
-                if (task && task.canPerformTask(creepState, world) && task.canAcceptCreep(creepState, world)) {
-                    let score = task.score(creepState.creep);
+        candidates.sort((a, b) => b.score - a.score);
 
-                    if (score > bestScore) {
-                        bestTask = task;
-                        bestScore = score;
-                    }
-                }
-            }
+        const assignedCreeps = new Set<Id<Creep>>();
 
-            if (bestTask) {
-                bestTask.assignCreep(creepState, world);
+        for (const { creep: creepState, task } of candidates) {
+            if (assignedCreeps.has(creepState.creep.id)) continue;
+            if (!task.canPerformTask(creepState, world)) continue;
+            if (!task.canAcceptCreep(creepState, world)) continue;
 
-                updateCreepMemoryForTask(creepState, bestTask);
+            task.assignCreep(creepState, world);
+            updateCreepMemoryForTask(creepState, task);
 
-                console.log("[Task Assigned] creep ", creepState.creep.name, " with task ", bestTask.id());
-            }
+            assignedCreeps.add(creepState.creep.id);
         }
     }
 }
