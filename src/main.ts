@@ -29,6 +29,8 @@ declare global {
         taskId?: string;
         taskTicks: number;
         energyTargetId?: Id<EnergyTarget>;
+        remoteEnergyReserved?: number;
+        remoteEnergyRoom?: string;
         working: boolean;
         ownerRoom: string;
     }
@@ -57,6 +59,7 @@ declare global {
 
     interface RemoteMiningData {
         lastHarvestTick: number;
+        energyReserved: number;
         sources: [Id<Source>, RoomPosition][];
         ownerRoom?: string;
     }
