@@ -1,4 +1,5 @@
 import { Cardinal, NeighborMap } from "./RoomTopology";
+import { countKeeperLairs, hasInvaderCore } from "./RoomUtils";
 
 const EXIT_TO_CARDINAL: Record<ExitConstant, Cardinal> = {
     [TOP]: "N",
@@ -18,14 +19,17 @@ export function recordRoom(room: Room) {
     if (!mem.remoteMining) {
         const sources = room.find(FIND_SOURCES).map((source): [Id<Source>, RoomPosition] => [source.id, source.pos]);
 
-        mem.remoteMining = { lastHarvestTick: -1, sources: sources, ownerRoom: undefined, energyReserved: 0 };
+        mem.remoteMining = { lastHarvestTick: -1, sources: sources, ownerRoom: undefined };
     }
 
     // Intel: refreshed
     mem.intel = {
         lastScouted: Game.time,
         owner: room.controller?.owner?.username,
-        reservedBy: room.controller?.reservation?.username
+        reservedBy: room.controller?.reservation?.username,
+        hasEnemyBase: room.controller !== undefined && !room.controller.my,
+        hasInvaderCore: hasInvaderCore(room),
+        keeperLairs: countKeeperLairs(room)
     };
 }
 
@@ -39,4 +43,22 @@ function recordTopology(roomName: string): RoomTopology {
     }
 
     return { neighbors: neighbors };
+}
+
+export enum IntelStatus {
+    UNKNOWN,
+    OPEN,
+    DANGEROUS
+}
+
+export function intelStatus(intel?: RoomIntel): IntelStatus {
+    if (!intel) {
+        return IntelStatus.UNKNOWN;
+    }
+
+    if (intel.keeperLairs > 0 || intel.hasEnemyBase || intel.hasInvaderCore) {
+        return IntelStatus.DANGEROUS;
+    }
+
+    return IntelStatus.OPEN;
 }

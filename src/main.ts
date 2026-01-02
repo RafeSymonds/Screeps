@@ -43,6 +43,13 @@ declare global {
         lastScouted: number;
         owner?: string;
         reservedBy?: string;
+
+        /* Persistent threats */
+        hasEnemyBase: boolean;
+        hasInvaderCore: boolean;
+
+        /* Environmental hazards */
+        keeperLairs: number;
     }
 
     interface RoomMemory {
@@ -55,6 +62,8 @@ declare global {
         numHarvestSpots: number;
 
         assistRadius: number;
+
+        remoteRadius: number;
     }
 
     interface RemoteMiningData {
@@ -107,14 +116,6 @@ export const loop = ErrorMapper.wrapLoop(() => {
             delete Memory.creeps[name];
         }
     }
-
-    // for (const room of rooms) {
-    //     setupRoomMemory(room, taskManager);
-    //
-    //     runRelativeBasePlanner(room);
-    //
-    //     scoutFrontier(room.name, 1, taskManager);
-    // }
 
     let myCreeps = Object.values(Game.creeps);
 

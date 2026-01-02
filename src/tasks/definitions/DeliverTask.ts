@@ -188,13 +188,10 @@ export class DeliverTask extends Task<DeliverTaskData> {
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
-        console.log("[DELIVER TASK] starting next action");
-
         if (
             !this.target ||
             (this.target instanceof Structure && this.target.store.getFreeCapacity(RESOURCE_ENERGY) === 0)
         ) {
-            console.log("[DELIVER TASK] no action for creep ");
             creepState.memory.taskId = undefined;
             return null;
         }

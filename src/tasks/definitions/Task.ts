@@ -4,6 +4,7 @@ import { CreepState } from "creeps/CreepState";
 import { ResourceManager } from "rooms/ResourceManager";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
+import { TaskKind } from "tasks/core/TaskKind";
 
 export abstract class Task<T extends TaskData> {
     data: T;
@@ -46,6 +47,10 @@ export abstract class Task<T extends TaskData> {
 
     public removeDeadCreep(deadName: string) {
         this.data.assignedCreeps = this.data.assignedCreeps.filter(([, name]) => name !== deadName);
+    }
+
+    public type(): TaskKind {
+        return this.data.kind;
     }
 }
 

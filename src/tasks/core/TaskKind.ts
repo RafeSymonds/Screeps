@@ -7,3 +7,9 @@ export enum TaskKind {
     UPGRADE,
     SCOUT
 }
+
+export namespace TaskKind {
+    export function isRemote(taskKind: TaskKind): boolean {
+        return taskKind === TaskKind.REMOTE_HARVEST || taskKind === TaskKind.REMOTE_HAUL;
+    }
+}

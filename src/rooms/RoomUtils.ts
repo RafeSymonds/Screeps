@@ -42,3 +42,17 @@ export function containerIsSourceTied(container: StructureContainer): boolean {
         container.pos.findInRange(FIND_SOURCES, 1).length > 0 || container.pos.findInRange(FIND_MINERALS, 1).length > 0
     );
 }
+
+export function hasInvaderCore(room: Room): boolean {
+    return (
+        room.find(FIND_STRUCTURES, {
+            filter: s => s.structureType === STRUCTURE_INVADER_CORE
+        }).length > 0
+    );
+}
+
+export function countKeeperLairs(room: Room): number {
+    return room.find(FIND_STRUCTURES, {
+        filter: s => s.structureType === STRUCTURE_KEEPER_LAIR
+    }).length;
+}

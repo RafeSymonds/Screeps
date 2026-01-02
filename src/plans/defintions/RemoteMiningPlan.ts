@@ -2,6 +2,7 @@ import { createRemoteHarvestTaskData, ownerRoomForRemoteHarvest } from "tasks/de
 import { createRemoteHaulTaskData } from "tasks/definitions/RemoteHaulTask";
 import { World } from "world/World";
 import { Plan } from "./Plan";
+import { IntelStatus, intelStatus } from "rooms/RoomIntel";
 
 export class RemoteMiningPlan extends Plan {
     public override run(world: World) {
@@ -10,7 +11,7 @@ export class RemoteMiningPlan extends Plan {
         for (const remoteRoomName in Memory.rooms) {
             const roomData = Memory.rooms[remoteRoomName];
 
-            if (!roomData.intel?.owner && roomData.remoteMining) {
+            if (intelStatus(roomData.intel) == IntelStatus.OPEN && roomData.remoteMining) {
                 // TODO: Decide if remote is worth mining
 
                 const ownerRoom = ownerRoomForRemoteHarvest(remoteRoomName);
