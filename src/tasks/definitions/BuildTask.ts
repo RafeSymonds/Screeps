@@ -83,6 +83,15 @@ export class BuildTask extends Task<BuildTaskData> {
         };
     }
 
+    public override assignCreep(creepState: CreepState, world: World): void {
+        super.assignCreep(creepState, world);
+
+        // check to see if creep needs energy and if so just find best energy now and reserve it
+        if (creepNeedsEnergy(creepState)) {
+            findBestEnergyTask(creepState, null, world.resourceManager);
+        }
+    }
+
     private priority(): number {
         switch (this.constructionSite?.structureType) {
             case STRUCTURE_CONTAINER:

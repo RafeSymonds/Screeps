@@ -3,7 +3,7 @@ import { ErrorMapper } from "utils/ErrorMapper";
 import { World } from "world/World";
 import { TaskManager } from "tasks/core/TaskManager";
 import { assignCreeps } from "tasks/core/TaskAssignment";
-import { performCreepActions } from "creeps/CreepController";
+import { performCreepActions } from "creeps/CreepActions";
 import { EnergyTarget } from "rooms/RoomEnergyState";
 import { getCreepMemory, getDefaultCreepMemory } from "creeps/CreepMemory";
 import { NeighborMap } from "rooms/RoomTopology";
@@ -59,7 +59,6 @@ declare global {
 
     interface RemoteMiningData {
         lastHarvestTick: number;
-        energyReserved: number;
         sources: [Id<Source>, RoomPosition][];
         ownerRoom?: string;
     }

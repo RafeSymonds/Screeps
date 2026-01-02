@@ -1,6 +1,5 @@
-import { exists } from "fs";
 import { buildNeighborMap, isNeightborEmpty } from "./RoomTopology";
-import { getDefaultRoomMemory } from "./RoomSetup";
+import { getDefaultRoomMemory } from "./RoomMemory";
 
 export function roomsWithin(roomName: string, maxDepth: number): Set<string> {
     const visited = new Set<string>([roomName]);

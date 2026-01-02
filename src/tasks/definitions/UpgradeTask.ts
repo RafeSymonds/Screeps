@@ -70,11 +70,20 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
 
     public override validCreationSetup(): void {}
 
-    public requirements(): TaskRequirements {
+    public override requirements(): TaskRequirements {
         return {
             work: {
                 parts: 15
             }
         };
+    }
+
+    public override assignCreep(creepState: CreepState, world: World): void {
+        super.assignCreep(creepState, world);
+
+        // check to see if creep needs energy and if so just find best energy now and reserve it
+        if (creepNeedsEnergy(creepState)) {
+            findBestEnergyTask(creepState, null, world.resourceManager);
+        }
     }
 }

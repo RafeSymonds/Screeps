@@ -1,48 +1,8 @@
-import { World } from "world/World";
 import { CreepState } from "./CreepState";
 import { EnergyTarget } from "rooms/RoomEnergyState";
-import { CollectAction } from "actions/CollectionAction";
 import { TaskManager } from "tasks/core/TaskManager";
 import { getDefaultCreepMemory } from "./CreepMemory";
 import { AnyTask } from "tasks/definitions/Task";
-import { moveAtTickEnd } from "./EndTickCreepLogic";
-
-export function performCreepActions(world: World) {
-    for (const [, room] of world.rooms) {
-        for (const creepState of room.myCreeps) {
-            if (creepState.memory.energyTargetId) {
-                let energyTarget = Game.getObjectById(creepState.memory.energyTargetId);
-
-                if (energyTarget) {
-                    let action = new CollectAction(energyTarget);
-                    action.perform(creepState);
-                } else {
-                    creepState.memory.energyTargetId = undefined;
-                }
-            } else {
-                const task = creepState.memory.taskId
-                    ? world.taskManager.tasks.get(creepState.memory.taskId)
-                    : undefined;
-
-                if (task) {
-                    const nextAction = task.nextAction(creepState, world.resourceManager);
-
-                    if (nextAction) {
-                        nextAction.perform(creepState);
-                    } else {
-                        removeCreepTask(creepState, world.taskManager);
-                    }
-                }
-            }
-        }
-    }
-
-    for (const [, room] of world.rooms) {
-        for (const creepState of room.myCreeps) {
-            moveAtTickEnd(creepState);
-        }
-    }
-}
 
 export function updateCreepMemoryForTask(creepState: CreepState, task: AnyTask) {
     creepState.memory.taskId = task.id();

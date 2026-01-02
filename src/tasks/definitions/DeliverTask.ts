@@ -133,7 +133,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
 
     public override validCreationSetup(): void {}
 
-    public requirements(): TaskRequirements {
+    public override requirements(): TaskRequirements {
         const energyPerTick = 10;
 
         const distance = 8;
@@ -144,6 +144,15 @@ export class DeliverTask extends Task<DeliverTaskData> {
                 parts: Math.ceil((energyPerTick * roundTrip) / 50)
             }
         };
+    }
+
+    public override assignCreep(creepState: CreepState, world: World): void {
+        super.assignCreep(creepState, world);
+
+        // check to see if creep needs energy and if so just find best energy now and reserve it
+        if (creepNeedsEnergy(creepState)) {
+            findBestEnergyTask(creepState, this.target, world.resourceManager);
+        }
     }
 
     private priority(): number {

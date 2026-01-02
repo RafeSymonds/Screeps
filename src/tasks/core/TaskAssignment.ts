@@ -2,7 +2,6 @@ import { World } from "world/World";
 import { AnyTask } from "../definitions/Task";
 import { TaskManager } from "./TaskManager";
 import { updateCreepMemoryForTask } from "creeps/CreepController";
-import { filterMapToArray, mapToArray } from "utils/MapUtils";
 
 function isCreepFree(creepMemory: CreepMemory, taskManager: TaskManager): boolean {
     return creepMemory.taskId === undefined || !taskManager.tasks.has(creepMemory.taskId);
@@ -34,7 +33,7 @@ export function assignCreeps(world: World) {
             }
 
             if (bestTask) {
-                bestTask.assignCreep(creepState);
+                bestTask.assignCreep(creepState, world);
 
                 updateCreepMemoryForTask(creepState, bestTask);
 

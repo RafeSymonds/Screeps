@@ -1,4 +1,3 @@
-// world/RoomEnergyState.ts
 import { WorldRoom } from "world/WorldRoom";
 
 export type EnergyTarget = StructureContainer | StructureStorage | Tombstone | Ruin | Resource;
@@ -8,11 +7,30 @@ export type EnergySource = {
     amount: number;
 };
 
+/* ================================
+   RESERVATIONS
+   ================================ */
+
+type TargetReservation = {
+    owner: Id<Creep>;
+    amount: number;
+};
+
+/* ================================
+   ROOM ENERGY STATE
+   ================================ */
+
 export class RoomEnergyState {
     readonly room: Room;
 
     private sources: EnergySource[] = [];
-    private reserved = new Map<Id<EnergyTarget>, number>();
+
+    /**
+     * Fine-grained execution reservations:
+     * container/storage → list of (creep, amount)
+     */
+    private targetReservations = new Map<Id<EnergyTarget>, TargetReservation[]>();
+    private remoteReservations = 0;
 
     private sourceContainers = new Set<Id<StructureContainer>>();
     private needyContainers = new Set<Id<StructureContainer>>();
@@ -23,9 +41,11 @@ export class RoomEnergyState {
         this.scanSources();
     }
 
-    /* ------------------ Analysis ------------------ */
+    /* ================================
+       ANALYSIS
+       ================================ */
 
-    private analyzeContainers() {
+    private analyzeContainers(): void {
         for (const s of this.room.find(FIND_STRUCTURES)) {
             if (!(s instanceof StructureContainer)) continue;
 
@@ -37,7 +57,7 @@ export class RoomEnergyState {
         }
     }
 
-    private scanSources() {
+    private scanSources(): void {
         this.sources = [];
 
         for (const r of this.room.find(FIND_DROPPED_RESOURCES)) {
@@ -64,24 +84,59 @@ export class RoomEnergyState {
         }
     }
 
-    /* ------------------ Reservations ------------------ */
+    /* ================================
+       TARGET-LEVEL RESERVATIONS
+       ================================ */
 
-    reserve(id: Id<EnergyTarget>, amount: number) {
-        this.reserved.set(id, (this.reserved.get(id) ?? 0) + amount);
+    private getTargetReserved(id: Id<EnergyTarget>): number {
+        const list = this.targetReservations.get(id);
+        if (!list) return 0;
+        return list.reduce((sum, r) => sum + r.amount, 0);
     }
 
-    getReserved(id: Id<EnergyTarget>): number {
-        return this.reserved.get(id) ?? 0;
+    reserveTarget(targetId: Id<EnergyTarget>, creep: Creep, amount: number): void {
+        const list = this.targetReservations.get(targetId) ?? [];
+
+        list.push({
+            owner: creep.id,
+            amount
+        });
+
+        this.targetReservations.set(targetId, list);
     }
 
-    /* ------------------ Queries ------------------ */
+    reserveRemoteEnergy(amount: number): void {
+        this.remoteReservations += amount;
+    }
 
+    releaseTargetReservations(creepId: Id<Creep>): void {
+        for (const [id, list] of this.targetReservations) {
+            const filtered = list.filter(r => r.owner !== creepId);
+            if (filtered.length === 0) {
+                this.targetReservations.delete(id);
+            } else {
+                this.targetReservations.set(id, filtered);
+            }
+        }
+    }
+
+    /* ================================
+       QUERIES
+       ================================ */
+
+    /**
+     * Physical energy remaining after execution-level reservations.
+     * DOES NOT include room-level reservations.
+     */
     getAvailableEnergy(): number {
         let total = 0;
+
         for (const { target, amount } of this.sources) {
-            total += Math.max(0, amount - this.getReserved(target.id));
+            const reserved = this.getTargetReserved(target.id);
+            total += Math.max(0, amount - reserved);
         }
-        return total;
+
+        return total - this.remoteReservations;
     }
 
     isValidSourceFor(from: EnergyTarget, to: Structure | RoomPosition | null): boolean {
@@ -103,6 +158,15 @@ export class RoomEnergyState {
         return true;
     }
 
+    /* ================================
+       SOURCE SELECTION (PROMOTION)
+       ================================ */
+
+    /**
+     * Finds best energy source and PROMOTES
+     * the creep’s room-level reservation
+     * into a target-level reservation.
+     */
     findBestSource(creep: Creep, destination: Structure | RoomPosition | null): EnergyTarget | null {
         let best: EnergyTarget | null = null;
         let bestScore = -Infinity;
@@ -110,13 +174,15 @@ export class RoomEnergyState {
         for (const { target, amount } of this.sources) {
             if (!this.isValidSourceFor(target, destination)) continue;
 
-            const remaining = amount - this.getReserved(target.id);
+            const remaining = amount - this.getTargetReserved(target.id);
+
             if (remaining <= 0) continue;
 
             const gain = Math.min(remaining, creep.store.getFreeCapacity(RESOURCE_ENERGY));
-            const dist = creep.pos.getRangeTo(target.pos);
 
+            const dist = creep.pos.getRangeTo(target.pos);
             const score = gain - dist * 2;
+
             if (score > bestScore) {
                 bestScore = score;
                 best = target;
@@ -124,7 +190,10 @@ export class RoomEnergyState {
         }
 
         if (best) {
-            this.reserve(best.id, creep.store.getFreeCapacity(RESOURCE_ENERGY));
+            const amt = creep.store.getFreeCapacity(RESOURCE_ENERGY);
+
+            this.reserveTarget(best.id, creep, amt);
+            creep.memory.energyTargetId = best.id;
         }
 
         return best;

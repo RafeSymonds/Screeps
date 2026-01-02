@@ -55,7 +55,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override score(creep: Creep): number {
-        return -1000 - Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 50;
+        return -10000 - Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 50;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
@@ -64,11 +64,16 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
             (creepStoreFull(creepState.creep) || !creepState.memory.working)
         ) {
             // we are done since we are back in our main room
+            creepState.memory.remoteEnergyReserved = undefined;
+            creepState.memory.remoteEnergyRoom = undefined;
             return null;
         }
 
         // if we are full or we have stopped working, go back to owner room
         if (creepStoreFull(creepState.creep) || !creepState.memory.working) {
+            creepState.memory.remoteEnergyReserved = undefined;
+            creepState.memory.remoteEnergyRoom = undefined;
+
             return new MoveAction(new RoomPosition(25, 25, creepState.memory.ownerRoom));
         }
 
@@ -81,6 +86,10 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
 
         if (!energyTask) {
             creepState.memory.working = false;
+
+            creepState.memory.remoteEnergyReserved = undefined;
+            creepState.memory.remoteEnergyRoom = undefined;
+
             return new MoveAction(new RoomPosition(25, 25, creepState.memory.ownerRoom));
         }
 
@@ -95,12 +104,12 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
         const roomMem = Memory.rooms[this.data.targetRoom];
         if (!roomMem?.remoteMining) return;
 
-        const reserveAmount = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY);
+        const free = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY);
 
-        roomMem.remoteMining.energyReserved += reserveAmount;
-
-        creepState.memory.remoteEnergyReserved = reserveAmount;
         creepState.memory.remoteEnergyRoom = this.data.targetRoom;
+        creepState.memory.remoteEnergyReserved = free;
+
+        world.resourceManager.reserveRemoteEnergy(this.data.targetRoom, free);
     }
 
     requirements(): TaskRequirements {

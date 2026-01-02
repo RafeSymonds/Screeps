@@ -229,10 +229,10 @@ function selectSpawnIntent(room: Room, supply: SupplyTotals, demand: DemandTotal
     const targetWorkerCreeps = demand.workerCreeps;
 
     const minerDeficit = targetMine - supply.mine;
-    const carryDeficit = targetCarry / 2 - supply.carry;
+    const carryDeficit = targetCarry / 4 - supply.carry;
 
     const minerCreepDeficit = targetMinerCreeps - supply.minerCreeps;
-    const haulerCreepDeficit = targetHaulerCreeps - supply.haulerCreeps;
+    const haulerCreepDeficit = targetHaulerCreeps / 4 - supply.haulerCreeps;
     const workerCreepDeficit = targetWorkerCreeps - supply.workerCreeps;
 
     const workDeficit = demand.work - supply.work;

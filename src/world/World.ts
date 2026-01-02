@@ -21,7 +21,7 @@ export class World {
 
         this.rooms = new Map<string, WorldRoom>(worldRooms.map(worldRoom => [worldRoom.room.name, worldRoom]));
 
-        this.resourceManager = new ResourceManager(worldRooms);
+        this.resourceManager = new ResourceManager(worldRooms, taskManager);
     }
 
     public getCreepData(): { [name: string]: CreepMemory } {

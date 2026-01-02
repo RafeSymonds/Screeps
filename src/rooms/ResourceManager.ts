@@ -7,44 +7,48 @@ export class ResourceManager {
     private roomStates = new Map<string, RoomEnergyState>();
 
     constructor(worldRooms: WorldRoom[], taskManager: TaskManager) {
-        // 1️⃣ Build room energy states
+        /* ================================
+           1️⃣ Build room energy states
+           ================================ */
         for (const room of worldRooms) {
             this.roomStates.set(room.room.name, new RoomEnergyState(room));
         }
 
-        // 2️⃣ Re-apply reservations from existing creeps
+        /* ================================
+           3️⃣ Rebuild from living creeps
+           ================================ */
         for (const room of worldRooms) {
             const roomState = this.roomStates.get(room.room.name)!;
 
-            for (const creep of room.myCreeps) {
-                /* ----------------------------------
-               Container-level reservations
-               ---------------------------------- */
+            for (const cs of room.myCreeps) {
+                const creep = cs.creep;
 
-                const targetId = creep.memory.energyTargetId as Id<EnergyTarget> | undefined;
+                /* -------- Target-level pickup reservations -------- */
+                const targetId = cs.memory.energyTargetId as Id<EnergyTarget> | undefined;
                 if (targetId) {
-                    const amt = creep.creep.store.getFreeCapacity(RESOURCE_ENERGY);
+                    const amt = creep.store.getFreeCapacity(RESOURCE_ENERGY);
                     if (amt > 0) {
-                        roomState.reserve(targetId, amt);
+                        roomState.reserveTarget(targetId, creep, amt);
                     }
                 }
 
-                /* ----------------------------------
-               Remote energy pool reservations
-               ---------------------------------- */
+                /* -------- Remote intent reservations -------- */
+                const reserved = cs.memory.remoteEnergyReserved;
+                const targetRoom = cs.memory.remoteEnergyRoom;
 
-                const reserved = creep.memory.remoteEnergyReserved;
-                const targetRoom = creep.memory.remoteEnergyRoom;
+                if (!reserved || !targetRoom) continue;
 
-                if (reserved && targetRoom) {
-                    const roomMemory = Memory.rooms[targetRoom];
-                    if (roomMemory && roomMemory.remoteMining) {
-                        roomMemory.remoteMining.energyReserved += reserved;
-                    }
-                }
+                const targetMem = Memory.rooms[targetRoom];
+                if (!targetMem?.remoteMining) continue;
+
+                roomState.reserveRemoteEnergy(reserved);
             }
         }
     }
+
+    /* ================================
+       Queries
+       ================================ */
 
     getRoomEnergy(roomName: string): number {
         return this.roomStates.get(roomName)?.getAvailableEnergy() ?? 0;
@@ -54,15 +58,18 @@ export class ResourceManager {
         const roomState = this.roomStates.get(roomName);
         if (!roomState) return false;
 
-        const remoteReserved = Memory.rooms[roomName]?.remoteMining?.energyReserved ?? 0;
-        const available = roomState.getAvailableEnergy() - remoteReserved;
+        const available = roomState.getAvailableEnergy();
 
-        const creepCapacity = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY);
+        const needed = creepState.creep.store.getCapacity(RESOURCE_ENERGY);
 
-        return available >= creepCapacity * 0.5;
+        return available >= needed * 0.5;
     }
 
     findEnergyAndReserve(creep: Creep, destination: Structure | RoomPosition | null): EnergyTarget | null {
         return this.roomStates.get(creep.room.name)?.findBestSource(creep, destination) ?? null;
+    }
+
+    reserveRemoteEnergy(room: string, amount: number): void {
+        this.roomStates.get(room)?.reserveRemoteEnergy(amount);
     }
 }

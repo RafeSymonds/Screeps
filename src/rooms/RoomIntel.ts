@@ -18,7 +18,7 @@ export function recordRoom(room: Room) {
     if (!mem.remoteMining) {
         const sources = room.find(FIND_SOURCES).map((source): [Id<Source>, RoomPosition] => [source.id, source.pos]);
 
-        mem.remoteMining = { lastHarvestTick: -1, sources: sources, ownerRoom: undefined };
+        mem.remoteMining = { lastHarvestTick: -1, sources: sources, ownerRoom: undefined, energyReserved: 0 };
     }
 
     // Intel: refreshed

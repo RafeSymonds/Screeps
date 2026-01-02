@@ -4,10 +4,7 @@ import { TaskManager } from "tasks/core/TaskManager";
 import { createDeliverTaskData as createTransferTaskData } from "tasks/definitions/DeliverTask";
 import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
 import { containerIsSourceTied } from "./RoomUtils";
-
-export function getDefaultRoomMemory(): RoomMemory {
-    return { numHarvestSpots: 0, anchorSpawnId: undefined, assistRadius: 0 };
-}
+import { getDefaultRoomMemory } from "./RoomMemory";
 
 export function setupRoomMemory(room: Room, taskManager: TaskManager) {
     if (room.memory === undefined || room.memory.numHarvestSpots === undefined) {
