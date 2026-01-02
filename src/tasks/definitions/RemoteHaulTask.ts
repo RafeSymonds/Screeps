@@ -39,6 +39,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     public override canPerformTask(creepState: CreepState, world: World): boolean {
         return (
             hasBodyPart(creepState.creep, CARRY) &&
+            !hasBodyPart(creepState.creep, WORK) &&
             world.resourceManager.roomHasEnoughEnergy(creepState, this.data.targetRoom) &&
             creepStoreFullPercentage(creepState.creep) < 0.25
         );

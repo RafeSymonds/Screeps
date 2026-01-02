@@ -16,3 +16,7 @@ export function countBodyParts(creep: Creep, bodyPart: BodyPartConstant): number
 export function creepEnergyCarryCapacity(creep: Creep): number {
     return countBodyParts(creep, CARRY) * 50;
 }
+
+export function creepEnergy(creep: Creep): number {
+    return creep.store.getUsedCapacity(RESOURCE_ENERGY);
+}

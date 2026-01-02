@@ -6,7 +6,7 @@ import { TransferAction } from "actions/TransferAction";
 import { DropAction } from "actions/DropAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "../requirements/EnergyRequirement";
-import { hasBodyPart, countBodyParts } from "creeps/CreepUtils";
+import { hasBodyPart, countBodyParts, creepEnergy } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy, creepStoreFullPercentage } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
@@ -107,10 +107,6 @@ export class DeliverTask extends Task<DeliverTaskData> {
        CAPACITY / RESERVATION LOGIC
        ============================================================ */
 
-    private creepCarryCapacity(creep: Creep): number {
-        return countBodyParts(creep, CARRY) * 50;
-    }
-
     /**
      * Rebuild reservations from assigned creeps.
      * Called on construction to survive reloads / tick boundaries.
@@ -128,7 +124,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
             const creep = Game.getObjectById(id);
             if (!creep) continue;
 
-            const claim = Math.min(this.creepCarryCapacity(creep), remaining);
+            const claim = Math.min(creepEnergy(creep), remaining);
             if (claim <= 0) continue;
 
             this.reservedBy.set(creep.id, claim);
@@ -227,7 +223,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
         const remaining = this.target.store.getFreeCapacity(RESOURCE_ENERGY) - this.reservedEnergy;
         if (remaining <= 0) return;
 
-        const claim = Math.min(this.creepCarryCapacity(creepState.creep), remaining);
+        const claim = Math.min(creepEnergy(creepState.creep), remaining);
         if (claim <= 0) return;
 
         this.reservedBy.set(creepState.creep.id, claim);
