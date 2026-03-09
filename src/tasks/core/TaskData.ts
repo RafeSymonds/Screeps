@@ -1,9 +1,15 @@
 import { TaskKind } from "./TaskKind";
 
+export enum TaskSafetyPolicy {
+    NORMAL = "normal",
+    ALLOW_DANGEROUS_ASSIGNMENT = "allowDangerousAssignment"
+}
+
 export type BaseTask = {
     id: string;
     targetRoom: string;
     assignedCreeps: [Id<Creep>, string][];
+    safetyPolicy?: TaskSafetyPolicy;
 };
 
 export type BuildTaskData = BaseTask & {

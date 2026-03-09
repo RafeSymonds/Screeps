@@ -37,6 +37,7 @@ export function assignCreeps(world: World) {
 
         for (const creepState of freeCreeps) {
             for (const task of tasks) {
+                if (task.isDangerous() && !task.allowsDangerousAssignment()) continue;
                 if (!task.canPerformTask(creepState, world)) continue;
                 if (!task.canAcceptCreep(creepState, world)) continue;
 
@@ -58,6 +59,7 @@ export function assignCreeps(world: World) {
 
         for (const { creep: creepState, task } of candidates) {
             if (assignedCreeps.has(creepState.creep.id)) continue;
+            if (task.isDangerous() && !task.allowsDangerousAssignment()) continue;
             if (!task.canPerformTask(creepState, world)) continue;
             if (!task.canAcceptCreep(creepState, world)) continue;
 

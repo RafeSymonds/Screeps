@@ -5,6 +5,8 @@ import { ResourceManager } from "rooms/ResourceManager";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
 import { TaskKind } from "tasks/core/TaskKind";
+import { intelStatus, IntelStatus } from "rooms/RoomIntel";
+import { TaskSafetyPolicy } from "tasks/core/TaskData";
 
 export abstract class Task<T extends TaskData> {
     data: T;
@@ -23,6 +25,14 @@ export abstract class Task<T extends TaskData> {
 
     public canAcceptCreep(_creepState: CreepState, _world: World): boolean {
         return !this.taskIsFull();
+    }
+
+    public isDangerous(): boolean {
+        return intelStatus(Memory.rooms[this.data.targetRoom]?.intel) === IntelStatus.DANGEROUS;
+    }
+
+    public allowsDangerousAssignment(): boolean {
+        return this.data.safetyPolicy === TaskSafetyPolicy.ALLOW_DANGEROUS_ASSIGNMENT;
     }
 
     public abstract score(creep: Creep): number;

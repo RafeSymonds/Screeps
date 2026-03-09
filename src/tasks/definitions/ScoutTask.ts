@@ -9,6 +9,7 @@ import { ScoutTaskData } from "tasks/core/TaskData";
 import { recordRoom } from "rooms/RoomIntel";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
+import { TaskSafetyPolicy } from "tasks/core/TaskData";
 
 export function scoutTaskName(originRoom: string): string {
     return "Scout-" + originRoom;
@@ -19,7 +20,8 @@ export function createScoutTaskData(roomToScout: string): ScoutTaskData {
         id: scoutTaskName(roomToScout),
         kind: TaskKind.SCOUT,
         targetRoom: roomToScout,
-        assignedCreeps: []
+        assignedCreeps: [],
+        safetyPolicy: TaskSafetyPolicy.ALLOW_DANGEROUS_ASSIGNMENT
     };
 }
 
