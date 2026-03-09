@@ -56,6 +56,7 @@ declare global {
         topology?: RoomTopology;
         intel?: RoomIntel;
         remoteMining?: RemoteMiningData;
+        spawnStats?: RoomSpawnStats;
 
         // Base-specific (only meaningful for owned rooms)
         anchorSpawnId?: Id<StructureSpawn>;
@@ -64,6 +65,23 @@ declare global {
         assistRadius: number;
 
         remoteRadius: number;
+    }
+
+    interface SpawnRoleSnapshot {
+        supplyParts: number;
+        supplyCreeps: number;
+        demandParts: number;
+        demandCreeps: number;
+        idleCreeps: number;
+        pressure: number;
+    }
+
+    interface RoomSpawnStats {
+        lastUpdated: number;
+        mine: SpawnRoleSnapshot;
+        carry: SpawnRoleSnapshot;
+        work: SpawnRoleSnapshot;
+        scout: SpawnRoleSnapshot;
     }
 
     interface RemoteMiningData {
