@@ -17,7 +17,7 @@
     "watch-main": "rollup -cw --environment DEST:main",
     "watch-pserver": "rollup -cw --environment DEST:pserver",
     "watch-season": "rollup -cw --environment DEST:season",
-    "watch-sim": "rollup -c --environment DEST:pserver",
+    "watch-sim": "rollup -cw --environment DEST:sim",
     "privateServer": "rollup -c --environment DEST:local"
   },
   "repository": {

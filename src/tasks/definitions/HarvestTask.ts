@@ -6,7 +6,6 @@ import { HarvestAction } from "actions/HarvestAction";
 import { CreepState } from "creeps/CreepState";
 import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
-import { worker } from "cluster";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
 
