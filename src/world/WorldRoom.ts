@@ -13,7 +13,7 @@ export class WorldRoom {
         this.myCreeps = myCreeps.filter(creep => creep.memory.ownerRoom === room.name);
         this.myCreeps.forEach(creepState => tryPreemptCreep(creepState, taskManager));
 
-        if (room.name in Memory.rooms) {
+        if (!(room.name in Memory.rooms)) {
             room.memory = getDefaultRoomMemory();
         }
     }

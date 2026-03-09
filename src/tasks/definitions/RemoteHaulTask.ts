@@ -10,17 +10,25 @@ import { findBestEnergyTask } from "tasks/requirements/EnergyRequirement";
 import { creepStoreFull, creepStoreFullPercentage } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
+import { remoteAssignmentForRoom } from "rooms/RemoteStrategy";
 
 export function remoteHaulTaskName(sourceId: Id<Source>, sourcePos: RoomPosition): string {
     return "RemoteHaul-" + sourcePos.roomName + "-" + sourceId;
 }
 
-export function createRemoteHaulTaskData(sourceId: Id<Source>, sourcePos: RoomPosition): RemoteHaulTaskData {
+export function createRemoteHaulTaskData(
+    sourceId: Id<Source>,
+    sourcePos: RoomPosition,
+    ownerRoom: string,
+    routeLength: number
+): RemoteHaulTaskData {
     return {
         id: remoteHaulTaskName(sourceId, sourcePos),
         kind: TaskKind.REMOTE_HAUL,
         targetRoom: sourcePos.roomName,
-        assignedCreeps: []
+        assignedCreeps: [],
+        ownerRoom,
+        routeLength
     };
 }
 
@@ -33,13 +41,16 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override isStillValid(): boolean {
-        return true;
+        const strategy = remoteAssignmentForRoom(this.data.targetRoom);
+
+        return strategy?.state === "active" && strategy.ownerRoom === this.data.ownerRoom;
     }
 
     public override canPerformTask(creepState: CreepState, world: World): boolean {
         return (
             hasBodyPart(creepState.creep, CARRY) &&
             !hasBodyPart(creepState.creep, WORK) &&
+            creepState.memory.ownerRoom === this.data.ownerRoom &&
             world.resourceManager.roomHasEnoughEnergy(creepState, this.data.targetRoom) &&
             creepStoreFullPercentage(creepState.creep) < 0.25
         );
@@ -56,12 +67,12 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override score(creep: Creep): number {
-        return -10000 - Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 50;
+        return -10000 - this.data.routeLength * 40 - Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 25;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
         if (
-            creepState.creep.room.name === creepState.memory.ownerRoom &&
+            creepState.creep.room.name === this.data.ownerRoom &&
             (creepStoreFull(creepState.creep) || !creepState.memory.working)
         ) {
             // we are done since we are back in our main room
@@ -76,7 +87,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
             creepState.memory.remoteEnergyReserved = undefined;
             creepState.memory.remoteEnergyRoom = undefined;
 
-            return new MoveAction(new RoomPosition(25, 25, creepState.memory.ownerRoom));
+            return new MoveAction(new RoomPosition(25, 25, this.data.ownerRoom));
         }
 
         // check to see if we are in the remote room
@@ -93,7 +104,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
             creepState.memory.remoteEnergyReserved = undefined;
             creepState.memory.remoteEnergyRoom = undefined;
 
-            return new MoveAction(new RoomPosition(25, 25, creepState.memory.ownerRoom));
+            return new MoveAction(new RoomPosition(25, 25, this.data.ownerRoom));
         }
 
         return energyTask;
@@ -117,9 +128,8 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
 
     requirements(): TaskRequirements {
         const energyPerTick = 5;
-
-        // TODO: calculate better
-        const distance = 50;
+        const roomDistance = Math.max(1, this.data.routeLength);
+        const distance = roomDistance * 50;
         const roundTrip = distance * 2;
 
         return {

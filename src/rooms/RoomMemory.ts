@@ -4,6 +4,8 @@ export function getDefaultRoomMemory(): RoomMemory {
         anchorSpawnId: undefined,
         assistRadius: 2,
         remoteRadius: 2,
-        spawnStats: undefined
+        spawnStats: undefined,
+        remoteStrategy: undefined,
+        growth: undefined
     };
 }

@@ -7,59 +7,9 @@ import { CreepState } from "creeps/CreepState";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
-import { ownedRooms } from "rooms/RoomUtils";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
-
-const MAX_REMOTE_DISTANCE = 4; // don’t claim absurdly far rooms
-const HYSTERESIS_BONUS = 2; // bias toward current owner
-
-export function ownerRoomForRemoteHarvest(remoteRoom: string): string | undefined {
-    const rooms = ownedRooms();
-
-    if (rooms.length === 0) {
-        return undefined;
-    }
-
-    const roomMemory = Memory.rooms[remoteRoom];
-
-    if (!roomMemory || !roomMemory.remoteMining) {
-        return undefined;
-    }
-
-    const previousOwner = roomMemory.remoteMining.ownerRoom;
-
-    let bestRoom: Room | null = null;
-    let bestScore = -Infinity;
-
-    for (const room of rooms) {
-        const distance = Game.map.getRoomLinearDistance(room.name, remoteRoom);
-
-        if (distance > MAX_REMOTE_DISTANCE) {
-            continue;
-        }
-
-        // Base score: closer is better
-        let score = -distance * 10;
-
-        // Bias toward previous owner to prevent thrash
-        if (room.name === previousOwner) {
-            score += HYSTERESIS_BONUS * 10;
-        }
-
-        // TODO: add in better indicators
-        // score += economyScore(room);
-        // score += safetyScore(room);
-        // score += infrastructureScore(room);
-
-        if (score > bestScore) {
-            bestScore = score;
-            bestRoom = room;
-        }
-    }
-
-    return bestRoom?.name;
-}
+import { remoteAssignmentForRoom } from "rooms/RemoteStrategy";
 
 export function remoteHarvestTaskName(sourceId: Id<Source>, sourcePos: RoomPosition, ownerRoom: string): string {
     return "RemoteHarvest-" + ownerRoom + "-" + sourcePos.roomName + "-" + sourceId;
@@ -68,7 +18,8 @@ export function remoteHarvestTaskName(sourceId: Id<Source>, sourcePos: RoomPosit
 export function createRemoteHarvestTaskData(
     sourceId: Id<Source>,
     sourcePos: RoomPosition,
-    ownerRoom: string
+    ownerRoom: string,
+    routeLength: number
 ): RemoteHarvestTaskData {
     return {
         id: remoteHarvestTaskName(sourceId, sourcePos, ownerRoom),
@@ -77,7 +28,8 @@ export function createRemoteHarvestTaskData(
         assignedCreeps: [],
         targetId: sourceId,
         sourcePos: sourcePos,
-        ownerRoom: ownerRoom
+        ownerRoom: ownerRoom,
+        routeLength
     };
 }
 
@@ -91,11 +43,13 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
     }
 
     public override isStillValid(): boolean {
-        return true;
+        const strategy = remoteAssignmentForRoom(this.data.targetRoom);
+
+        return strategy?.state === "active" && strategy.ownerRoom === this.data.ownerRoom;
     }
 
     public override canPerformTask(creepState: CreepState, _world: World): boolean {
-        return hasBodyPart(creepState.creep, WORK);
+        return hasBodyPart(creepState.creep, WORK) && creepState.memory.ownerRoom === this.data.ownerRoom;
     }
 
     protected override taskIsFull(): boolean {
@@ -103,7 +57,7 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
     }
 
     public override score(creep: Creep): number {
-        return -1000;
+        return -1000 - this.data.routeLength * 25 - Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 10;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {

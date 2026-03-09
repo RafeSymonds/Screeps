@@ -74,6 +74,16 @@ export function findSafeInterRoomRoute(start: string, goal: string): string[] | 
     return null;
 }
 
+export function estimateSafeRouteLength(start: string, goal: string): number | null {
+    const route = findSafeInterRoomRoute(start, goal);
+
+    if (!route) {
+        return null;
+    }
+
+    return Math.max(0, route.length - 1);
+}
+
 export function nextRoomWaypoint(currentRoom: string, target: RoomPosition): RoomPosition {
     const route = findSafeInterRoomRoute(currentRoom, target.roomName);
 

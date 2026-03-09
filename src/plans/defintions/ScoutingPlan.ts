@@ -7,7 +7,8 @@ export class ScoutingPlan extends Plan {
         const taskManager = world.taskManager;
 
         for (const [, room] of world.rooms) {
-            scoutFrontier(room.room.name, 1, taskManager);
+            const radius = Math.max(1, room.room.memory.remoteRadius + (room.room.memory.growth?.nextClaimTarget ? 1 : 0));
+            scoutFrontier(room.room.name, radius, taskManager);
         }
     }
 }

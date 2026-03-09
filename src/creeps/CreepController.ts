@@ -8,6 +8,8 @@ import { nextRoomWaypoint } from "rooms/InterRoomRouter";
 export function updateCreepMemoryForTask(creepState: CreepState, task: AnyTask) {
     creepState.memory.taskId = task.id();
     creepState.memory.taskTicks = 0;
+    creepState.memory.lastTaskKind = task.type();
+    creepState.memory.lastTaskRoom = task.data.targetRoom;
     creepState.memory.energyTargetId = undefined;
     creepState.memory.working = true;
 }
@@ -27,7 +29,7 @@ export function removeCreepTask(creepState: CreepState, taskManager: TaskManager
         }
     }
 
-    creepState.memory = getDefaultCreepMemory(creepState.memory.ownerRoom);
+    creepState.memory = getDefaultCreepMemory(creepState.memory.ownerRoom, creepState.memory);
 }
 
 export function tryOrMove<T extends RoomObject>(

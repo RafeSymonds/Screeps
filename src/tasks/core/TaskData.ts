@@ -10,6 +10,7 @@ export type BaseTask = {
     targetRoom: string;
     assignedCreeps: [Id<Creep>, string][];
     safetyPolicy?: TaskSafetyPolicy;
+    ownerRoom?: string;
 };
 
 export type BuildTaskData = BaseTask & {
@@ -33,10 +34,13 @@ export type RemoteHarvestTaskData = BaseTask & {
     targetId: Id<Source>;
     sourcePos: RoomPosition;
     ownerRoom: string;
+    routeLength: number;
 };
 
 export type RemoteHaulTaskData = BaseTask & {
     kind: TaskKind.REMOTE_HAUL;
+    ownerRoom: string;
+    routeLength: number;
 };
 
 export type DeliverTaskTargetData =

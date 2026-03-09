@@ -23,11 +23,14 @@ declare global {
     // Memory extension samples
     interface Memory {
         tasks: TaskData[];
+        planRuns?: Record<string, number>;
     }
 
     interface CreepMemory {
         taskId?: string;
         taskTicks: number;
+        lastTaskKind?: import("tasks/core/TaskKind").TaskKind;
+        lastTaskRoom?: string;
         energyTargetId?: Id<EnergyTarget>;
         remoteEnergyReserved?: number;
         remoteEnergyRoom?: string;
@@ -57,6 +60,8 @@ declare global {
         intel?: RoomIntel;
         remoteMining?: RemoteMiningData;
         spawnStats?: RoomSpawnStats;
+        remoteStrategy?: RemoteRoomStrategy;
+        growth?: RoomGrowthState;
 
         // Base-specific (only meaningful for owned rooms)
         anchorSpawnId?: Id<StructureSpawn>;
@@ -88,6 +93,28 @@ declare global {
         lastHarvestTick: number;
         sources: [Id<Source>, RoomPosition][];
         ownerRoom?: string;
+    }
+
+    type RemoteRoomState = "scouting" | "candidate" | "active" | "saturated" | "unsafe" | "paused";
+
+    interface RemoteRoomStrategy {
+        state: RemoteRoomState;
+        ownerRoom?: string;
+        routeLength?: number;
+        score: number;
+        sourceCount: number;
+        lastEvaluated: number;
+        reason?: string;
+    }
+
+    type RoomGrowthStage = "bootstrap" | "stabilizing" | "remote" | "surplus";
+
+    interface RoomGrowthState {
+        stage: RoomGrowthStage;
+        desiredRemoteCount: number;
+        expansionScore: number;
+        nextClaimTarget?: string;
+        lastEvaluated: number;
     }
 }
 

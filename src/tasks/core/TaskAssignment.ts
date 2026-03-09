@@ -41,7 +41,7 @@ export function assignCreeps(world: World) {
                 if (!task.canPerformTask(creepState, world)) continue;
                 if (!task.canAcceptCreep(creepState, world)) continue;
 
-                const score = task.score(creepState.creep);
+                const score = task.assignmentScore(creepState);
 
                 candidates.push({ creep: creepState, task, score });
             }
