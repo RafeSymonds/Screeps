@@ -62,6 +62,10 @@ export type ScoutTaskData = BaseTask & {
     kind: TaskKind.SCOUT;
 };
 
+export type DefendTaskData = BaseTask & {
+    kind: TaskKind.DEFEND;
+};
+
 export type TaskData =
     | BuildTaskData
     | UpgradeTaskData
@@ -69,7 +73,8 @@ export type TaskData =
     | RemoteHarvestTaskData
     | RemoteHaulTaskData
     | DeliverTaskData
-    | ScoutTaskData;
+    | ScoutTaskData
+    | DefendTaskData;
 
 export type RoomTaskData = {
     name: string;

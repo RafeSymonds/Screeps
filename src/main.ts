@@ -10,6 +10,7 @@ import { NeighborMap } from "rooms/RoomTopology";
 import { runPlans } from "plans/core/PlanManager";
 import { CreepState } from "creeps/CreepState";
 import { SpawnManager } from "spawner/SpawnManager";
+import { performTowerDefense } from "combat/TowerDefense";
 
 declare global {
     /*
@@ -58,6 +59,7 @@ declare global {
     interface RoomMemory {
         topology?: RoomTopology;
         intel?: RoomIntel;
+        defense?: RoomDefenseState;
         remoteMining?: RemoteMiningData;
         spawnStats?: RoomSpawnStats;
         remoteStrategy?: RemoteRoomStrategy;
@@ -89,6 +91,19 @@ declare global {
         carry: SpawnRoleSnapshot;
         work: SpawnRoleSnapshot;
         scout: SpawnRoleSnapshot;
+        combat: SpawnRoleSnapshot;
+    }
+
+    interface RoomDefenseState {
+        hostileCount: number;
+        threat: number;
+        lastHostileTick: number;
+        requestedDefenders: number;
+        safeAnchor?: {
+            x: number;
+            y: number;
+            roomName: string;
+        };
     }
 
     interface RemoteMiningData {
@@ -119,7 +134,7 @@ declare global {
         lastEvaluated: number;
     }
 
-    type RoomSupportKind = "bootstrap" | "economy" | "build";
+    type RoomSupportKind = "bootstrap" | "economy" | "build" | "defense";
 
     interface RoomSupportRequest {
         kind: RoomSupportKind;
@@ -197,11 +212,13 @@ export const loop = ErrorMapper.wrapLoop(() => {
     let world = new World(rooms, myCreepStates, taskManager);
 
     runPlans(world);
+    taskManager.pruneInvalid();
 
     let spawnManager = new SpawnManager();
     spawnManager.run(world);
 
     assignCreeps(world);
+    performTowerDefense(world);
     performCreepActions(world);
 
     Memory.creeps = world.getCreepData();

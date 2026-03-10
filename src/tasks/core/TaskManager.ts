@@ -41,6 +41,14 @@ export class TaskManager {
         return this.tasks.get(taskId);
     }
 
+    public pruneInvalid(): void {
+        for (const [taskId, task] of this.tasks) {
+            if (!task.isStillValid()) {
+                this.tasks.delete(taskId);
+            }
+        }
+    }
+
     public getTasksForRoom(room: Room): AnyTask[] {
         return filterMapToArray(this.tasks, task => roomCanConsiderTask(room, task));
     }

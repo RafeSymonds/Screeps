@@ -1,7 +1,7 @@
 import { World } from "world/World";
 import { WorldRoom } from "world/WorldRoom";
 import { getDefaultCreepMemory } from "creeps/CreepMemory";
-import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
+import { countBodyParts, countCombatParts, hasBodyPart, hasCombatPart } from "creeps/CreepUtils";
 import { TaskRequirements, requirementCreeps, requirementParts } from "tasks/core/TaskRequirements";
 import { CreepState } from "creeps/CreepState";
 
@@ -34,14 +34,16 @@ export enum SpawnIntentKind {
     SCOUT,
     MINER,
     HAULER,
-    WORKER
+    WORKER,
+    DEFENDER
 }
 
 type SpawnIntent =
     | { kind: SpawnIntentKind.SCOUT }
     | { kind: SpawnIntentKind.MINER }
     | { kind: SpawnIntentKind.HAULER }
-    | { kind: SpawnIntentKind.WORKER };
+    | { kind: SpawnIntentKind.WORKER }
+    | { kind: SpawnIntentKind.DEFENDER };
 
 /* ============================================================
    BODY BUILDERS
@@ -86,6 +88,40 @@ function workerBody(energy: number): BodyPartConstant[] {
     return body;
 }
 
+function defenderBody(energy: number): BodyPartConstant[] {
+    if (energy < 130) {
+        return [];
+    }
+
+    if (energy < 200) {
+        return [ATTACK, MOVE];
+    }
+
+    const body: BodyPartConstant[] = [];
+    let remaining = energy;
+
+    while (remaining >= 250 && body.length <= 47) {
+        body.push(RANGED_ATTACK, MOVE, MOVE);
+        remaining -= 250;
+    }
+
+    if (remaining >= 300 && body.length <= 48) {
+        body.push(HEAL, MOVE);
+        remaining -= 300;
+    }
+
+    if (body.length === 0) {
+        return [RANGED_ATTACK, MOVE];
+    }
+
+    while (remaining >= 10 && body.length < 50 && body.filter(part => part === TOUGH).length < 4) {
+        body.unshift(TOUGH);
+        remaining -= 10;
+    }
+
+    return body;
+}
+
 /* ============================================================
    CREEP CLASSIFICATION
    ============================================================ */
@@ -100,6 +136,10 @@ function isWorker(cs: CreepState): boolean {
 
 function isScout(cs: CreepState): boolean {
     return hasBodyPart(cs.creep, MOVE) && !hasBodyPart(cs.creep, WORK) && !hasBodyPart(cs.creep, CARRY);
+}
+
+function isCombat(cs: CreepState): boolean {
+    return hasCombatPart(cs.creep);
 }
 
 /* ============================================================
@@ -118,6 +158,9 @@ type SupplyTotals = {
     idleWorkers: number;
     scout: number;
     idleScouts: number;
+    combat: number;
+    defenderCreeps: number;
+    idleDefenders: number;
 };
 
 function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
@@ -132,13 +175,22 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
         workerCreeps: 0,
         idleWorkers: 0,
         scout: 0,
-        idleScouts: 0
+        idleScouts: 0,
+        combat: 0,
+        defenderCreeps: 0,
+        idleDefenders: 0
     };
 
     for (const cs of worldRoom.myCreeps) {
         const idle = cs.memory.taskId === undefined;
 
-        if (isMiner(cs)) {
+        if (isCombat(cs)) {
+            supply.combat += countCombatParts(cs.creep);
+            supply.defenderCreeps += 1;
+            if (idle) {
+                supply.idleDefenders += 1;
+            }
+        } else if (isMiner(cs)) {
             supply.mine += countBodyParts(cs.creep, WORK);
             supply.minerCreeps += 1;
             if (idle) {
@@ -183,6 +235,8 @@ type DemandTotals = {
     carryHint: number;
     haulerCreeps: number;
     scout: number;
+    combat: number;
+    defenderCreeps: number;
 };
 
 function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTotals {
@@ -193,7 +247,9 @@ function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTota
         workerCreeps: 0,
         carryHint: 0,
         haulerCreeps: 0,
-        scout: 0
+        scout: 0,
+        combat: 0,
+        defenderCreeps: 0
     };
 
     for (const task of tasks) {
@@ -207,6 +263,8 @@ function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTota
 
         demand.carryHint += requirementParts(r.carry);
         demand.haulerCreeps += requirementCreeps(r.carry);
+        demand.combat += requirementParts(r.combat);
+        demand.defenderCreeps += requirementCreeps(r.combat);
 
         if (r.vision) demand.scout += 1;
     }
@@ -324,6 +382,15 @@ function updateSpawnStats(room: Room, supply: SupplyTotals, demand: DemandTotals
             demand.scout,
             supply.idleScouts,
             SCOUT_PRESSURE_ALPHA
+        ),
+        combat: statsSnapshot(
+            previous?.combat,
+            supply.combat,
+            supply.defenderCreeps,
+            demand.combat,
+            demand.defenderCreeps,
+            supply.idleDefenders,
+            PRESSURE_ALPHA
         )
     };
 
@@ -358,6 +425,20 @@ function selectSpawnIntent(
     const minerImmediate = immediatePressure(supply.mine, supply.minerCreeps, demand.mine, demand.minerCreeps);
     const carryImmediate = immediatePressure(supply.carry, supply.haulerCreeps, targetCarry, demand.haulerCreeps);
     const workImmediate = immediatePressure(supply.work, supply.workerCreeps, demand.work, demand.workerCreeps);
+    const combatImmediate = immediatePressure(
+        supply.combat,
+        supply.defenderCreeps,
+        demand.combat,
+        demand.defenderCreeps
+    );
+
+    if (demand.combat > 0 && supply.combat === 0) {
+        return { kind: SpawnIntentKind.DEFENDER };
+    }
+
+    if (combatImmediate >= 1 && supply.idleDefenders === 0) {
+        return { kind: SpawnIntentKind.DEFENDER };
+    }
 
     if (supply.mine === 0 && demand.mine > 0) {
         return { kind: SpawnIntentKind.MINER };
@@ -379,6 +460,10 @@ function selectSpawnIntent(
 
     if (shouldSpawnForPressure(stats.mine)) {
         roleCandidates.push({ kind: SpawnIntentKind.MINER, pressure: stats.mine.pressure });
+    }
+
+    if (shouldSpawnForPressure(stats.combat)) {
+        roleCandidates.push({ kind: SpawnIntentKind.DEFENDER, pressure: stats.combat.pressure + 0.3 });
     }
 
     if (shouldSpawnForPressure(stats.carry)) {
@@ -406,7 +491,9 @@ function selectSpawnIntent(
               ? { kind: SpawnIntentKind.MINER }
               : roleCandidates[0].kind === SpawnIntentKind.SCOUT
                 ? { kind: SpawnIntentKind.SCOUT }
-                : { kind: SpawnIntentKind.WORKER };
+                : roleCandidates[0].kind === SpawnIntentKind.DEFENDER
+                  ? { kind: SpawnIntentKind.DEFENDER }
+                  : { kind: SpawnIntentKind.WORKER };
     }
 
     if (workImmediate > 0 && supply.idleWorkers === 0) {
@@ -456,6 +543,9 @@ export class SpawnManager {
                 break;
             case SpawnIntentKind.WORKER:
                 body = workerBody(energy);
+                break;
+            case SpawnIntentKind.DEFENDER:
+                body = defenderBody(energy);
                 break;
         }
 

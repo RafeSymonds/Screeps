@@ -17,6 +17,7 @@ export function updateRoomSupportState(room: Room): RoomSupportRequest | undefin
     const workers = creeps.filter(creep => creep.body.some(part => part.type === WORK) && creep.body.some(part => part.type === CARRY));
     const spawnCount = room.find(FIND_MY_SPAWNS).length;
     const constructionSites = room.find(FIND_CONSTRUCTION_SITES).length;
+    const hostiles = room.find(FIND_HOSTILE_CREEPS).length;
 
     let stage: RoomOnboardingStage = "established";
 
@@ -36,7 +37,15 @@ export function updateRoomSupportState(room: Room): RoomSupportRequest | undefin
 
     let request: RoomSupportRequest | undefined;
 
-    if (stage === "settling") {
+    if (hostiles > 0) {
+        request = {
+            kind: "defense",
+            priority: 150,
+            maxHelpers: 3,
+            expiresAt: Game.time + 10,
+            requestedBy: room.name
+        };
+    } else if (stage === "settling") {
         request = {
             kind: "bootstrap",
             priority: 100,

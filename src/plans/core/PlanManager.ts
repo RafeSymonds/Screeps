@@ -1,4 +1,5 @@
 import { BasePlan } from "plans/defintions/BasePlan";
+import { DefensePlan } from "plans/defintions/DefensePlan";
 import { EconomyPlan } from "plans/defintions/EconomyPlan";
 import { GrowthPlan } from "plans/defintions/GrowthPlan";
 import { InfrastructurePlan } from "plans/defintions/InfrastructurePlan";
@@ -10,6 +11,7 @@ import { World } from "world/World";
 
 export function runPlans(world: World) {
     const plans = [
+        { key: "defense", interval: 1, plan: new DefensePlan() },
         { key: "economy", interval: 1, plan: new EconomyPlan() },
         { key: "growth", interval: 25, plan: new GrowthPlan() },
         { key: "support", interval: 10, plan: new SupportPlan() },

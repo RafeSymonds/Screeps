@@ -5,7 +5,8 @@ export enum TaskKind {
     REMOTE_HAUL,
     DELIVER,
     UPGRADE,
-    SCOUT
+    SCOUT,
+    DEFEND
 }
 
 export namespace TaskKind {

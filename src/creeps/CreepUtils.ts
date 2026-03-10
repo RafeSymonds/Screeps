@@ -13,6 +13,14 @@ export function countBodyParts(creep: Creep, bodyPart: BodyPartConstant): number
     return count;
 }
 
+export function countCombatParts(creep: Creep): number {
+    return countBodyParts(creep, ATTACK) + countBodyParts(creep, RANGED_ATTACK) + countBodyParts(creep, HEAL);
+}
+
+export function hasCombatPart(creep: Creep): boolean {
+    return countCombatParts(creep) > 0;
+}
+
 export function creepEnergyCarryCapacity(creep: Creep): number {
     return countBodyParts(creep, CARRY) * 50;
 }

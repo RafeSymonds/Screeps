@@ -9,6 +9,7 @@ export interface TaskRequirements {
     mine?: RequirementSpec; // WORK parts worth of throughput for mining only
     work?: RequirementSpec; // WORK parts worth of throughput
     carry?: RequirementSpec; // CARRY parts worth of throughput
+    combat?: RequirementSpec; // ATTACK/RANGED_ATTACK/HEAL parts worth of throughput
     move?: RequirementSpec; // MOVE pressure (optional, advanced)
     vision?: boolean; // needs presence in room
 }
