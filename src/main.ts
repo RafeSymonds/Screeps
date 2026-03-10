@@ -61,6 +61,7 @@ declare global {
         intel?: RoomIntel;
         defense?: RoomDefenseState;
         remoteMining?: RemoteMiningData;
+        spawnRequests?: RoomSpawnRequest[];
         spawnStats?: RoomSpawnStats;
         remoteStrategy?: RemoteRoomStrategy;
         growth?: RoomGrowthState;
@@ -104,6 +105,17 @@ declare global {
             y: number;
             roomName: string;
         };
+    }
+
+    type SpawnRequestRole = "scout" | "miner" | "hauler" | "worker" | "defender";
+
+    interface RoomSpawnRequest {
+        role: SpawnRequestRole;
+        priority: number;
+        desiredCreeps: number;
+        expiresAt: number;
+        requestedBy: string;
+        minEnergy?: number;
     }
 
     interface RemoteMiningData {

@@ -4,6 +4,7 @@ import { getDefaultCreepMemory } from "creeps/CreepMemory";
 import { countBodyParts, countCombatParts, hasBodyPart, hasCombatPart } from "creeps/CreepUtils";
 import { TaskRequirements, requirementCreeps, requirementParts } from "tasks/core/TaskRequirements";
 import { CreepState } from "creeps/CreepState";
+import { getActiveSpawnRequests } from "./SpawnRequests";
 
 /* ============================================================
    CONSTANTS
@@ -44,6 +45,13 @@ type SpawnIntent =
     | { kind: SpawnIntentKind.HAULER }
     | { kind: SpawnIntentKind.WORKER }
     | { kind: SpawnIntentKind.DEFENDER };
+
+type ResolvedSpawnRequest = {
+    kind: SpawnIntentKind;
+    priority: number;
+    unmetCreeps: number;
+    minEnergy?: number;
+};
 
 /* ============================================================
    BODY BUILDERS
@@ -411,6 +419,106 @@ function shouldSpawnForPressure(snapshot: SpawnRoleSnapshot): boolean {
     return snapshot.pressure >= PRESSURE_SPAWN_THRESHOLD;
 }
 
+function spawnIntentFromRole(role: SpawnRequestRole): SpawnIntentKind {
+    switch (role) {
+        case "scout":
+            return SpawnIntentKind.SCOUT;
+        case "miner":
+            return SpawnIntentKind.MINER;
+        case "hauler":
+            return SpawnIntentKind.HAULER;
+        case "worker":
+            return SpawnIntentKind.WORKER;
+        case "defender":
+            return SpawnIntentKind.DEFENDER;
+    }
+}
+
+function currentCreepsForRole(role: SpawnRequestRole, supply: SupplyTotals): number {
+    switch (role) {
+        case "scout":
+            return supply.scout;
+        case "miner":
+            return supply.minerCreeps;
+        case "hauler":
+            return supply.haulerCreeps;
+        case "worker":
+            return supply.workerCreeps;
+        case "defender":
+            return supply.defenderCreeps;
+    }
+}
+
+function explicitSpawnRequests(room: Room, supply: SupplyTotals): ResolvedSpawnRequest[] {
+    return getActiveSpawnRequests(room)
+        .map(request => ({
+            request,
+            unmetCreeps: Math.max(0, request.desiredCreeps - currentCreepsForRole(request.role, supply))
+        }))
+        .filter(({ unmetCreeps }) => unmetCreeps > 0)
+        .map(({ request, unmetCreeps }) => ({
+            kind: spawnIntentFromRole(request.role),
+            priority: request.priority,
+            unmetCreeps,
+            minEnergy: request.minEnergy
+        }));
+}
+
+function economySpawnRequests(supply: SupplyTotals, demand: DemandTotals, stats: RoomSpawnStats): ResolvedSpawnRequest[] {
+    const requests: ResolvedSpawnRequest[] = [];
+    const targetCarry = stats.carry.demandParts;
+    const minerImmediate = immediatePressure(supply.mine, supply.minerCreeps, demand.mine, demand.minerCreeps);
+    const carryImmediate = immediatePressure(supply.carry, supply.haulerCreeps, targetCarry, demand.haulerCreeps);
+    const workImmediate = immediatePressure(supply.work, supply.workerCreeps, demand.work, demand.workerCreeps);
+    const scoutImmediate = immediatePressure(supply.scout, supply.scout, demand.scout, demand.scout);
+
+    if (supply.mine === 0 && demand.mine > 0) {
+        requests.push({ kind: SpawnIntentKind.MINER, priority: 220, unmetCreeps: 1 });
+    } else if (minerImmediate >= 1 && supply.idleMiners === 0) {
+        requests.push({ kind: SpawnIntentKind.MINER, priority: 180, unmetCreeps: 1 });
+    } else if (shouldSpawnForPressure(stats.mine)) {
+        requests.push({
+            kind: SpawnIntentKind.MINER,
+            priority: 80 + stats.mine.pressure * 100,
+            unmetCreeps: Math.max(1, demand.minerCreeps - supply.minerCreeps)
+        });
+    }
+
+    if (supply.carry === 0 && targetCarry > 0) {
+        requests.push({ kind: SpawnIntentKind.HAULER, priority: 210, unmetCreeps: 1 });
+    } else if (carryImmediate >= 1 && supply.idleHaulers === 0) {
+        requests.push({ kind: SpawnIntentKind.HAULER, priority: 170, unmetCreeps: 1 });
+    } else if (shouldSpawnForPressure(stats.carry)) {
+        requests.push({
+            kind: SpawnIntentKind.HAULER,
+            priority: 75 + stats.carry.pressure * 100,
+            unmetCreeps: Math.max(1, demand.haulerCreeps - supply.haulerCreeps)
+        });
+    }
+
+    if (demand.scout > 0 && supply.scout === 0) {
+        requests.push({ kind: SpawnIntentKind.SCOUT, priority: 120, unmetCreeps: 1 });
+    } else if (scoutImmediate > 0 && shouldSpawnForPressure(stats.scout)) {
+        requests.push({
+            kind: SpawnIntentKind.SCOUT,
+            priority: 70 + stats.scout.pressure * 100,
+            unmetCreeps: Math.max(1, demand.scout - supply.scout)
+        });
+    }
+
+    if (workImmediate > 0 && supply.idleWorkers === 0) {
+        requests.push({ kind: SpawnIntentKind.WORKER, priority: 90 + workImmediate * 100, unmetCreeps: 1 });
+    } else if ((workImmediate > 0 || stats.work.pressure > 0) && shouldSpawnForPressure(stats.work)) {
+        requests.push({
+            kind: SpawnIntentKind.WORKER,
+            priority: 65 + stats.work.pressure * 100,
+            unmetCreeps: Math.max(1, demand.workerCreeps - supply.workerCreeps)
+        });
+    }
+
+    return requests;
+}
+
 /* ============================================================
    SPAWN DECISION
    ============================================================ */
@@ -419,85 +527,21 @@ function selectSpawnIntent(
     room: Room,
     supply: SupplyTotals,
     demand: DemandTotals,
-    stats: RoomSpawnStats
+    stats: RoomSpawnStats,
+    availableEnergy: number
 ): SpawnIntent | null {
-    const targetCarry = stats.carry.demandParts;
-    const minerImmediate = immediatePressure(supply.mine, supply.minerCreeps, demand.mine, demand.minerCreeps);
-    const carryImmediate = immediatePressure(supply.carry, supply.haulerCreeps, targetCarry, demand.haulerCreeps);
-    const workImmediate = immediatePressure(supply.work, supply.workerCreeps, demand.work, demand.workerCreeps);
-    const combatImmediate = immediatePressure(
-        supply.combat,
-        supply.defenderCreeps,
-        demand.combat,
-        demand.defenderCreeps
-    );
+    const requests = [...explicitSpawnRequests(room, supply), ...economySpawnRequests(supply, demand, stats)]
+        .filter(request => request.minEnergy === undefined || availableEnergy >= request.minEnergy)
+        .sort((a, b) => {
+            if (b.priority !== a.priority) {
+                return b.priority - a.priority;
+            }
 
-    if (demand.combat > 0 && supply.combat === 0) {
-        return { kind: SpawnIntentKind.DEFENDER };
-    }
+            return b.unmetCreeps - a.unmetCreeps;
+        });
 
-    if (combatImmediate >= 1 && supply.idleDefenders === 0) {
-        return { kind: SpawnIntentKind.DEFENDER };
-    }
-
-    if (supply.mine === 0 && demand.mine > 0) {
-        return { kind: SpawnIntentKind.MINER };
-    }
-
-    if (supply.carry === 0 && targetCarry > 0) {
-        return { kind: SpawnIntentKind.HAULER };
-    }
-
-    if (minerImmediate >= 1 && supply.idleMiners === 0) {
-        return { kind: SpawnIntentKind.MINER };
-    }
-
-    if (carryImmediate >= 1 && supply.idleHaulers === 0) {
-        return { kind: SpawnIntentKind.HAULER };
-    }
-
-    const roleCandidates: { kind: SpawnIntentKind; pressure: number }[] = [];
-
-    if (shouldSpawnForPressure(stats.mine)) {
-        roleCandidates.push({ kind: SpawnIntentKind.MINER, pressure: stats.mine.pressure });
-    }
-
-    if (shouldSpawnForPressure(stats.combat)) {
-        roleCandidates.push({ kind: SpawnIntentKind.DEFENDER, pressure: stats.combat.pressure + 0.3 });
-    }
-
-    if (shouldSpawnForPressure(stats.carry)) {
-        roleCandidates.push({ kind: SpawnIntentKind.HAULER, pressure: stats.carry.pressure });
-    }
-
-    if (demand.scout > 0 && supply.scout === 0) {
-        return { kind: SpawnIntentKind.SCOUT };
-    }
-
-    if (shouldSpawnForPressure(stats.scout)) {
-        roleCandidates.push({ kind: SpawnIntentKind.SCOUT, pressure: stats.scout.pressure });
-    }
-
-    if ((workImmediate > 0 || stats.work.pressure > 0) && shouldSpawnForPressure(stats.work)) {
-        roleCandidates.push({ kind: SpawnIntentKind.WORKER, pressure: stats.work.pressure });
-    }
-
-    roleCandidates.sort((a, b) => b.pressure - a.pressure);
-
-    if (roleCandidates.length > 0) {
-        return roleCandidates[0].kind === SpawnIntentKind.HAULER
-            ? { kind: SpawnIntentKind.HAULER }
-            : roleCandidates[0].kind === SpawnIntentKind.MINER
-              ? { kind: SpawnIntentKind.MINER }
-              : roleCandidates[0].kind === SpawnIntentKind.SCOUT
-                ? { kind: SpawnIntentKind.SCOUT }
-                : roleCandidates[0].kind === SpawnIntentKind.DEFENDER
-                  ? { kind: SpawnIntentKind.DEFENDER }
-                  : { kind: SpawnIntentKind.WORKER };
-    }
-
-    if (workImmediate > 0 && supply.idleWorkers === 0) {
-        return { kind: SpawnIntentKind.WORKER };
+    if (requests.length > 0) {
+        return { kind: requests[0].kind };
     }
 
     return null;
@@ -524,11 +568,11 @@ export class SpawnManager {
         const demand = deriveDemand(tasks);
         const targetCarry = effectiveCarryDemand(supply, demand);
         const stats = updateSpawnStats(room, supply, demand, targetCarry);
+        const energy = room.energyAvailable;
 
-        const intent = selectSpawnIntent(room, supply, demand, stats);
+        const intent = selectSpawnIntent(room, supply, demand, stats, energy);
         if (!intent) return;
 
-        const energy = room.energyAvailable;
         let body: BodyPartConstant[] | null = null;
 
         switch (intent.kind) {

@@ -5,6 +5,7 @@ export function getDefaultRoomMemory(): RoomMemory {
         assistRadius: 2,
         remoteRadius: 2,
         defense: undefined,
+        spawnRequests: [],
         spawnStats: undefined,
         remoteStrategy: undefined,
         growth: undefined,
