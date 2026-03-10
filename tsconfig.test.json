@@ -1,6 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "CommonJs"
-  }
+    "module": "CommonJS",
+    "rootDir": ".",
+    "outDir": ".tmp-test",
+    "types": ["node", "mocha", "screeps"],
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
 }

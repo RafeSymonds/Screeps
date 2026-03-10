@@ -6,6 +6,7 @@ import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
 import { TaskKind } from "tasks/core/TaskKind";
 import { intelStatus, IntelStatus } from "rooms/RoomIntel";
+import { activeSupportRequest } from "rooms/RoomSupport";
 import { TaskSafetyPolicy } from "tasks/core/TaskData";
 import { estimateSafeRouteLength } from "rooms/InterRoomRouter";
 
@@ -64,6 +65,11 @@ export abstract class Task<T extends TaskData> {
 
         if (creepState.memory.lastTaskKind === this.type()) {
             score += 10;
+        }
+
+        const supportRequest = activeSupportRequest(this.data.targetRoom);
+        if (supportRequest) {
+            score += supportRequest.priority;
         }
 
         if (TaskKind.isRemote(this.type())) {

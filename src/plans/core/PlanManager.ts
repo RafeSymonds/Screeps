@@ -1,8 +1,10 @@
 import { BasePlan } from "plans/defintions/BasePlan";
 import { EconomyPlan } from "plans/defintions/EconomyPlan";
 import { GrowthPlan } from "plans/defintions/GrowthPlan";
+import { InfrastructurePlan } from "plans/defintions/InfrastructurePlan";
 import { RemoteMiningPlan } from "plans/defintions/RemoteMiningPlan";
 import { ScoutingPlan } from "plans/defintions/ScoutingPlan";
+import { SupportPlan } from "plans/defintions/SupportPlan";
 import { shouldRunPlan } from "./PlanScheduler";
 import { World } from "world/World";
 
@@ -10,6 +12,8 @@ export function runPlans(world: World) {
     const plans = [
         { key: "economy", interval: 1, plan: new EconomyPlan() },
         { key: "growth", interval: 25, plan: new GrowthPlan() },
+        { key: "support", interval: 10, plan: new SupportPlan() },
+        { key: "infrastructure", interval: 25, plan: new InfrastructurePlan() },
         { key: "base", interval: 50, plan: new BasePlan() },
         { key: "remoteMining", interval: 10, plan: new RemoteMiningPlan() },
         { key: "scouting", interval: 15, plan: new ScoutingPlan() }

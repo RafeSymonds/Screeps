@@ -62,6 +62,8 @@ declare global {
         spawnStats?: RoomSpawnStats;
         remoteStrategy?: RemoteRoomStrategy;
         growth?: RoomGrowthState;
+        supportRequest?: RoomSupportRequest;
+        onboarding?: RoomOnboardingState;
 
         // Base-specific (only meaningful for owned rooms)
         anchorSpawnId?: Id<StructureSpawn>;
@@ -114,6 +116,26 @@ declare global {
         desiredRemoteCount: number;
         expansionScore: number;
         nextClaimTarget?: string;
+        lastEvaluated: number;
+    }
+
+    type RoomSupportKind = "bootstrap" | "economy" | "build";
+
+    interface RoomSupportRequest {
+        kind: RoomSupportKind;
+        priority: number;
+        maxHelpers: number;
+        expiresAt: number;
+        requestedBy: string;
+    }
+
+    type RoomOnboardingStage = "settling" | "bootstrapping" | "established";
+
+    interface RoomOnboardingState {
+        stage: RoomOnboardingStage;
+        needsMiner: boolean;
+        needsHauler: boolean;
+        needsBuilder: boolean;
         lastEvaluated: number;
     }
 }

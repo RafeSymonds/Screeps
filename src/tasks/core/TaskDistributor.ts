@@ -1,4 +1,5 @@
 import { estimateSafeRouteLength } from "rooms/InterRoomRouter";
+import { activeSupportRequest, roomCanHelp } from "rooms/RoomSupport";
 import { AnyTask } from "tasks/definitions/Task";
 import { TaskKind } from "./TaskKind";
 
@@ -15,6 +16,10 @@ export function roomCanConsiderTask(room: Room, task: AnyTask): boolean {
 
     if (distance === null) {
         return false;
+    }
+
+    if (activeSupportRequest(task.data.targetRoom) && roomCanHelp(room, task.data.targetRoom)) {
+        return true;
     }
 
     return distance <= room.memory.assistRadius;

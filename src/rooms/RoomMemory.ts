@@ -6,6 +6,8 @@ export function getDefaultRoomMemory(): RoomMemory {
         remoteRadius: 2,
         spawnStats: undefined,
         remoteStrategy: undefined,
-        growth: undefined
+        growth: undefined,
+        supportRequest: undefined,
+        onboarding: undefined
     };
 }
