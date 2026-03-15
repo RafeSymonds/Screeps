@@ -10,6 +10,7 @@ import { RemoteHaulTask } from "tasks/definitions/RemoteHaulTask";
 import { RemoteHarvestTask } from "tasks/definitions/RemoteHarvestTask";
 import { ScoutTask } from "tasks/definitions/ScoutTask";
 import { DefendTask } from "tasks/definitions/DefendTask";
+import { ClaimTask } from "tasks/definitions/ClaimTask";
 
 function constructTask(data: TaskData): AnyTask {
     switch (data.kind) {
@@ -36,6 +37,9 @@ function constructTask(data: TaskData): AnyTask {
 
         case TaskKind.DEFEND:
             return new DefendTask(data);
+
+        case TaskKind.CLAIM:
+            return new ClaimTask(data);
     }
 }
 

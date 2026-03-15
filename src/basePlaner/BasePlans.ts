@@ -49,8 +49,6 @@ function placeRelative(
 
     // Lazy rampart placement early game
     if (structure === "rampart" && rcl < 5 && !isCoreRampart(offset)) return;
-    //TODO: remove this hard coding of ramprt
-    if (structure === "rampart") return;
 
     // Lazy road placement
     if (structure === "road" && !roadAllowed(offset, rcl)) return;

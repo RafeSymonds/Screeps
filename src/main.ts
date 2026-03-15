@@ -54,6 +54,10 @@ declare global {
 
         /* Environmental hazards */
         keeperLairs: number;
+
+        /* Hostile tracking */
+        lastHostileSeen?: number;
+        hostileMilitaryParts?: number;
     }
 
     interface RoomMemory {

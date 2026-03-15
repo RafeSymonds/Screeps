@@ -36,7 +36,8 @@ export enum SpawnIntentKind {
     MINER,
     HAULER,
     WORKER,
-    DEFENDER
+    DEFENDER,
+    CLAIMER
 }
 
 type SpawnIntent =
@@ -44,7 +45,8 @@ type SpawnIntent =
     | { kind: SpawnIntentKind.MINER }
     | { kind: SpawnIntentKind.HAULER }
     | { kind: SpawnIntentKind.WORKER }
-    | { kind: SpawnIntentKind.DEFENDER };
+    | { kind: SpawnIntentKind.DEFENDER }
+    | { kind: SpawnIntentKind.CLAIMER };
 
 type ResolvedSpawnRequest = {
     kind: SpawnIntentKind;
@@ -61,21 +63,45 @@ function scoutBody(): BodyPartConstant[] {
     return [MOVE];
 }
 
-function minerBody(energy: number): BodyPartConstant[] {
+function minerBody(energy: number, room?: Room): BodyPartConstant[] {
+    const rcl = room?.controller?.level ?? 0;
+    const hasLinks = rcl >= 5 && (room?.find(FIND_MY_STRUCTURES).some(
+        s => s.structureType === STRUCTURE_LINK
+    ) ?? false);
+
+    // If room has links, add 1 CARRY so miner can transfer to link
+    if (hasLinks && energy >= 250) {
+        const maxWork = Math.floor((energy - 100) / 100); // 50 MOVE + 50 CARRY + N*100 WORK
+        const work = Math.max(1, maxWork);
+        return [MOVE, CARRY, ...Array(work).fill(WORK)];
+    }
+
     const maxWork = Math.floor((energy - 50) / 100);
     const work = Math.max(1, maxWork);
     return [MOVE, ...Array(work).fill(WORK)];
 }
 
-function desiredHaulerCarry(room: Room): number {
+function desiredHaulerCarry(room: Room, routeLength?: number): number {
     const cap = room.energyCapacityAvailable;
 
-    if (cap < 550) return 2;
-    if (cap < 800) return 4;
-    if (cap < 1300) return 6;
-    if (cap < 1800) return 8;
-    if (cap < 2300) return 12;
-    return 16;
+    let base: number;
+    if (cap < 550) base = 2;
+    else if (cap < 800) base = 4;
+    else if (cap < 1300) base = 6;
+    else if (cap < 1800) base = 8;
+    else if (cap < 2300) base = 12;
+    else base = 16;
+
+    if (routeLength && routeLength > 1) {
+        // Longer routes need more CARRY to keep throughput up
+        // Formula: carry = ceil(energyPerTick * roundTripTicks / carryCapacity)
+        const energyPerTick = 10; // 2 sources * 5 WORK parts
+        const roundTrip = routeLength * 50 * 2;
+        const needed = Math.ceil((energyPerTick * roundTrip) / 50);
+        base = Math.max(base, Math.min(needed, MAX_HAULER_CARRY));
+    }
+
+    return base;
 }
 
 function haulerBody(room: Room, energy: number): BodyPartConstant[] {
@@ -97,37 +123,54 @@ function workerBody(energy: number): BodyPartConstant[] {
 }
 
 function defenderBody(energy: number): BodyPartConstant[] {
-    if (energy < 130) {
-        return [];
-    }
-
     if (energy < 200) {
-        return [ATTACK, MOVE];
+        return energy >= 130 ? [ATTACK, MOVE] : [];
     }
 
-    const body: BodyPartConstant[] = [];
+    const toughParts: BodyPartConstant[] = [];
+    const combatParts: BodyPartConstant[] = [];
+    const moveParts: BodyPartConstant[] = [];
     let remaining = energy;
 
-    while (remaining >= 250 && body.length <= 47) {
-        body.push(RANGED_ATTACK, MOVE, MOVE);
-        remaining -= 250;
+    // Add TOUGH up front (cheap HP shields)
+    while (remaining >= 210 && toughParts.length < 4 && toughParts.length + combatParts.length + moveParts.length < 48) {
+        toughParts.push(TOUGH);
+        moveParts.push(MOVE);
+        remaining -= 60; // 10 + 50
     }
 
-    if (remaining >= 300 && body.length <= 48) {
-        body.push(HEAL, MOVE);
+    // Add RANGED_ATTACK + MOVE pairs
+    while (remaining >= 200 && toughParts.length + combatParts.length + moveParts.length <= 48) {
+        combatParts.push(RANGED_ATTACK);
+        moveParts.push(MOVE);
+        remaining -= 200;
+    }
+
+    // Try to add a HEAL + MOVE if we have room and energy
+    if (remaining >= 300 && toughParts.length + combatParts.length + moveParts.length <= 48) {
+        combatParts.push(HEAL);
+        moveParts.push(MOVE);
         remaining -= 300;
     }
 
-    if (body.length === 0) {
+    if (combatParts.length === 0) {
         return [RANGED_ATTACK, MOVE];
     }
 
-    while (remaining >= 10 && body.length < 50 && body.filter(part => part === TOUGH).length < 4) {
-        body.unshift(TOUGH);
-        remaining -= 10;
+    // Body order: TOUGH first (damaged first), combat middle, MOVE last (preserved longest)
+    return [...toughParts, ...combatParts, ...moveParts];
+}
+
+function claimerBody(energy: number): BodyPartConstant[] {
+    if (energy >= 1300) {
+        return [CLAIM, CLAIM, MOVE, MOVE];
     }
 
-    return body;
+    if (energy >= 650) {
+        return [CLAIM, MOVE];
+    }
+
+    return [];
 }
 
 /* ============================================================
@@ -135,15 +178,31 @@ function defenderBody(energy: number): BodyPartConstant[] {
    ============================================================ */
 
 function isMiner(cs: CreepState): boolean {
-    return hasBodyPart(cs.creep, WORK) && !hasBodyPart(cs.creep, CARRY);
+    if (!hasBodyPart(cs.creep, WORK)) return false;
+
+    // Pure miners have no CARRY; link miners have 1 CARRY with many WORK
+    const carryParts = countBodyParts(cs.creep, CARRY);
+    const workParts = countBodyParts(cs.creep, WORK);
+
+    return carryParts === 0 || (carryParts === 1 && workParts >= 3);
 }
 
 function isWorker(cs: CreepState): boolean {
-    return hasBodyPart(cs.creep, WORK) && hasBodyPart(cs.creep, CARRY);
+    if (!hasBodyPart(cs.creep, WORK) || !hasBodyPart(cs.creep, CARRY)) return false;
+
+    // Workers have roughly balanced WORK/CARRY; miners have 1 CARRY with 3+ WORK
+    const carryParts = countBodyParts(cs.creep, CARRY);
+    const workParts = countBodyParts(cs.creep, WORK);
+
+    return carryParts > 1 || workParts < 3;
+}
+
+function isClaimer(cs: CreepState): boolean {
+    return hasBodyPart(cs.creep, CLAIM);
 }
 
 function isScout(cs: CreepState): boolean {
-    return hasBodyPart(cs.creep, MOVE) && !hasBodyPart(cs.creep, WORK) && !hasBodyPart(cs.creep, CARRY);
+    return hasBodyPart(cs.creep, MOVE) && !hasBodyPart(cs.creep, WORK) && !hasBodyPart(cs.creep, CARRY) && !hasBodyPart(cs.creep, CLAIM);
 }
 
 function isCombat(cs: CreepState): boolean {
@@ -228,7 +287,9 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
 
     for (const cs of worldRoom.myCreeps) {
         if (cs.creep.spawning) {
-            if (isCombat(cs)) {
+            if (isClaimer(cs)) {
+                supply.incomingScouts += 1; // claimers counted with scouts
+            } else if (isCombat(cs)) {
                 supply.incomingDefenders += 1;
             } else if (isMiner(cs)) {
                 supply.incomingMiners += 1;
@@ -680,6 +741,17 @@ function selectSpawnIntent(
     return null;
 }
 
+function incrementIncomingSupply(supply: SupplyTotals, kind: SpawnIntentKind): void {
+    switch (kind) {
+        case SpawnIntentKind.SCOUT: supply.incomingScouts += 1; break;
+        case SpawnIntentKind.MINER: supply.incomingMiners += 1; break;
+        case SpawnIntentKind.HAULER: supply.incomingHaulers += 1; break;
+        case SpawnIntentKind.WORKER: supply.incomingWorkers += 1; break;
+        case SpawnIntentKind.DEFENDER: supply.incomingDefenders += 1; break;
+        case SpawnIntentKind.CLAIMER: supply.incomingScouts += 1; break; // claimers counted with scouts
+    }
+}
+
 /* ============================================================
    SPAWN MANAGER
    ============================================================ */
@@ -693,8 +765,8 @@ export class SpawnManager {
 
     private runRoom(worldRoom: WorldRoom, world: World): void {
         const room = worldRoom.room;
-        const spawn = room.find(FIND_MY_SPAWNS)[0];
-        if (!spawn || spawn.spawning) return;
+        const spawns = room.find(FIND_MY_SPAWNS);
+        if (spawns.length === 0) return;
 
         const supply = deriveSupply(worldRoom);
         const tasks = world.taskManager.getTasksForRoom(room);
@@ -704,33 +776,44 @@ export class SpawnManager {
         refreshBaselineSpawnRequests(room, supply, demand, stats);
         const energy = room.energyAvailable;
 
-        const intent = selectSpawnIntent(room, supply, energy);
-        if (!intent) return;
+        for (const spawn of spawns) {
+            if (spawn.spawning) continue;
 
-        let body: BodyPartConstant[] | null = null;
+            const intent = selectSpawnIntent(room, supply, energy);
+            if (!intent) continue;
 
-        switch (intent.kind) {
-            case SpawnIntentKind.SCOUT:
-                body = scoutBody();
-                break;
-            case SpawnIntentKind.MINER:
-                body = minerBody(energy);
-                break;
-            case SpawnIntentKind.HAULER:
-                body = haulerBody(room, energy);
-                break;
-            case SpawnIntentKind.WORKER:
-                body = workerBody(energy);
-                break;
-            case SpawnIntentKind.DEFENDER:
-                body = defenderBody(energy);
-                break;
+            let body: BodyPartConstant[] | null = null;
+
+            switch (intent.kind) {
+                case SpawnIntentKind.SCOUT:
+                    body = scoutBody();
+                    break;
+                case SpawnIntentKind.MINER:
+                    body = minerBody(energy, room);
+                    break;
+                case SpawnIntentKind.HAULER:
+                    body = haulerBody(room, energy);
+                    break;
+                case SpawnIntentKind.WORKER:
+                    body = workerBody(energy);
+                    break;
+                case SpawnIntentKind.DEFENDER:
+                    body = defenderBody(energy);
+                    break;
+                case SpawnIntentKind.CLAIMER:
+                    body = claimerBody(energy);
+                    break;
+            }
+
+            if (!body || body.length === 0) continue;
+
+            const result = spawn.spawnCreep(body, `${SpawnIntentKind[intent.kind]}-${spawn.name}-${Game.time}`, {
+                memory: getDefaultCreepMemory(room.name)
+            });
+
+            if (result === OK) {
+                incrementIncomingSupply(supply, intent.kind);
+            }
         }
-
-        if (!body || body.length === 0) return;
-
-        spawn.spawnCreep(body, `${SpawnIntentKind[intent.kind]}-${Game.time}`, {
-            memory: getDefaultCreepMemory(room.name)
-        });
     }
 }

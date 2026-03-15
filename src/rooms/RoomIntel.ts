@@ -22,6 +22,14 @@ export function recordRoom(room: Room) {
         mem.remoteMining = { lastHarvestTick: -1, sources: sources, ownerRoom: undefined };
     }
 
+    // Track hostile military presence
+    const hostiles = room.find(FIND_HOSTILE_CREEPS);
+    const hostileMilitaryParts = hostiles.reduce((total, creep) => {
+        return total + creep.body.filter(
+            p => p.type === ATTACK || p.type === RANGED_ATTACK || p.type === HEAL
+        ).length;
+    }, 0);
+
     // Intel: refreshed
     mem.intel = {
         lastScouted: Game.time,
@@ -29,7 +37,9 @@ export function recordRoom(room: Room) {
         reservedBy: room.controller?.reservation?.username,
         hasEnemyBase: room.controller !== undefined && !room.controller.my,
         hasInvaderCore: hasInvaderCore(room),
-        keeperLairs: countKeeperLairs(room)
+        keeperLairs: countKeeperLairs(room),
+        lastHostileSeen: hostiles.length > 0 ? Game.time : (mem.intel?.lastHostileSeen ?? 0),
+        hostileMilitaryParts
     };
 }
 

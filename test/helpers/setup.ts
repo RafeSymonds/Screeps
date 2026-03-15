@@ -38,6 +38,26 @@ globalAny.STRUCTURE_ROAD = "road";
 globalAny.STRUCTURE_INVADER_CORE = "invaderCore";
 globalAny.STRUCTURE_KEEPER_LAIR = "keeperLair";
 globalAny.ERR_NOT_IN_RANGE = -9;
+globalAny.ERR_GCL_NOT_ENOUGH = -15;
+globalAny.CREEP_SPAWN_TIME = 3;
+globalAny.ATTACK = "attack";
+globalAny.RANGED_ATTACK = "ranged_attack";
+globalAny.HEAL = "heal";
+globalAny.TOUGH = "tough";
+globalAny.CLAIM = "claim";
+globalAny.STRUCTURE_RAMPART = "rampart";
+globalAny.STRUCTURE_WALL = "constructedWall";
+globalAny.STRUCTURE_LINK = "link";
+globalAny.STRUCTURE_TERMINAL = "terminal";
+globalAny.STRUCTURE_EXTRACTOR = "extractor";
+globalAny.STRUCTURE_OBSERVER = "observer";
+globalAny.STRUCTURE_LAB = "lab";
+globalAny.STRUCTURE_POWER_SPAWN = "powerSpawn";
+globalAny.FIND_MY_CREEPS = 102;
+globalAny.FIND_HOSTILE_CREEPS = 103;
+globalAny.ORDER_BUY = "buy";
+globalAny.ORDER_SELL = "sell";
+globalAny.FIND_NUKES = 117;
 
 class TestStructure {}
 class TestStructureContainer extends TestStructure {}
@@ -61,6 +81,33 @@ class TestRoomPosition {
     getRangeTo(target: { x: number; y: number } | { pos: { x: number; y: number } }): number {
         const pos = "pos" in target ? target.pos : target;
         return Math.max(Math.abs(this.x - pos.x), Math.abs(this.y - pos.y));
+    }
+
+    findClosestByRange(targets: any[]): any | null {
+        let best: any = null;
+        let bestRange = Infinity;
+        for (const t of targets) {
+            const pos = t.pos ?? t;
+            const r = Math.max(Math.abs(this.x - pos.x), Math.abs(this.y - pos.y));
+            if (r < bestRange) {
+                bestRange = r;
+                best = t;
+            }
+        }
+        return best;
+    }
+
+    findInRange(type: number, range: number): any[] {
+        const game = globalAny.Game;
+        const room = game.rooms[this.roomName];
+
+        if (!room) return [];
+
+        const all: any[] = room.find(type as any) ?? [];
+        return all.filter((obj: any) => {
+            const pos = obj.pos ?? obj;
+            return Math.max(Math.abs(this.x - pos.x), Math.abs(this.y - pos.y)) <= range;
+        });
     }
 
     lookFor(_type: string): any[] {

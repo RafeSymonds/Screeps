@@ -55,7 +55,13 @@ export function selectPriorityHostile(origin: RoomPosition, hostiles: Creep[]): 
 
     for (const hostile of hostiles) {
         const range = origin.getRangeTo(hostile);
-        const score = hostileThreat(hostile) * 20 - range * 3 - hostile.hits / 100;
+        const healParts = bodyParts(hostile, HEAL);
+        const threat = hostileThreat(hostile);
+
+        // Prioritize: healers first (they sustain attacks), then high-threat, then close range
+        const healerBonus = healParts > 0 ? 500 : 0;
+        const killability = (1 - hostile.hits / hostile.hitsMax) * 200; // reward damaged targets
+        const score = healerBonus + threat * 20 - range * 5 + killability;
 
         if (score > bestScore) {
             best = hostile;

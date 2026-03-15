@@ -15,6 +15,20 @@ export class HarvestAction extends Action {
 
         if (creep.harvest(this.source) === ERR_NOT_IN_RANGE) {
             moveTo(creepState, this.source);
+            return;
+        }
+
+        // If the miner has CARRY and energy, transfer to an adjacent link
+        if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
+            const link = creep.pos.findInRange(FIND_MY_STRUCTURES, 1).find(
+                (s): s is StructureLink =>
+                    s.structureType === STRUCTURE_LINK &&
+                    s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+            );
+
+            if (link) {
+                creep.transfer(link, RESOURCE_ENERGY);
+            }
         }
     }
 }

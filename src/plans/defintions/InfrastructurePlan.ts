@@ -96,6 +96,90 @@ function planRoads(path: RoomPosition[], created: { count: number }) {
     }
 }
 
+function planLinkNearSource(room: Room, source: Source, created: { count: number }) {
+    const rcl = room.controller?.level ?? 0;
+
+    if (rcl < 5) {
+        return;
+    }
+
+    // Count existing links
+    const existingLinks = room.find(FIND_MY_STRUCTURES).filter(
+        s => s.structureType === STRUCTURE_LINK
+    ).length;
+    const linkSites = room.find(FIND_CONSTRUCTION_SITES).filter(
+        s => s.structureType === STRUCTURE_LINK
+    ).length;
+
+    const linkLimits = [0, 0, 0, 0, 2, 3, 4, 6]; // per RCL
+    const maxLinks = linkLimits[rcl - 1] ?? 0;
+
+    if (existingLinks + linkSites >= maxLinks) {
+        return;
+    }
+
+    // Check if there's already a link near this source
+    const nearbyLinks = source.pos.findInRange(FIND_MY_STRUCTURES, 2).filter(
+        s => s.structureType === STRUCTURE_LINK
+    );
+    const nearbySites = source.pos.findInRange(FIND_CONSTRUCTION_SITES, 2).filter(
+        s => s.structureType === STRUCTURE_LINK
+    );
+
+    if (nearbyLinks.length > 0 || nearbySites.length > 0) {
+        return;
+    }
+
+    // Find best link position adjacent to source (within range 2)
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            if (dx === 0 && dy === 0) continue;
+
+            const x = source.pos.x + dx;
+            const y = source.pos.y + dy;
+
+            if (x <= 1 || x >= 48 || y <= 1 || y >= 48) continue;
+
+            const pos = new RoomPosition(x, y, room.name);
+
+            if (!isWalkable(pos)) continue;
+            if (hasStructureOrSite(pos, STRUCTURE_LINK)) continue;
+            // Don't place on top of containers
+            if (hasStructureOrSite(pos, STRUCTURE_CONTAINER)) continue;
+
+            if (pos.createConstructionSite(STRUCTURE_LINK) === OK) {
+                created.count += 1;
+                return;
+            }
+        }
+    }
+}
+
+function planExtractor(room: Room, created: { count: number }) {
+    const rcl = room.controller?.level ?? 0;
+
+    if (rcl < 6) {
+        return;
+    }
+
+    const minerals = room.find(FIND_MINERALS);
+
+    if (minerals.length === 0) {
+        return;
+    }
+
+    const mineral = minerals[0];
+
+    // Check for existing extractor
+    if (hasStructureOrSite(mineral.pos, STRUCTURE_EXTRACTOR)) {
+        return;
+    }
+
+    if (mineral.pos.createConstructionSite(STRUCTURE_EXTRACTOR) === OK) {
+        created.count += 1;
+    }
+}
+
 function planOwnedRoomInfrastructure(room: Room, created: { count: number }) {
     const anchor = getAnchor(room);
 
@@ -114,10 +198,20 @@ function planOwnedRoomInfrastructure(room: Room, created: { count: number }) {
 
         const targetPos = containerPos ?? source.pos;
         planRoads(createRoadPath(anchor.pos, targetPos), created);
+
+        // Place links near sources at RCL 5+
+        if (created.count < MAX_NEW_SITES_PER_RUN) {
+            planLinkNearSource(room, source, created);
+        }
     }
 
     if (room.controller) {
         planRoads(createRoadPath(anchor.pos, room.controller.pos), created);
+    }
+
+    // Place extractor on mineral at RCL 6+
+    if (created.count < MAX_NEW_SITES_PER_RUN) {
+        planExtractor(room, created);
     }
 }
 
