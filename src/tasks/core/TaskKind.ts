@@ -7,7 +7,9 @@ export enum TaskKind {
     UPGRADE,
     SCOUT,
     DEFEND,
-    CLAIM
+    CLAIM,
+    ATTACK,
+    RESERVE
 }
 
 export namespace TaskKind {

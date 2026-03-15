@@ -11,6 +11,8 @@ import { RemoteHarvestTask } from "tasks/definitions/RemoteHarvestTask";
 import { ScoutTask } from "tasks/definitions/ScoutTask";
 import { DefendTask } from "tasks/definitions/DefendTask";
 import { ClaimTask } from "tasks/definitions/ClaimTask";
+import { AttackTask } from "tasks/definitions/AttackTask";
+import { ReserveTask } from "tasks/definitions/ReserveTask";
 
 function constructTask(data: TaskData): AnyTask {
     switch (data.kind) {
@@ -40,6 +42,12 @@ function constructTask(data: TaskData): AnyTask {
 
         case TaskKind.CLAIM:
             return new ClaimTask(data);
+
+        case TaskKind.ATTACK:
+            return new AttackTask(data);
+
+        case TaskKind.RESERVE:
+            return new ReserveTask(data);
     }
 }
 

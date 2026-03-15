@@ -1,5 +1,6 @@
 import { selectPriorityHostile, weakestFriendly } from "./CombatUtils";
 import { World } from "world/World";
+import { computeThrottleTier, ThrottleTier } from "cpu/CpuBudget";
 
 const TOWER_REPAIR_RESERVE = 700;
 const TOWER_REPAIR_TARGET = 10000;
@@ -55,6 +56,9 @@ function lowestFortification(room: Room, target: number): Structure | null {
 }
 
 export function performTowerDefense(world: World): void {
+    const tier = computeThrottleTier();
+    const skipFortification = tier === ThrottleTier.CRITICAL || tier === ThrottleTier.LOW;
+
     for (const [, worldRoom] of world.rooms) {
         if (worldRoom.towers.length === 0) {
             continue;
@@ -66,7 +70,7 @@ export function performTowerDefense(world: World): void {
 
         const rcl = worldRoom.room.controller?.level ?? 0;
         const hpTarget = rampartHpTarget(rcl);
-        const fortificationTarget = hpTarget > 0 ? lowestFortification(worldRoom.room, hpTarget) : null;
+        const fortificationTarget = !skipFortification && hpTarget > 0 ? lowestFortification(worldRoom.room, hpTarget) : null;
 
         for (const tower of worldRoom.towers) {
             if (hostiles.length > 0) {

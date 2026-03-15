@@ -11,6 +11,9 @@ import { runPlans } from "plans/core/PlanManager";
 import { CreepState } from "creeps/CreepState";
 import { SpawnManager } from "spawner/SpawnManager";
 import { performTowerDefense } from "combat/TowerDefense";
+import { clearStalePaths } from "pathing/PathCache";
+import { trackCpuUsage } from "cpu/CpuBudget";
+import { BasePlanData } from "basePlaner/AnchorSelection";
 
 declare global {
     /*
@@ -25,6 +28,7 @@ declare global {
     interface Memory {
         tasks: TaskData[];
         planRuns?: Record<string, number>;
+        cpuAvg?: number;
     }
 
     interface CreepMemory {
@@ -79,6 +83,9 @@ declare global {
         assistRadius: number;
 
         remoteRadius: number;
+
+        basePlan?: BasePlanData;
+        attackTarget?: string;
     }
 
     interface SpawnRoleSnapshot {
@@ -97,6 +104,7 @@ declare global {
         work: SpawnRoleSnapshot;
         scout: SpawnRoleSnapshot;
         combat: SpawnRoleSnapshot;
+        attack: SpawnRoleSnapshot;
     }
 
     interface RoomDefenseState {
@@ -111,7 +119,7 @@ declare global {
         };
     }
 
-    type SpawnRequestRole = "scout" | "miner" | "hauler" | "worker" | "defender";
+    type SpawnRequestRole = "scout" | "miner" | "hauler" | "worker" | "defender" | "attacker" | "reserver";
 
     interface RoomSpawnRequest {
         role: SpawnRequestRole;
@@ -181,8 +189,9 @@ declare namespace NodeJS {
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
-    // console.log("Initial CPU Usage:", Game.cpu.getUsed());
     const startCpu = Game.cpu.getUsed();
+
+    clearStalePaths();
 
     if (!Memory.tasks) {
         Memory.tasks = [];
@@ -240,6 +249,9 @@ export const loop = ErrorMapper.wrapLoop(() => {
     Memory.creeps = world.getCreepData();
     Memory.tasks = world.getTaskData();
 
-    // console.log("Final CPU Usage:", Game.cpu.getUsed());
-    console.log("Total CPU Usage: ", Game.cpu.getUsed() - startCpu);
+    const totalCpu = Game.cpu.getUsed() - startCpu;
+    Memory.cpuAvg = (Memory.cpuAvg ?? totalCpu) * 0.9 + totalCpu * 0.1;
+    console.log(`CPU: ${totalCpu.toFixed(1)} avg:${Memory.cpuAvg.toFixed(1)} bucket:${Game.cpu.bucket}`);
+
+    trackCpuUsage();
 });

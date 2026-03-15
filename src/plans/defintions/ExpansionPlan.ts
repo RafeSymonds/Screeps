@@ -6,6 +6,7 @@ import { upsertSpawnRequest } from "spawner/SpawnRequests";
 
 const MIN_STORAGE_ENERGY = 50000;
 const MIN_EXPANSION_SCORE = 120;
+const MIN_BUCKET = 5000;
 
 export class ExpansionPlan extends Plan {
     public override run(world: World): void {
@@ -15,6 +16,11 @@ export class ExpansionPlan extends Plan {
 
         // Can't expand beyond GCL
         if (ownedCount >= gclLevel) {
+            return;
+        }
+
+        // Don't expand with low CPU bucket
+        if (Game.cpu.bucket < MIN_BUCKET) {
             return;
         }
 

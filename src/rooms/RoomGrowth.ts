@@ -1,33 +1,80 @@
 import { estimateSafeRouteLength } from "./InterRoomRouter";
+import { ownedRooms } from "./RoomUtils";
 
-function roomExpansionCandidateScore(ownerRoom: Room, targetRoomName: string): number {
+const MIN_EXPANSION_DISTANCE = 3;
+const MAX_EXPANSION_DISTANCE = 6;
+const MIN_SOURCES_FOR_EXPANSION = 2;
+const MIN_BUCKET_FOR_EXPANSION = 5000;
+const CPU_HEADROOM_PER_ROOM = 10;
+
+function roomExpansionCandidateScore(ownerRoom: Room, targetRoomName: string, ownedNames: Set<string>): number {
     const targetMemory = Memory.rooms[targetRoomName];
 
-    if (!targetMemory?.remoteMining || targetMemory.intel?.owner || targetMemory.intel?.reservedBy) {
-        return -Infinity;
-    }
+    if (!targetMemory?.remoteMining) return -Infinity;
 
-    const routeLength = estimateSafeRouteLength(ownerRoom.name, targetRoomName);
+    // Skip owned or reserved rooms
+    if (targetMemory.intel?.owner) return -Infinity;
+    if (targetMemory.intel?.reservedBy && targetMemory.intel.reservedBy !== Game.username) return -Infinity;
 
-    if (routeLength === null) {
-        return -Infinity;
-    }
+    // Skip dangerous rooms
+    if (targetMemory.intel?.keeperLairs && targetMemory.intel.keeperLairs > 0) return -Infinity;
+    if (targetMemory.intel?.hasEnemyBase) return -Infinity;
+
+    // Need fresh intel
+    if (!targetMemory.intel || Game.time - targetMemory.intel.lastScouted > 5000) return -Infinity;
 
     const sourceCount = targetMemory.remoteMining.sources.length;
 
-    return sourceCount * 120 - routeLength * 35;
+    // Require at least 2 sources for a new base
+    if (sourceCount < MIN_SOURCES_FOR_EXPANSION) return -Infinity;
+
+    const routeLength = estimateSafeRouteLength(ownerRoom.name, targetRoomName);
+    if (routeLength === null) return -Infinity;
+
+    // Enforce minimum distance — rooms too close should be remotes, not bases
+    if (routeLength < MIN_EXPANSION_DISTANCE) return -Infinity;
+
+    // Don't expand too far
+    if (routeLength > MAX_EXPANSION_DISTANCE) return -Infinity;
+
+    // Check distance from ALL owned rooms — avoid clustering
+    for (const ownedName of ownedNames) {
+        if (ownedName === ownerRoom.name) continue;
+        const dist = estimateSafeRouteLength(ownedName, targetRoomName);
+        if (dist !== null && dist < MIN_EXPANSION_DISTANCE) return -Infinity;
+    }
+
+    // Count how many neighboring rooms could become remotes for this base
+    let potentialRemotes = 0;
+    for (const [roomName, roomMemory] of Object.entries(Memory.rooms)) {
+        if (roomName === targetRoomName) continue;
+        if (ownedNames.has(roomName)) continue;
+        if (!roomMemory.remoteMining || roomMemory.remoteMining.sources.length === 0) continue;
+        if (roomMemory.intel?.owner || roomMemory.intel?.hasEnemyBase || roomMemory.intel?.keeperLairs) continue;
+
+        const remoteDist = estimateSafeRouteLength(targetRoomName, roomName);
+        if (remoteDist !== null && remoteDist <= 2) {
+            potentialRemotes++;
+        }
+    }
+
+    // Score: reward sources, nearby remotes, penalize distance
+    let score = sourceCount * 120
+        + potentialRemotes * 40
+        - routeLength * 35;
+
+    return score;
 }
 
-function nextClaimTarget(room: Room): string | undefined {
+function nextClaimTarget(room: Room, ownedNames: Set<string>): string | undefined {
     let bestRoom: string | undefined;
-    let bestScore = -Infinity;
+    let bestScore = 0; // must be positive to qualify
 
     for (const roomName in Memory.rooms) {
-        if (roomName === room.name) {
-            continue;
-        }
+        if (roomName === room.name) continue;
+        if (ownedNames.has(roomName)) continue;
 
-        const score = roomExpansionCandidateScore(room, roomName);
+        const score = roomExpansionCandidateScore(room, roomName, ownedNames);
 
         if (score > bestScore) {
             bestScore = score;
@@ -35,7 +82,19 @@ function nextClaimTarget(room: Room): string | undefined {
         }
     }
 
-    return bestScore > 0 ? bestRoom : undefined;
+    return bestRoom;
+}
+
+function hasCpuForExpansion(): boolean {
+    // Check bucket
+    if (Game.cpu.bucket < MIN_BUCKET_FOR_EXPANSION) return false;
+
+    // Check average CPU headroom
+    const cpuAvg = Memory.cpuAvg ?? 0;
+    const cpuLimit = Game.cpu.limit;
+    const headroom = cpuLimit - cpuAvg;
+
+    return headroom >= CPU_HEADROOM_PER_ROOM;
 }
 
 export function updateRoomGrowth(room: Room): RoomGrowthState {
@@ -65,7 +124,14 @@ export function updateRoomGrowth(room: Room): RoomGrowthState {
 
     const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
     const expansionScore = rcl * 20 + capacity / 40 + storageEnergy / 2000 - pressurePenalty * 30;
-    const claimTarget = stage === "surplus" && expansionScore >= 120 ? nextClaimTarget(room) : undefined;
+
+    const ownedNames = new Set(ownedRooms().map(r => r.name));
+
+    const canExpand = stage === "surplus"
+        && expansionScore >= 120
+        && hasCpuForExpansion();
+
+    const claimTarget = canExpand ? nextClaimTarget(room, ownedNames) : undefined;
 
     room.memory.remoteRadius = Math.max(1, desiredRemoteCount + 1);
     room.memory.assistRadius = stage === "surplus" ? 2 : 1;

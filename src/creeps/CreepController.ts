@@ -4,6 +4,7 @@ import { TaskManager } from "tasks/core/TaskManager";
 import { getDefaultCreepMemory } from "./CreepMemory";
 import { AnyTask } from "tasks/definitions/Task";
 import { nextRoomWaypoint } from "rooms/InterRoomRouter";
+import { cachedMoveTo } from "pathing/CachedMoveTo";
 
 export function updateCreepMemoryForTask(creepState: CreepState, task: AnyTask) {
     creepState.memory.taskId = task.id();
@@ -99,11 +100,11 @@ export function tryPreemptCreep(creepState: CreepState, taskManager: TaskManager
 
 export function moveTo(creepState: CreepState, target: RoomPosition | { pos: RoomPosition }) {
     const destination = "pos" in target ? target.pos : target;
-    const moveTarget =
+    const waypoint =
         creepState.creep.room.name === destination.roomName
-            ? target
+            ? destination
             : nextRoomWaypoint(creepState.creep.room.name, destination);
 
-    creepState.creep.moveTo(moveTarget, { reusePath: 10 });
-    creepState.moved = true;
+    const waypointPos = "pos" in waypoint ? (waypoint as any).pos as RoomPosition : waypoint;
+    cachedMoveTo(creepState, waypointPos);
 }

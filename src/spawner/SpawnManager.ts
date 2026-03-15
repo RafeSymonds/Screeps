@@ -5,6 +5,7 @@ import { countBodyParts, countCombatParts, hasBodyPart, hasCombatPart } from "cr
 import { TaskRequirements, requirementCreeps, requirementParts } from "tasks/core/TaskRequirements";
 import { CreepState } from "creeps/CreepState";
 import { clearSpawnRequest, getActiveSpawnRequests, upsertSpawnRequest } from "./SpawnRequests";
+import { TaskKind } from "tasks/core/TaskKind";
 
 /* ============================================================
    CONSTANTS
@@ -37,7 +38,8 @@ export enum SpawnIntentKind {
     HAULER,
     WORKER,
     DEFENDER,
-    CLAIMER
+    CLAIMER,
+    ATTACKER
 }
 
 type SpawnIntent =
@@ -46,7 +48,8 @@ type SpawnIntent =
     | { kind: SpawnIntentKind.HAULER }
     | { kind: SpawnIntentKind.WORKER }
     | { kind: SpawnIntentKind.DEFENDER }
-    | { kind: SpawnIntentKind.CLAIMER };
+    | { kind: SpawnIntentKind.CLAIMER }
+    | { kind: SpawnIntentKind.ATTACKER };
 
 type ResolvedSpawnRequest = {
     kind: SpawnIntentKind;
@@ -173,6 +176,40 @@ function claimerBody(energy: number): BodyPartConstant[] {
     return [];
 }
 
+function attackerBody(energy: number): BodyPartConstant[] {
+    if (energy < 800) return [];
+
+    const toughParts: BodyPartConstant[] = [];
+    const combatParts: BodyPartConstant[] = [];
+    const moveParts: BodyPartConstant[] = [];
+    let remaining = energy;
+
+    // Add TOUGH + MOVE pairs (cheap HP)
+    while (remaining >= 260 && toughParts.length < 3 && toughParts.length + combatParts.length + moveParts.length < 48) {
+        toughParts.push(TOUGH);
+        moveParts.push(MOVE);
+        remaining -= 60;
+    }
+
+    // Add RANGED_ATTACK + MOVE pairs
+    while (remaining >= 350 && toughParts.length + combatParts.length + moveParts.length <= 46) {
+        combatParts.push(RANGED_ATTACK);
+        moveParts.push(MOVE);
+        remaining -= 200;
+    }
+
+    // Add HEAL + MOVE if affordable
+    while (remaining >= 300 && toughParts.length + combatParts.length + moveParts.length <= 48) {
+        combatParts.push(HEAL);
+        moveParts.push(MOVE);
+        remaining -= 300;
+    }
+
+    if (combatParts.length === 0) return [RANGED_ATTACK, MOVE];
+
+    return [...toughParts, ...combatParts, ...moveParts];
+}
+
 /* ============================================================
    CREEP CLASSIFICATION
    ============================================================ */
@@ -209,6 +246,10 @@ function isCombat(cs: CreepState): boolean {
     return hasCombatPart(cs.creep);
 }
 
+function isAttacker(cs: CreepState): boolean {
+    return hasCombatPart(cs.creep) && cs.memory.lastTaskKind === TaskKind.ATTACK;
+}
+
 function replacementLeadTime(role: SpawnRequestRole, creep: Creep): number {
     const spawnTime = creep.body.length * CREEP_SPAWN_TIME;
     const taskRoomBias = creep.memory.lastTaskRoom && creep.memory.lastTaskRoom !== creep.memory.ownerRoom ? 25 : 0;
@@ -225,6 +266,8 @@ function replacementLeadTime(role: SpawnRequestRole, creep: Creep): number {
             return spawnTime + 25 + taskRoomBias;
         case "defender":
             return spawnTime + 15;
+        case "attacker":
+            return spawnTime + 50;
     }
 }
 
@@ -255,11 +298,15 @@ type SupplyTotals = {
     combat: number;
     defenderCreeps: number;
     idleDefenders: number;
+    attackCombat: number;
+    attackerCreeps: number;
+    idleAttackers: number;
     incomingMiners: number;
     incomingHaulers: number;
     incomingWorkers: number;
     incomingScouts: number;
     incomingDefenders: number;
+    incomingAttackers: number;
 };
 
 function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
@@ -278,17 +325,23 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
         combat: 0,
         defenderCreeps: 0,
         idleDefenders: 0,
+        attackCombat: 0,
+        attackerCreeps: 0,
+        idleAttackers: 0,
         incomingMiners: 0,
         incomingHaulers: 0,
         incomingWorkers: 0,
         incomingScouts: 0,
-        incomingDefenders: 0
+        incomingDefenders: 0,
+        incomingAttackers: 0
     };
 
     for (const cs of worldRoom.myCreeps) {
         if (cs.creep.spawning) {
             if (isClaimer(cs)) {
                 supply.incomingScouts += 1; // claimers counted with scouts
+            } else if (isAttacker(cs)) {
+                supply.incomingAttackers += 1;
             } else if (isCombat(cs)) {
                 supply.incomingDefenders += 1;
             } else if (isMiner(cs)) {
@@ -305,7 +358,11 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
 
         const idle = cs.memory.taskId === undefined;
 
-        if (isCombat(cs)) {
+        if (isAttacker(cs)) {
+            supply.attackCombat += countCombatParts(cs.creep);
+            supply.attackerCreeps += 1;
+            if (idle) supply.idleAttackers += 1;
+        } else if (isCombat(cs)) {
             if (!isExpiringSoon(cs.creep, "defender")) {
                 supply.combat += countCombatParts(cs.creep);
                 supply.defenderCreeps += 1;
@@ -522,6 +579,15 @@ function updateSpawnStats(room: Room, supply: SupplyTotals, demand: DemandTotals
             demand.defenderCreeps,
             supply.idleDefenders,
             PRESSURE_ALPHA
+        ),
+        attack: statsSnapshot(
+            previous?.attack,
+            supply.attackCombat,
+            supply.attackerCreeps,
+            0,
+            0,
+            supply.idleAttackers,
+            PRESSURE_ALPHA
         )
     };
 
@@ -554,6 +620,10 @@ function spawnIntentFromRole(role: SpawnRequestRole): SpawnIntentKind {
             return SpawnIntentKind.WORKER;
         case "defender":
             return SpawnIntentKind.DEFENDER;
+        case "attacker":
+            return SpawnIntentKind.ATTACKER;
+        case "reserver":
+            return SpawnIntentKind.CLAIMER;
     }
 }
 
@@ -569,6 +639,10 @@ function currentCreepsForRole(role: SpawnRequestRole, supply: SupplyTotals): num
             return supply.workerCreeps + supply.incomingWorkers;
         case "defender":
             return supply.defenderCreeps + supply.incomingDefenders;
+        case "attacker":
+            return supply.attackerCreeps + supply.incomingAttackers;
+        case "reserver":
+            return supply.scout + supply.incomingScouts; // claimers counted with scouts
     }
 }
 
@@ -748,7 +822,8 @@ function incrementIncomingSupply(supply: SupplyTotals, kind: SpawnIntentKind): v
         case SpawnIntentKind.HAULER: supply.incomingHaulers += 1; break;
         case SpawnIntentKind.WORKER: supply.incomingWorkers += 1; break;
         case SpawnIntentKind.DEFENDER: supply.incomingDefenders += 1; break;
-        case SpawnIntentKind.CLAIMER: supply.incomingScouts += 1; break; // claimers counted with scouts
+        case SpawnIntentKind.CLAIMER: supply.incomingScouts += 1; break;
+        case SpawnIntentKind.ATTACKER: supply.incomingAttackers += 1; break;
     }
 }
 
@@ -802,6 +877,9 @@ export class SpawnManager {
                     break;
                 case SpawnIntentKind.CLAIMER:
                     body = claimerBody(energy);
+                    break;
+                case SpawnIntentKind.ATTACKER:
+                    body = attackerBody(energy);
                     break;
             }
 

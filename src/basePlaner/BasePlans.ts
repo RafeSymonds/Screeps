@@ -1,4 +1,6 @@
 import { Offset, RCL_LIMITS, STRUCTURE_RCL, PlannedStructure, RELATIVE_BUNKER } from "./BaseLimitInfo";
+import { selectAnchor } from "./AnchorSelection";
+import { planRoads } from "./RoadPlanner";
 
 /* =========================================
    ENTRY POINT
@@ -8,9 +10,8 @@ export function runRelativeBasePlanner(room: Room): void {
     const controller = room.controller;
     if (!controller || !controller.my) return;
 
-    const anchor = getAnchorSpawn(room);
-    if (!anchor) return;
-
+    const basePlan = selectAnchor(room);
+    const anchorPos = new RoomPosition(basePlan.anchorX, basePlan.anchorY, room.name);
     const rcl = controller.level;
 
     for (const structure of Object.keys(RELATIVE_BUNKER.buildings) as PlannedStructure[]) {
@@ -20,8 +21,13 @@ export function runRelativeBasePlanner(room: Room): void {
         const limit = RCL_LIMITS[structure]?.[rcl - 1] ?? offsets.length;
 
         for (let i = 0; i < Math.min(limit, offsets.length); i++) {
-            placeRelative(room, structure, anchor.pos, offsets[i], rcl);
+            placeRelative(room, structure, anchorPos, offsets[i], rcl);
         }
+    }
+
+    // Plan roads from storage to sources/controller
+    if (rcl >= 3) {
+        planRoads(room, basePlan.anchorX, basePlan.anchorY);
     }
 }
 
@@ -59,17 +65,6 @@ function placeRelative(
 /* =========================================
    HELPERS
    ========================================= */
-
-function getAnchorSpawn(room: Room): StructureSpawn | null {
-    if (!room.memory.anchorSpawnId) {
-        const spawns = room.find(FIND_MY_SPAWNS);
-        if (spawns.length === 0) return null;
-
-        room.memory.anchorSpawnId = spawns[0].id;
-    }
-
-    return Game.getObjectById(room.memory.anchorSpawnId) ?? null;
-}
 
 function isCoreRampart(offset: Offset): boolean {
     // Protect spawn + immediate core early

@@ -71,6 +71,17 @@ export type ClaimTaskData = BaseTask & {
     ownerRoom: string;
 };
 
+export type AttackTaskData = BaseTask & {
+    kind: TaskKind.ATTACK;
+    ownerRoom: string;
+    squadSize: number;
+};
+
+export type ReserveTaskData = BaseTask & {
+    kind: TaskKind.RESERVE;
+    ownerRoom: string;
+};
+
 export type TaskData =
     | BuildTaskData
     | UpgradeTaskData
@@ -80,7 +91,9 @@ export type TaskData =
     | DeliverTaskData
     | ScoutTaskData
     | DefendTaskData
-    | ClaimTaskData;
+    | ClaimTaskData
+    | AttackTaskData
+    | ReserveTaskData;
 
 export type RoomTaskData = {
     name: string;
