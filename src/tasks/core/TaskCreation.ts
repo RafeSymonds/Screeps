@@ -13,6 +13,7 @@ import { DefendTask } from "tasks/definitions/DefendTask";
 import { ClaimTask } from "tasks/definitions/ClaimTask";
 import { AttackTask } from "tasks/definitions/AttackTask";
 import { ReserveTask } from "tasks/definitions/ReserveTask";
+import { BootstrapTask } from "tasks/definitions/BootstrapTask";
 
 function constructTask(data: TaskData): AnyTask {
     switch (data.kind) {
@@ -48,6 +49,9 @@ function constructTask(data: TaskData): AnyTask {
 
         case TaskKind.RESERVE:
             return new ReserveTask(data);
+
+        case TaskKind.BOOTSTRAP:
+            return new BootstrapTask(data);
     }
 }
 

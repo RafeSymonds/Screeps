@@ -31,11 +31,15 @@ export class TerminalPlan extends Plan {
 
             const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
             const terminalEnergy = room.terminal.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
+            const onboarding = room.memory.onboarding;
 
             if (storageEnergy > ENERGY_BALANCE_THRESHOLD * 2 && terminalEnergy > ENERGY_SEND_AMOUNT) {
                 surplus.push(room);
             } else if (storageEnergy < ENERGY_BALANCE_THRESHOLD / 2) {
                 deficit.push(room);
+            } else if (onboarding && onboarding.stage !== "established" && storageEnergy < ENERGY_BALANCE_THRESHOLD) {
+                // Young rooms get priority deficit status
+                deficit.unshift(room);
             }
         }
 

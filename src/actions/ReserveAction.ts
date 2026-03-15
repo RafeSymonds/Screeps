@@ -1,6 +1,7 @@
 import { CreepState } from "creeps/CreepState";
 import { Action } from "./Action";
 import { moveTo } from "creeps/CreepController";
+import { getMyUsername } from "utils/GameUtils";
 
 export class ReserveAction extends Action {
     controller: StructureController;
@@ -14,7 +15,7 @@ export class ReserveAction extends Action {
         const creep = creepState.creep;
 
         // Attack enemy reservation first
-        if (this.controller.reservation && this.controller.reservation.username !== Game.username) {
+        if (this.controller.reservation && this.controller.reservation.username !== getMyUsername()) {
             const result = creep.attackController(this.controller);
             if (result === ERR_NOT_IN_RANGE) {
                 moveTo(creepState, this.controller);

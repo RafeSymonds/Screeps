@@ -59,6 +59,10 @@ declare global {
         /* Environmental hazards */
         keeperLairs: number;
 
+        /* Room features */
+        hasController: boolean;
+        sourceCount: number;
+
         /* Hostile tracking */
         lastHostileSeen?: number;
         hostileMilitaryParts?: number;

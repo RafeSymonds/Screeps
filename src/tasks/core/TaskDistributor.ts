@@ -8,6 +8,11 @@ export function roomCanConsiderTask(room: Room, task: AnyTask): boolean {
         return room.name === task.ownerRoom();
     }
 
+    // Bootstrap tasks: only the designated helper room
+    if (task.type() === TaskKind.BOOTSTRAP) {
+        return room.name === task.ownerRoom();
+    }
+
     if (room.name == task.data.targetRoom) {
         return true;
     }

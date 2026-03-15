@@ -35,9 +35,11 @@ export function recordRoom(room: Room) {
         lastScouted: Game.time,
         owner: room.controller?.owner?.username,
         reservedBy: room.controller?.reservation?.username,
-        hasEnemyBase: room.controller !== undefined && !room.controller.my,
+        hasEnemyBase: room.controller?.owner !== undefined && !room.controller.my,
         hasInvaderCore: hasInvaderCore(room),
         keeperLairs: countKeeperLairs(room),
+        hasController: room.controller !== undefined,
+        sourceCount: room.find(FIND_SOURCES).length,
         lastHostileSeen: hostiles.length > 0 ? Game.time : (mem.intel?.lastHostileSeen ?? 0),
         hostileMilitaryParts
     };

@@ -2,6 +2,7 @@ import { Plan } from "./Plan";
 import { World } from "world/World";
 import { createReserveTaskData } from "tasks/definitions/ReserveTask";
 import { upsertSpawnRequest } from "spawner/SpawnRequests";
+import { getMyUsername } from "utils/GameUtils";
 
 const RESERVATION_THRESHOLD = 2500;
 
@@ -53,7 +54,7 @@ export class ReservationPlan extends Plan {
         if (!controller.reservation) return true;
 
         // Our reservation is getting low
-        if (controller.reservation.username === Game.username) {
+        if (controller.reservation.username === getMyUsername()) {
             return controller.reservation.ticksToEnd < RESERVATION_THRESHOLD;
         }
 

@@ -49,7 +49,7 @@ export function updateRoomSupportState(room: Room): RoomSupportRequest | undefin
         request = {
             kind: "bootstrap",
             priority: 100,
-            maxHelpers: 3,
+            maxHelpers: 4,
             expiresAt: Game.time + 50,
             requestedBy: room.name
         };
@@ -57,7 +57,7 @@ export function updateRoomSupportState(room: Room): RoomSupportRequest | undefin
         request = {
             kind: miners.length === 0 || haulers.length === 0 ? "economy" : "build",
             priority: 70,
-            maxHelpers: 2,
+            maxHelpers: 3,
             expiresAt: Game.time + 50,
             requestedBy: room.name
         };
@@ -97,7 +97,17 @@ export function roomCanHelp(helperRoom: Room, targetRoom: string): boolean {
     }
 
     const growthStage = helperRoom.memory.growth?.stage;
-    const range = helperRoom.memory.assistRadius + 2;
 
-    return (growthStage === "remote" || growthStage === "surplus") && distance <= range;
+    if (growthStage !== "remote" && growthStage !== "surplus") {
+        return false;
+    }
+
+    // For bootstrap requests, allow much larger range (up to 8 rooms)
+    const targetSupport = activeSupportRequest(targetRoom);
+    if (targetSupport?.kind === "bootstrap") {
+        return distance <= 8;
+    }
+
+    // For other support, use assistRadius + 2
+    return distance <= helperRoom.memory.assistRadius + 2;
 }

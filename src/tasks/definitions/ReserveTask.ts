@@ -9,6 +9,7 @@ import { TaskKind } from "tasks/core/TaskKind";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
 import { Task } from "./Task";
+import { getMyUsername } from "utils/GameUtils";
 
 export function reserveTaskName(targetRoom: string): string {
     return "Reserve-" + targetRoom;
@@ -43,7 +44,7 @@ export class ReserveTask extends Task<ReserveTaskData> {
         if (!reservation) return true;
 
         // Valid if our reservation is decaying
-        if (reservation.username === Game.username) {
+        if (reservation.username === getMyUsername()) {
             return reservation.ticksToEnd < 4000;
         }
 

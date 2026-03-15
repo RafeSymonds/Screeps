@@ -268,6 +268,8 @@ function replacementLeadTime(role: SpawnRequestRole, creep: Creep): number {
             return spawnTime + 15;
         case "attacker":
             return spawnTime + 50;
+        case "reserver":
+            return spawnTime + 40;
     }
 }
 

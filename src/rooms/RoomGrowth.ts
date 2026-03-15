@@ -1,5 +1,6 @@
 import { estimateSafeRouteLength } from "./InterRoomRouter";
 import { ownedRooms } from "./RoomUtils";
+import { getMyUsername } from "utils/GameUtils";
 
 const MIN_EXPANSION_DISTANCE = 3;
 const MAX_EXPANSION_DISTANCE = 6;
@@ -14,7 +15,7 @@ function roomExpansionCandidateScore(ownerRoom: Room, targetRoomName: string, ow
 
     // Skip owned or reserved rooms
     if (targetMemory.intel?.owner) return -Infinity;
-    if (targetMemory.intel?.reservedBy && targetMemory.intel.reservedBy !== Game.username) return -Infinity;
+    if (targetMemory.intel?.reservedBy && targetMemory.intel.reservedBy !== getMyUsername()) return -Infinity;
 
     // Skip dangerous rooms
     if (targetMemory.intel?.keeperLairs && targetMemory.intel.keeperLairs > 0) return -Infinity;

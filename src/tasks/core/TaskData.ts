@@ -82,6 +82,11 @@ export type ReserveTaskData = BaseTask & {
     ownerRoom: string;
 };
 
+export type BootstrapTaskData = BaseTask & {
+    kind: TaskKind.BOOTSTRAP;
+    ownerRoom: string;
+};
+
 export type TaskData =
     | BuildTaskData
     | UpgradeTaskData
@@ -93,7 +98,8 @@ export type TaskData =
     | DefendTaskData
     | ClaimTaskData
     | AttackTaskData
-    | ReserveTaskData;
+    | ReserveTaskData
+    | BootstrapTaskData;
 
 export type RoomTaskData = {
     name: string;
