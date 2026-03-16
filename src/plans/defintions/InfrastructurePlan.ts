@@ -187,8 +187,11 @@ function planOwnedRoomInfrastructure(room: Room, created: { count: number }) {
         return;
     }
 
+    const rcl = room.controller?.level ?? 0;
+
     for (const source of room.find(FIND_SOURCES)) {
-        const containerPos = bestContainerPosition(anchor.pos, source);
+        // Delay containers until RCL 3+ — extensions and upgrading first
+        const containerPos = rcl >= 3 ? bestContainerPosition(anchor.pos, source) : null;
 
         if (containerPos && created.count < MAX_NEW_SITES_PER_RUN && Object.keys(Game.constructionSites).length < MAX_CONSTRUCTION_SITES) {
             if (planContainerAt(containerPos)) {
@@ -196,8 +199,11 @@ function planOwnedRoomInfrastructure(room: Room, created: { count: number }) {
             }
         }
 
-        const targetPos = containerPos ?? source.pos;
-        planRoads(createRoadPath(anchor.pos, targetPos), created);
+        // Delay roads until RCL 3+
+        if (rcl >= 3) {
+            const targetPos = containerPos ?? source.pos;
+            planRoads(createRoadPath(anchor.pos, targetPos), created);
+        }
 
         // Place links near sources at RCL 5+
         if (created.count < MAX_NEW_SITES_PER_RUN) {
@@ -205,7 +211,8 @@ function planOwnedRoomInfrastructure(room: Room, created: { count: number }) {
         }
     }
 
-    if (room.controller) {
+    // Delay roads until RCL 3+
+    if (room.controller && rcl >= 3) {
         planRoads(createRoadPath(anchor.pos, room.controller.pos), created);
     }
 

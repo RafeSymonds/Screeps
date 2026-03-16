@@ -6,7 +6,7 @@ interface CachedPath {
 }
 
 const pathCache = new Map<string, CachedPath>();
-const CACHE_TTL = 150;
+const CACHE_TTL = 15;
 const MAX_CACHE_SIZE = 500;
 
 function sectorKey(pos: RoomPosition): string {

@@ -7,6 +7,14 @@ export function cachedMoveTo(creepState: CreepState, target: RoomPosition, range
 
     if (pos.getRangeTo(target) <= range) return;
 
+    // Close to target: use direct pathfinding to avoid cached paths
+    // routing through occupied tiles near sources
+    if (pos.getRangeTo(target) <= 4) {
+        creep.moveTo(target, { reusePath: 3 });
+        creepState.moved = true;
+        return;
+    }
+
     // Check for existing cached path
     let path = findCachedPath(pos, target);
 

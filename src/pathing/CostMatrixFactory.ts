@@ -39,6 +39,11 @@ export function getRoomCostMatrix(roomName: string): CostMatrix | false {
         }
     }
 
+    // Add creep positions as soft obstacles so paths route around them
+    for (const creep of room.find(FIND_CREEPS)) {
+        matrix.set(creep.pos.x, creep.pos.y, 20);
+    }
+
     matrixCache.set(roomName, matrix);
     return matrix;
 }

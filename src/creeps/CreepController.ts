@@ -1,6 +1,7 @@
 import { CreepState } from "./CreepState";
 import { EnergyTarget } from "rooms/RoomEnergyState";
 import { TaskManager } from "tasks/core/TaskManager";
+import { TaskKind } from "tasks/core/TaskKind";
 import { getDefaultCreepMemory } from "./CreepMemory";
 import { AnyTask } from "tasks/definitions/Task";
 import { nextRoomWaypoint } from "rooms/InterRoomRouter";
@@ -74,28 +75,12 @@ export function creepNeedsEnergy(creepState: CreepState) {
     return !creepState.memory.working;
 }
 
-export function tryPreemptCreep(creepState: CreepState, taskManager: TaskManager) {
-    if (!creepState.memory.taskId) {
-        return;
-    }
-
-    const usedCapacity = creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY);
-    const maxCapacity = creepState.creep.store.getCapacity(RESOURCE_ENERGY);
-
-    if (maxCapacity === null) {
-        return;
-    }
-
-    if (creepState.memory.working && usedCapacity === 0) {
-        // preemption since we need more enegy
-
-        const task = taskManager.get(creepState.memory.taskId);
-        if (task) {
-            task.removeCreep(creepState);
-        }
-
-        creepState.memory.taskId = undefined;
-    }
+export function tryPreemptCreep(_creepState: CreepState, _taskManager: TaskManager) {
+    // Preemption disabled — tasks self-manage their energy cycles via
+    // creepNeedsEnergy + findBestEnergyTask in nextAction.
+    // The old preemption logic ripped creeps from deliver/upgrade/build tasks
+    // after every energy expenditure, then they couldn't get reassigned because
+    // roomHasEnoughEnergy returned false in early game.
 }
 
 export function moveTo(creepState: CreepState, target: RoomPosition | { pos: RoomPosition }) {

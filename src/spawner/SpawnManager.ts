@@ -19,7 +19,7 @@ const CARRY_CAPACITY = 50;
 const HAUL_TICKS_PER_TRIP = 50; // avg; remotes already encoded in mining tasks
 
 // Hauler sizing
-const MIN_HAULER_CARRY = 2;
+const MIN_HAULER_CARRY = 1;
 const MAX_HAULER_CARRY = 16;
 
 // Weighting
@@ -67,21 +67,17 @@ function scoutBody(): BodyPartConstant[] {
 }
 
 function minerBody(energy: number, room?: Room): BodyPartConstant[] {
-    const rcl = room?.controller?.level ?? 0;
-    const hasLinks = rcl >= 5 && (room?.find(FIND_MY_STRUCTURES).some(
-        s => s.structureType === STRUCTURE_LINK
-    ) ?? false);
+    if (energy < 200) return [];
 
-    // If room has links, add 1 CARRY so miner can transfer to link
-    if (hasLinks && energy >= 250) {
-        const maxWork = Math.floor((energy - 100) / 100); // 50 MOVE + 50 CARRY + N*100 WORK
-        const work = Math.max(1, maxWork);
-        return [MOVE, CARRY, ...Array(work).fill(WORK)];
-    }
+    // At low capacity, cap miner cost to leave energy for a bootstrap hauler
+    const cap = room?.energyCapacityAvailable ?? 300;
+    const budget = cap < 550 ? Math.min(energy, cap - 100) : energy;
 
-    const maxWork = Math.floor((energy - 50) / 100);
+    // All miners get 1 CARRY so they can deposit into containers
+    // and drop excess energy for haulers to collect
+    const maxWork = Math.floor((budget - 100) / 100); // 50 MOVE + 50 CARRY + N*100 WORK
     const work = Math.max(1, maxWork);
-    return [MOVE, ...Array(work).fill(WORK)];
+    return [MOVE, CARRY, ...Array(work).fill(WORK)];
 }
 
 function desiredHaulerCarry(room: Room, routeLength?: number): number {
@@ -217,21 +213,20 @@ function attackerBody(energy: number): BodyPartConstant[] {
 function isMiner(cs: CreepState): boolean {
     if (!hasBodyPart(cs.creep, WORK)) return false;
 
-    // Pure miners have no CARRY; link miners have 1 CARRY with many WORK
+    // Miners: exactly 1 CARRY (for container/link deposits), rest is WORK+MOVE
+    // Workers: multiple CARRY parts in balanced WORK/CARRY/MOVE units
     const carryParts = countBodyParts(cs.creep, CARRY);
-    const workParts = countBodyParts(cs.creep, WORK);
 
-    return carryParts === 0 || (carryParts === 1 && workParts >= 3);
+    return carryParts <= 1;
 }
 
 function isWorker(cs: CreepState): boolean {
     if (!hasBodyPart(cs.creep, WORK) || !hasBodyPart(cs.creep, CARRY)) return false;
 
-    // Workers have roughly balanced WORK/CARRY; miners have 1 CARRY with 3+ WORK
+    // Workers have multiple CARRY parts (balanced body units)
     const carryParts = countBodyParts(cs.creep, CARRY);
-    const workParts = countBodyParts(cs.creep, WORK);
 
-    return carryParts > 1 || workParts < 3;
+    return carryParts > 1;
 }
 
 function isClaimer(cs: CreepState): boolean {
@@ -707,7 +702,7 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
     const scoutImmediate = immediatePressure(supply.scout, supply.scout, demand.scout, demand.scout);
 
     const minerPriority =
-        supply.mine === 0 && demand.mine > 0
+        supply.mine === 0 && supply.incomingMiners === 0 && demand.mine > 0
             ? 220
             : minerImmediate >= 1 && supply.idleMiners === 0
               ? 180
@@ -722,14 +717,14 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
             desiredCreeps: Math.max(1, demand.minerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("miner", room.name),
-            minEnergy: 150
+            minEnergy: 200
         });
     } else {
         clearSpawnRequest(room, "miner", roleRequestKey("miner", room.name));
     }
 
     const haulerPriority =
-        supply.carry === 0 && targetCarry > 0
+        supply.haulerCreeps === 0 && supply.incomingHaulers === 0 && targetCarry > 0
             ? 210
             : carryImmediate >= 1 && supply.idleHaulers === 0
               ? 170
@@ -744,7 +739,7 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
             desiredCreeps: Math.max(1, demand.haulerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("hauler", room.name),
-            minEnergy: 200
+            minEnergy: 100
         });
     } else {
         clearSpawnRequest(room, "hauler", roleRequestKey("hauler", room.name));
@@ -770,12 +765,17 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
         clearSpawnRequest(room, "scout", roleRequestKey("scout", room.name));
     }
 
-    const workerPriority =
-        workImmediate > 0 && supply.idleWorkers === 0
-            ? 90 + workImmediate * 100
-            : (workImmediate > 0 || stats.work.pressure > 0) && shouldSpawnForPressure(stats.work)
-              ? 65 + stats.work.pressure * 100
-              : 0;
+    // Don't spawn workers until basic economy exists (miner + hauler)
+    const hasBasicEconomy = (supply.minerCreeps + supply.incomingMiners > 0) &&
+        (supply.haulerCreeps + supply.incomingHaulers > 0);
+
+    const workerPriority = !hasBasicEconomy
+        ? 0
+        : workImmediate > 0 && supply.idleWorkers === 0
+          ? 90 + workImmediate * 100
+          : (workImmediate > 0 || stats.work.pressure > 0) && shouldSpawnForPressure(stats.work)
+            ? 65 + stats.work.pressure * 100
+            : 0;
 
     if (workerPriority > 0) {
         upsertSpawnRequest(room, {

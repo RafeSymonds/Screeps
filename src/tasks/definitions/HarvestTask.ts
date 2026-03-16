@@ -3,6 +3,7 @@ import { HarvestTaskData } from "../core/TaskData";
 import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { HarvestAction } from "actions/HarvestAction";
+import { TransferAction } from "actions/TransferAction";
 import { CreepState } from "creeps/CreepState";
 import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
@@ -54,7 +55,8 @@ export class HarvestTask extends Task<HarvestTaskData> {
     }
 
     public override canPerformTask(creepState: CreepState, _world: World): boolean {
-        return hasBodyPart(creepState.creep, WORK);
+        // Only dedicated miners (1 CARRY or less) — workers should upgrade/build
+        return hasBodyPart(creepState.creep, WORK) && countBodyParts(creepState.creep, CARRY) <= 1;
     }
 
     protected override taskIsFull(): boolean {
@@ -87,6 +89,19 @@ export class HarvestTask extends Task<HarvestTaskData> {
         if (!this.source) {
             creepState.memory.taskId = undefined;
             return null;
+        }
+
+        // Workers with CARRY: deliver energy when full, then return to harvest
+        if (hasBodyPart(creepState.creep, CARRY) && creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY) === 0) {
+            const target = creepState.creep.pos.findClosestByRange(FIND_MY_STRUCTURES, {
+                filter: (s): s is StructureSpawn | StructureExtension =>
+                    (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) &&
+                    s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+            });
+
+            if (target) {
+                return new TransferAction(target);
+            }
         }
 
         return new HarvestAction(this.source);

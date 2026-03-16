@@ -164,6 +164,11 @@ export class DeliverTask extends Task<DeliverTaskData> {
             return false;
         }
 
+        // Dedicated haulers (no WORK) can always take deliver tasks — it's their job
+        if (!hasBodyPart(creepState.creep, WORK)) {
+            return true;
+        }
+
         return (
             creepStoreFullPercentage(creepState.creep) >= 0.5 ||
             world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name)

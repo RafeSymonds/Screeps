@@ -43,7 +43,8 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
         return (
             hasBodyPart(creepState.creep, WORK) &&
             hasBodyPart(creepState.creep, CARRY) &&
-            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name)
+            (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0 ||
+             world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name))
         );
     }
 
