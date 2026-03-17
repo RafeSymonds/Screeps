@@ -5,6 +5,9 @@
   "main": "index.js",
   "//": "If you add or change the names of destinations in screeps.json, make sure you update these scripts to reflect the changes",
   "scripts": {
+    "agent:roles": "python3 scripts/agent_manager.py roles",
+    "agent:queue": "python3 scripts/agent_manager.py queue",
+    "agent:process": "python3 scripts/agent_manager.py process --no-auto-commit --dry-run",
     "lint": "eslint \"src/**/*.ts\"",
     "build": "rollup -c",
     "push-main": "rollup -c --environment DEST:main",

@@ -36,3 +36,5 @@ Agent-oriented repository guidance lives in:
 - [AGENTS.md](/Users/rafe/games/screeps/AGENTS.md)
 - [docs/agents/REPO_MAP.md](/Users/rafe/games/screeps/docs/agents/REPO_MAP.md)
 - [docs/agents/SCREEPS_PRIMER.md](/Users/rafe/games/screeps/docs/agents/SCREEPS_PRIMER.md)
+- [docs/agent-workflow.md](/Users/rafe/games/screeps/docs/agent-workflow.md)
+- [agents/README.md](/Users/rafe/games/screeps/agents/README.md)
