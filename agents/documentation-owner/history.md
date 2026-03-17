@@ -1,3 +1,4 @@
 # History
 
 - 2026-03-17: Role initialized for orchestration. No completed documentation tasks recorded yet.
+- 2026-03-17: Updated shared onboarding and workflow docs to match the live repo instead of the simplified starter-era picture. Documented the full tick pipeline in `README.md` and `docs/agents/REPO_MAP.md`, including task rehydration, CPU-aware plan scheduling, task pruning, tower behavior, and CPU bookkeeping. Updated `docs/agent-workflow.md`, `agents/README.md`, and `AGENTS.md` to reflect current agent-manager options, queue/archive behavior, and the real validation baseline. Follow-up still open: much of the legacy `docs/getting-started` and `docs/in-depth` tree remains upstream starter documentation and should be triaged separately before being treated as authoritative for this repo.

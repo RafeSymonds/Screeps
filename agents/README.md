@@ -29,6 +29,7 @@ That keeps direct handoffs ahead of background work.
 - Per-run logs are stored under `.agent-manager/runs/<session>/<role>/`.
 - Only one active task is allowed for a role in a given session.
 - Inbox items are archived into `done.md` after a successful role run that originated from inbox work.
+- Headless runs can force extra startup context with repeated `--file <repo-relative-path>` arguments.
 
 ## Provider backends
 
@@ -51,12 +52,26 @@ That keeps direct handoffs ahead of background work.
 
 ## Example commands
 
+`package.json` only wraps the three most common headless commands:
+
+```bash
+npm run agent:roles
+npm run agent:queue
+npm run agent:process
+```
+
+Use the direct manager entrypoint for `launch`, `assign`, `pick`, `session`, and `inbox`.
+
 ```bash
 python3 scripts/agent_manager.py roles
 python3 scripts/agent_manager.py queue
+python3 scripts/agent_manager.py queue --session remote-mining-20260317-abc123
 python3 scripts/agent_manager.py session new --name remote-mining
 python3 scripts/agent_manager.py assign economy-engineer --auto
 python3 scripts/agent_manager.py launch economy-engineer --dry-run
+python3 scripts/agent_manager.py launch economy-engineer --auto --dry-run
+python3 scripts/agent_manager.py launch documentation-owner --file docs/agent-workflow.md --dry-run
 python3 scripts/agent_manager.py process --max-parallel 2 --no-auto-commit --dry-run
+python3 scripts/agent_manager.py process --roles economy-engineer qa-reviewer --max-parallel 2 --no-auto-commit --dry-run
 python3 scripts/agent_manager.py inbox draft economy-engineer qa-reviewer "Review the hauling regression risk for remote mining saturation changes."
 ```

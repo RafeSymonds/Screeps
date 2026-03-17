@@ -13,8 +13,8 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
 
 - The runtime is the Screeps game loop. Code is evaluated repeatedly across ticks, with persistent `Memory` and ephemeral globals.
 - The main execution pipeline is:
-  `loop -> World -> plans -> spawning -> task assignment -> creep actions -> persist memory`
-- This repo extends the upstream `screeps-typescript-starter` with higher-level planning, task assignment, scouting, room intel, and private-server deployment.
+  `loop -> task rehydration -> World -> CPU-aware plans -> task pruning -> spawning -> task assignment -> tower actions -> creep actions -> persist memory`
+- This repo extends the upstream `screeps-typescript-starter` with higher-level planning, CPU throttling, task assignment, scouting, room intel, combat automation, and private-server deployment.
 
 ## Agent Workflow
 
@@ -27,7 +27,7 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
   `npm run lint`
 - Current baseline:
   `npm run build` passes.
-  `npm run test` currently fails under modern Node/Mocha due legacy TypeScript test-runner assumptions.
+  `npm run test` currently fails under the repo's legacy TypeScript/Mocha harness assumptions.
   `npm run lint` currently reports many pre-existing violations after the ESLint config compatibility fix.
 - If changing deploy behavior, also inspect [rollup.config.js](/Users/rafe/games/screeps/rollup.config.js) and the shell wrappers [deploy](/Users/rafe/games/screeps/deploy) and [deploy_private](/Users/rafe/games/screeps/deploy_private).
 

@@ -7,6 +7,7 @@ This file summarizes the Screeps rules that matter most when editing this reposi
 - Screeps runs your code once per game tick.
 - The world persists between ticks, but your JavaScript global state can reset at any time.
 - `Memory` persists across ticks and is the durable store for task and creep state.
+- This repo also persists planner cadence in `Memory.planRuns`, so scheduling changes can have cross-tick effects even when the code path looks stateless.
 
 ## Map Model
 
@@ -32,6 +33,7 @@ This file summarizes the Screeps rules that matter most when editing this reposi
 - Every tick has a CPU limit plus a bucket that absorbs bursts.
 - Hot-path code should avoid redundant searches, excess pathfinding, and unnecessary object churn.
 - Logging in per-creep or per-room loops can become a real performance problem.
+- In this repo, the CPU bucket is part of gameplay behavior: non-critical plans are delayed or skipped when the bucket is low, and pixels are generated when the bucket is high.
 
 ## Implications For This Repo
 
@@ -39,6 +41,8 @@ This file summarizes the Screeps rules that matter most when editing this reposi
 - Remote mining changes often have second-order effects on hauling and spawn demand.
 - Room intel and scouting data become stale, so code should tolerate partial information.
 - Memory migrations need explicit handling because old data can survive long after code changes.
+- Plan changes should be reasoned about in terms of both execution order and interval throttling.
+- Tower behavior is a distinct execution phase after task assignment and before creep actions, so defense changes may bypass normal task logic.
 
 ## Official References
 

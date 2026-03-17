@@ -30,3 +30,20 @@
 
 - Multi-agent orchestration should favor small, ownership-aligned changes over broad parallel edits in shared hot paths.
 - Parallel runs should default to `--no-auto-commit`.
+
+## Reach goals
+
+- technical-architect: propose a lightweight change taxonomy for this repo such as safe-local, cross-tick-risky, and migration-required.
+  Stretch value: makes it easier to route work automatically and reject unsafe parallel batches.
+
+- economy-engineer: identify one CPU-conscious improvement to remote-mining scheduling or hauling throughput that looks promising but still needs validation before implementation.
+  Stretch value: seeds a higher-upside optimization queue without forcing a risky immediate code change.
+
+- operations-engineer: sketch a small extension to `scripts/agent_manager.py` that can warn when selected roles are likely to edit overlapping hot-path files.
+  Stretch value: improves operator safety before adding more aggressive parallel runs.
+
+- qa-reviewer: define a compact post-change validation loop for gameplay edits that is realistic even with the current test and lint baseline.
+  Stretch value: gives future agent runs a repeatable minimum bar beyond `npm run build`.
+
+- documentation-owner: produce a concise runbook section for resuming work after a global reset or partial agent session.
+  Stretch value: reduces coordination loss between longer-running orchestration sessions.
