@@ -23,9 +23,15 @@
 ## Agent Guidance
 
 - [Workflow Overview](agent-workflow.md)
-- [Review Checklist](qa/REVIEW_CHECKLIST.md)
 - [Repository Map](agents/REPO_MAP.md)
 - [Screeps Primer](agents/SCREEPS_PRIMER.md)
+
+## QA & Regression
+
+- [Review Checklist](qa/REVIEW_CHECKLIST.md)
+- [Regression Checklist](qa/REGRESSION_CHECKLIST.md)
+- [Memory Migrations](qa/MEMORY_MIGRATIONS.md)
+- [Cross-Tick State Boundaries](qa/CROSS_TICK_BOUNDARIES.md)
 
 ## Screeps API Reference
 
