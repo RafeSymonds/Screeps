@@ -56,6 +56,8 @@ export type DeliverTaskTargetData =
 export type DeliverTaskData = BaseTask & {
     kind: TaskKind.DELIVER;
     target: DeliverTaskTargetData;
+    distance?: number;
+    energyPerTick?: number;
 };
 
 export type ScoutTaskData = BaseTask & {

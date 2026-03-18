@@ -140,7 +140,7 @@ declare global {
         ownerRoom?: string;
     }
 
-    type RemoteRoomState = "scouting" | "candidate" | "active" | "saturated" | "unsafe" | "paused";
+    type RemoteRoomState = "scouting" | "candidate" | "active" | "saturated" | "unsafe" | "paused" | "reserved";
 
     interface RemoteRoomStrategy {
         state: RemoteRoomState;

@@ -2,6 +2,7 @@ import { findSafeAnchor, requestedDefenders, roomThreat } from "combat/CombatUti
 import { clearSpawnRequest, planSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
 import { createDefendTaskData } from "tasks/definitions/DefendTask";
 import { World } from "world/World";
+import { WorldRoom } from "world/WorldRoom";
 import { Plan } from "./Plan";
 
 export class DefensePlan extends Plan {

@@ -1,6 +1,9 @@
 # Backlog
 
-## Refined Implementation Slices
+This backlog is organized into the four development streams defined in [docs/architecture/ECONOMY_DECOMPOSITION.md](/docs/architecture/ECONOMY_DECOMPOSITION.md).
+
+## Stream A: Spawn & Body Heuristics (Serialized)
+*Focus: Efficiency of the spawn pipeline.*
 
 - `EE-QUEUE-01` Deterministic Spawn Request Normalization.
   Scope: Separate "Emergency Bootstrap" logic from "Pressure-based Scaling" in `SpawnManager`. Ensure that empty roles get immediate, high-priority requests that bypass smoothed pressure averages.
@@ -8,11 +11,24 @@
   Affected modules: `src/spawner/SpawnManager.ts`, `src/spawner/SpawnRequests.ts`.
   Guardrails: Emergency priority must drop as soon as a creep is `spawning` or `alive` to allow other rooms to use the spawn.
 
+- `EE-QUEUE-X1` Shared spawn-request contract for economy versus expansion.
+  Reason deferred: Crosses role boundaries with `technical-architect`. Requires unified precedence for expansion and bootstrap requests.
+  Likely modules: `src/spawner/SpawnManager.ts`, `src/spawner/SpawnRequests.ts`, `src/plans/definitions/SupportPlan.ts`.
+
+## Stream B: Remote Mining Expansion (Independent)
+*Focus: Strategic source acquisition.*
+
 - `EE-REMOTE-02` Stable Remote Mining Lifecycle.
   Scope: Introduce a `reserved` state and score hysteresis to `RemoteStrategy`. Prevent remotes from flip-flopping between `active` and `saturated` due to tick-to-tick volatility in `ownerCapacityScore`.
   Why: Prevents wasted CPU and pathing churn when remote assignments oscillate.
   Affected modules: `src/rooms/RemoteStrategy.ts`, `src/plans/definitions/RemoteMiningPlan.ts`.
   Guardrails: Do not block "unsafe" room transitions; priority should always be safety first.
+
+- `EE-REMOTE-X1` Remote activation scoring and owner reassignment.
+  Reason deferred: Sliced into `EE-REMOTE-02` for immediate stability; broader scoring overhaul requires more telemetry.
+
+## Stream C: Hauling & Throughput (Independent)
+*Focus: Solving the "starvation" problem.*
 
 - `EE-HAUL-01` Dynamic Local Hauling Requirements.
   Scope: Replace hardcoded `energyPerTick = 10` and `distance = 8` in `DeliverTask.requirements()` with values derived from actual source throughput and path distances. Also update `RemoteHaulTask.requirements()`.
@@ -26,10 +42,11 @@
   Affected modules: `src/tasks/definitions/RemoteHaulTask.ts`, `src/plans/definitions/LinkPlan.ts`.
   Guardrails: Only deliver to links if they have enough free capacity to avoid haulers standing idle.
 
-## Deferred Or Shared Follow-Ups
+## Stream D: Room Growth Stages (Semi-Independent)
+*Focus: Transitioning from bootstrap to surplus.*
 
-- `EE-QUEUE-X1` Shared spawn-request contract for economy versus expansion.
-  Reason deferred: Crosses role boundaries with `technical-architect`. Requires unified precedence for expansion and bootstrap requests.
-  Likely modules: `src/spawner/SpawnManager.ts`, `src/spawner/SpawnRequests.ts`, `src/plans/definitions/SupportPlan.ts`.
-- `EE-REMOTE-X1` Remote activation scoring and owner reassignment.
-  Reason deferred: Sliced into `EE-REMOTE-02` for immediate stability; broader scoring overhaul requires more telemetry.
+- `EE-GROWTH-01` Pressure-Aware Upgrade Throttling.
+  Scope: Adjust `EconomyPlan.ts` to throttle `UpgradeTask` demand when room pressure is high or storage is low.
+  Why: Prevents upgrading from starving the spawn/build pipeline during critical growth phases.
+  Affected modules: `src/plans/definitions/EconomyPlan.ts`, `src/rooms/RoomGrowth.ts`.
+  Guardrails: Ensure minimal upgrading continues to prevent controller downgrade.

@@ -25,9 +25,24 @@ function ownerCapacityScore(room: Room): number {
 function remoteCandidateScore(ownerRoom: Room, remoteRoom: string, routeLength: number, sources: number): number {
     const roomMemory = Memory.rooms[remoteRoom];
     const previousOwner = roomMemory?.remoteMining?.ownerRoom;
-    const hysteresis = previousOwner === ownerRoom.name ? 25 : 0;
+    const strategy = roomMemory?.remoteStrategy;
 
-    return sources * 120 - routeLength * 30 + ownerCapacityScore(ownerRoom) + hysteresis;
+    let bonus = 0;
+    // Hysteresis for staying with the same owner
+    if (previousOwner === ownerRoom.name) {
+        bonus += 30;
+    }
+
+    // Stability bias for staying active or assigned
+    if (strategy?.ownerRoom === ownerRoom.name) {
+        if (strategy.state === "active") {
+            bonus += 50;
+        } else if (strategy.state === "reserved" || strategy.state === "saturated") {
+            bonus += 20;
+        }
+    }
+
+    return sources * 120 - routeLength * 35 + ownerCapacityScore(ownerRoom) + bonus;
 }
 
 function markRemote(roomName: string, strategy: RemoteRoomStrategy) {
@@ -40,6 +55,7 @@ function markRemote(roomName: string, strategy: RemoteRoomStrategy) {
     roomMemory.remoteStrategy = strategy;
 
     if (roomMemory.remoteMining) {
+        // Only active remotes get an authoritative owner room to trigger task creation
         roomMemory.remoteMining.ownerRoom = strategy.state === "active" ? strategy.ownerRoom : undefined;
     }
 }
@@ -147,7 +163,22 @@ export function refreshRemoteStrategies(): void {
         const desiredCount = owner.memory.growth?.desiredRemoteCount ?? Math.max(0, owner.memory.remoteRadius - 1);
         const candidates = candidatesByOwner.get(owner.name) ?? [];
 
-        candidates.sort((a, b) => b.score - a.score);
+        // Stable sort: favor currently active rooms to prevent oscillation if scores are close
+        candidates.sort((a, b) => {
+            const aStrategy = Memory.rooms[a.remoteRoom]?.remoteStrategy;
+            const bStrategy = Memory.rooms[b.remoteRoom]?.remoteStrategy;
+            const aActive = aStrategy?.state === "active" ? 1 : 0;
+            const bActive = bStrategy?.state === "active" ? 1 : 0;
+
+            if (aActive !== bActive) {
+                // If they are within 40 points, keep the active one
+                if (Math.abs(b.score - a.score) < 40) {
+                    return bActive - aActive;
+                }
+            }
+
+            return b.score - a.score;
+        });
 
         for (const [index, candidate] of candidates.entries()) {
             if (activeRemotes.has(candidate.remoteRoom)) {
@@ -165,6 +196,16 @@ export function refreshRemoteStrategies(): void {
                     lastEvaluated: Game.time,
                     reason: "selected"
                 });
+            } else {
+                markRemote(candidate.remoteRoom, {
+                    state: "reserved",
+                    ownerRoom: candidate.ownerRoom,
+                    routeLength: candidate.routeLength,
+                    score: candidate.score,
+                    sourceCount: candidate.sourceCount,
+                    lastEvaluated: Game.time,
+                    reason: "owner capacity reached"
+                });
             }
         }
     }
@@ -178,9 +219,10 @@ export function refreshRemoteStrategies(): void {
 
         markRemote(roomName, {
             ...strategy,
-            state: "saturated",
+            state: "reserved",
             lastEvaluated: Game.time,
             reason: "owner capacity reached"
         });
     }
 }
+

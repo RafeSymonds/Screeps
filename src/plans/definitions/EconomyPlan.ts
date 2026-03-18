@@ -16,19 +16,30 @@ export class EconomyPlan extends Plan {
             const room = worldRoom.room;
 
             if (room.controller?.my) {
+                const sources = room.find(FIND_SOURCES);
+                const energyGeneration = sources.length * 10;
+
+                const storage = room.storage;
+                const sourceContainers = room
+                    .find(FIND_STRUCTURES)
+                    .filter((s): s is StructureContainer => s.structureType === STRUCTURE_CONTAINER && containerIsSourceTied(s));
+                const origins = storage ? [storage, ...sourceContainers] : sourceContainers;
+
                 //
                 // Harvest
                 //
-                for (const source of room.find(FIND_SOURCES)) {
+                for (const source of sources) {
                     taskManager.add(createHarvestTaskData(source));
                 }
 
                 //
-                // Transfers
+                // Transfers (Sinks)
                 //
+                const sinks: (StructureSpawn | StructureExtension | StructureContainer | RoomPosition)[] = [];
+
                 for (const s of room.find(FIND_MY_STRUCTURES)) {
                     if (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) {
-                        taskManager.add(createDeliverTaskData(s));
+                        sinks.push(s);
                     }
                 }
 
@@ -36,8 +47,30 @@ export class EconomyPlan extends Plan {
                     .find(FIND_STRUCTURES)
                     .filter((s): s is StructureContainer => s.structureType === STRUCTURE_CONTAINER)) {
                     if (!containerIsSourceTied(container)) {
-                        taskManager.add(createDeliverTaskData(container));
+                        sinks.push(container);
                     }
+                }
+
+                const spawn = room.find(FIND_MY_SPAWNS)[0];
+                if (spawn) {
+                    const dropSpot = getAdjacentPosition(spawn.pos);
+                    if (dropSpot) {
+                        sinks.push(dropSpot);
+                    }
+                }
+
+                const energyPerSink = sinks.length > 0 ? energyGeneration / sinks.length : 10;
+
+                for (const sink of sinks) {
+                    let distance = 8;
+                    const sinkPos = sink instanceof RoomPosition ? sink : sink.pos;
+                    if (origins.length > 0) {
+                        const closest = sinkPos.findClosestByRange(origins);
+                        if (closest) {
+                            distance = sinkPos.getRangeTo(closest);
+                        }
+                    }
+                    taskManager.add(createDeliverTaskData(sink, distance, energyPerSink));
                 }
 
                 //
@@ -53,14 +86,6 @@ export class EconomyPlan extends Plan {
                     const taskData = createBuildTaskData(constructionSite);
                     taskManager.add(taskData);
                 });
-
-                const spawn = room.find(FIND_MY_SPAWNS)[0];
-                if (spawn) {
-                    const dropSpot = getAdjacentPosition(spawn.pos);
-                    if (dropSpot) {
-                        taskManager.add(createDeliverTaskData(dropSpot));
-                    }
-                }
             }
         }
     }

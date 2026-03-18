@@ -40,7 +40,11 @@ export function deliverTaskName(target: DeliverTaskTarget): string {
     return `Transfer-${positionSignature(target)}`;
 }
 
-export function createDeliverTaskData(target: DeliverTaskTarget): DeliverTaskData {
+export function createDeliverTaskData(
+    target: DeliverTaskTarget,
+    distance?: number,
+    energyPerTick?: number
+): DeliverTaskData {
     if (isStructureTarget(target)) {
         return {
             id: deliverTaskName(target),
@@ -50,7 +54,9 @@ export function createDeliverTaskData(target: DeliverTaskTarget): DeliverTaskDat
             target: {
                 kind: "structure",
                 structureId: target.id
-            }
+            },
+            distance,
+            energyPerTick
         };
     }
 
@@ -64,7 +70,9 @@ export function createDeliverTaskData(target: DeliverTaskTarget): DeliverTaskDat
         target: {
             kind: "position",
             position: pos
-        }
+        },
+        distance,
+        energyPerTick
     };
 }
 
@@ -248,8 +256,8 @@ export class DeliverTask extends Task<DeliverTaskData> {
     public override validCreationSetup(): void {}
 
     public override requirements(): TaskRequirements {
-        const energyPerTick = 10;
-        const distance = 8;
+        const energyPerTick = this.data.energyPerTick ?? 10;
+        const distance = this.data.distance ?? 8;
         const roundTrip = distance * 2;
 
         return {

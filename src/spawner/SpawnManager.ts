@@ -694,21 +694,62 @@ function rolePriorityBoost(room: Room, role: SpawnRequestRole): number {
     return boost;
 }
 
+function calculateBaselinePriority(
+    role: SpawnRequestRole,
+    supplyCreeps: number,
+    supplyParts: number,
+    demandCreeps: number,
+    demandParts: number,
+    immediatePressure: number,
+    smoothedPressure: number,
+    idleCreeps: number
+): number {
+    if (demandCreeps <= 0 && demandParts <= 0) return 0;
+    if (idleCreeps > 0) return 0;
+
+    // 1. Emergency: Nothing exists and nothing is coming
+    if (supplyCreeps === 0) {
+        return role === "miner" ? SpawnRequestPriority.EMERGENCY : SpawnRequestPriority.EMERGENCY - 10;
+    }
+
+    // 2. Critical: Starvation (immediate pressure >= 1.0)
+    // This handles cases where we have creeps (maybe old or spawning) but 0 work/carry parts
+    if (immediatePressure >= 1.0) {
+        return SpawnRequestPriority.CRITICAL;
+    }
+
+    // 3. High: Significant immediate pressure (bypass smoothing)
+    if (immediatePressure > 0.8) {
+        return SpawnRequestPriority.HIGH + (immediatePressure - 0.8) * 100;
+    }
+
+    // 4. Normal/Stability: Use smoothed pressure
+    if (smoothedPressure >= PRESSURE_SPAWN_THRESHOLD) {
+        return SpawnRequestPriority.LOW + 30 + smoothedPressure * 100;
+    }
+
+    return 0;
+}
+
 function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: DemandTotals, stats: RoomSpawnStats): void {
     const targetCarry = stats.carry.demandParts;
+
     const minerImmediate = immediatePressure(supply.mine, supply.minerCreeps, demand.mine, demand.minerCreeps);
     const carryImmediate = immediatePressure(supply.carry, supply.haulerCreeps, targetCarry, demand.haulerCreeps);
     const workImmediate = immediatePressure(supply.work, supply.workerCreeps, demand.work, demand.workerCreeps);
     const scoutImmediate = immediatePressure(supply.scout, supply.scout, demand.scout, demand.scout);
 
-    const minerPriority =
-        supply.mine === 0 && supply.incomingMiners === 0 && demand.mine > 0
-            ? SpawnRequestPriority.EMERGENCY
-            : minerImmediate >= 1 && supply.idleMiners === 0
-              ? SpawnRequestPriority.CRITICAL
-              : shouldSpawnForPressure(stats.mine)
-                ? SpawnRequestPriority.LOW + 30 + stats.mine.pressure * 100
-                : 0;
+    // Miner
+    const minerPriority = calculateBaselinePriority(
+        "miner",
+        supply.minerCreeps + supply.incomingMiners,
+        supply.mine,
+        demand.minerCreeps,
+        demand.mine,
+        minerImmediate, // Pass immediate as 'smoothed' for quick response if minerImmediate > 0.5? No, use stats.
+        stats.mine.pressure,
+        supply.idleMiners
+    );
 
     if (minerPriority > 0) {
         upsertSpawnRequest(room, {
@@ -723,14 +764,17 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
         clearSpawnRequest(room, "miner", roleRequestKey("miner", room.name));
     }
 
-    const haulerPriority =
-        supply.haulerCreeps === 0 && supply.incomingHaulers === 0 && targetCarry > 0
-            ? SpawnRequestPriority.EMERGENCY - 10
-            : carryImmediate >= 1 && supply.idleHaulers === 0
-              ? SpawnRequestPriority.CRITICAL - 10
-              : shouldSpawnForPressure(stats.carry)
-                ? SpawnRequestPriority.LOW + 25 + stats.carry.pressure * 100
-                : 0;
+    // Hauler
+    const haulerPriority = calculateBaselinePriority(
+        "hauler",
+        supply.haulerCreeps + supply.incomingHaulers,
+        supply.carry,
+        demand.haulerCreeps,
+        targetCarry,
+        carryImmediate,
+        stats.carry.pressure,
+        supply.idleHaulers
+    );
 
     if (haulerPriority > 0) {
         upsertSpawnRequest(room, {
@@ -745,8 +789,9 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
         clearSpawnRequest(room, "hauler", roleRequestKey("hauler", room.name));
     }
 
+    // Scout
     const scoutPriority =
-        demand.scout > 0 && supply.scout === 0
+        demand.scout > 0 && supply.scout + supply.incomingScouts === 0
             ? SpawnRequestPriority.NORMAL + 30
             : scoutImmediate > 0 && shouldSpawnForPressure(stats.scout)
               ? SpawnRequestPriority.LOW + 20 + stats.scout.pressure * 100
@@ -765,17 +810,23 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
         clearSpawnRequest(room, "scout", roleRequestKey("scout", room.name));
     }
 
+    // Worker
     // Don't spawn workers until basic economy exists (miner + hauler)
     const hasBasicEconomy = (supply.minerCreeps + supply.incomingMiners > 0) &&
         (supply.haulerCreeps + supply.incomingHaulers > 0);
 
-    const workerPriority = !hasBasicEconomy
-        ? 0
-        : workImmediate > 0 && supply.idleWorkers === 0
-          ? SpawnRequestPriority.NORMAL + workImmediate * 100
-          : (workImmediate > 0 || stats.work.pressure > 0) && shouldSpawnForPressure(stats.work)
-            ? SpawnRequestPriority.LOW + 15 + stats.work.pressure * 100
-            : 0;
+    const baseWorkerPriority = calculateBaselinePriority(
+        "worker",
+        supply.workerCreeps + supply.incomingWorkers,
+        supply.work,
+        demand.workerCreeps,
+        demand.work,
+        workImmediate,
+        stats.work.pressure,
+        supply.idleWorkers
+    );
+
+    const workerPriority = hasBasicEconomy ? baseWorkerPriority : 0;
 
     if (workerPriority > 0) {
         upsertSpawnRequest(room, {
@@ -790,6 +841,7 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
         clearSpawnRequest(room, "worker", roleRequestKey("worker", room.name));
     }
 }
+
 
 /* ============================================================
    SPAWN DECISION

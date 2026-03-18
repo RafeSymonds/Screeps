@@ -127,7 +127,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     requirements(): TaskRequirements {
-        const energyPerTick = 5;
+        const energyPerTick = 10;
         const roomDistance = Math.max(1, this.data.routeLength);
         const distance = roomDistance * 50;
         const roundTrip = distance * 2;
