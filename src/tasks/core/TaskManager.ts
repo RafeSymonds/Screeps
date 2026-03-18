@@ -25,7 +25,10 @@ export class TaskManager {
      * Adds task to task set if not already a task
      * */
     public add(taskData: TaskData) {
-        if (this.tasks.has(taskData.id)) {
+        const existingTask = this.tasks.get(taskData.id);
+
+        if (existingTask) {
+            existingTask.update(taskData);
             return;
         }
 

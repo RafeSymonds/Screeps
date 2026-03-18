@@ -95,6 +95,12 @@ export abstract class Task<T extends TaskData> {
         return this.data.id;
     }
 
+    public update(newData: T) {
+        const assigned = this.data.assignedCreeps;
+        this.data = newData;
+        this.data.assignedCreeps = assigned;
+    }
+
     public assignCreep(creepState: CreepState, _world: World) {
         this.data.assignedCreeps.push([creepState.creep.id, creepState.creep.name]);
     }

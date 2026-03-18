@@ -21,7 +21,7 @@ export function runPlans(world: World) {
 
     const plans: { key: string; interval: number; priority: PlanPriority; plan: { run(world: World): void } }[] = [
         { key: "defense", interval: 1, priority: "critical", plan: new DefensePlan() },
-        { key: "economy", interval: 1, priority: "critical", plan: new EconomyPlan() },
+        { key: "economy", interval: 5, priority: "important", plan: new EconomyPlan() },
         { key: "link", interval: 1, priority: "critical", plan: new LinkPlan() },
         { key: "growth", interval: 25, priority: "important", plan: new GrowthPlan() },
         { key: "support", interval: 10, priority: "important", plan: new SupportPlan() },

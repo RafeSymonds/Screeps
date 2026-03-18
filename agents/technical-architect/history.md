@@ -41,3 +41,8 @@
     - Simplified `ExpansionPlan.ts` by removing redundant thresholds and relying on centralized `RoomGrowthState`.
     - Updated `src/main.ts` interface and `scoutFrontier` helper to support the improved scouting pipeline.
     - Verified that plans correctly rehydrate from `RoomMemory.intel` via the centralized growth processor.
+- 2026-03-18: Implemented EconomyPlan throttling and enhanced Task data propagation.
+    - Throttled `EconomyPlan` in `PlanManager.ts` to `interval: 5` and `priority: "important"` for significant CPU savings as requested by `economy-engineer`.
+    - Added `update(newData: T)` method to the base `Task` class to allow refreshing task data (e.g., labor requirements, distance, energy shares) without overwriting active assignments.
+    - Updated `TaskManager.add()` to utilize the new `update()` method, ensuring that throttled plans correctly refresh state in the task set instead of being ignored.
+    - Verified architectural integrity with `npm run build`.
