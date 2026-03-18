@@ -1,5 +1,5 @@
 import { findSafeAnchor, requestedDefenders, roomThreat } from "combat/CombatUtils";
-import { clearSpawnRequest, upsertSpawnRequest } from "spawner/SpawnRequests";
+import { clearSpawnRequest, planSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
 import { createDefendTaskData } from "tasks/definitions/DefendTask";
 import { World } from "world/World";
 import { Plan } from "./Plan";
@@ -17,7 +17,7 @@ export class DefensePlan extends Plan {
             const hostiles = worldRoom.hostileCreeps;
 
             if (hostiles.length === 0) {
-                clearSpawnRequest(room, "defender", `defense:${room.name}`);
+                clearSpawnRequest(room, "defender", `plan:defense:${room.name}`);
                 room.memory.defense = {
                     hostileCount: 0,
                     threat: 0,
@@ -41,14 +41,16 @@ export class DefensePlan extends Plan {
                 }
             };
 
-            upsertSpawnRequest(room, {
-                role: "defender",
-                priority: 150 + room.memory.defense.threat,
-                desiredCreeps: room.memory.defense.requestedDefenders,
-                expiresAt: Game.time + 5,
-                requestedBy: `defense:${room.name}`,
-                minEnergy: 200
-            });
+            planSpawnRequest(
+                room,
+                "defense",
+                room.name,
+                "defender",
+                SpawnRequestPriority.HIGH + 10 + room.memory.defense.threat,
+                room.memory.defense.requestedDefenders,
+                5,
+                200
+            );
 
             world.taskManager.add(createDefendTaskData(room));
         }

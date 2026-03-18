@@ -55,7 +55,7 @@ describe("TerminalPlan", () => {
         });
         (deficitRoom as any).terminal = deficitTerminal;
 
-        const { TerminalPlan } = require("../../src/plans/defintions/TerminalPlan");
+        const { TerminalPlan } = require("../../src/plans/definitions/TerminalPlan");
         const plan = new TerminalPlan();
 
         plan.run({
@@ -122,7 +122,7 @@ describe("TerminalPlan", () => {
         });
         (room as any).terminal = terminal;
 
-        const { TerminalPlan } = require("../../src/plans/defintions/TerminalPlan");
+        const { TerminalPlan } = require("../../src/plans/definitions/TerminalPlan");
         const plan = new TerminalPlan();
         plan.run({ rooms: new Map([["W0N0", { room }]]) });
 
@@ -152,7 +152,7 @@ describe("TerminalPlan", () => {
         });
         (room as any).terminal = terminal;
 
-        const { TerminalPlan } = require("../../src/plans/defintions/TerminalPlan");
+        const { TerminalPlan } = require("../../src/plans/definitions/TerminalPlan");
         const plan = new TerminalPlan();
         plan.run({ rooms: new Map([["W0N0", { room }]]) });
 

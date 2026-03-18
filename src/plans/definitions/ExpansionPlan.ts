@@ -2,7 +2,7 @@ import { Plan } from "./Plan";
 import { World } from "world/World";
 import { ownedRooms } from "rooms/RoomUtils";
 import { createClaimTaskData } from "tasks/definitions/ClaimTask";
-import { upsertSpawnRequest } from "spawner/SpawnRequests";
+import { planSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
 
 const MIN_STORAGE_ENERGY = 50000;
 const MIN_EXPANSION_SCORE = 120;
@@ -62,14 +62,16 @@ export class ExpansionPlan extends Plan {
             // Create claim task and spawn request
             world.taskManager.add(createClaimTaskData(target, room.name));
 
-            upsertSpawnRequest(room, {
-                role: "scout", // reuse scout slot for claimer (CLAIM + MOVE body)
-                priority: 130,
-                desiredCreeps: 1,
-                expiresAt: Game.time + 50,
-                requestedBy: `expansion:${target}`,
-                minEnergy: 650
-            });
+            planSpawnRequest(
+                room,
+                "expansion",
+                target,
+                "scout", // reuse scout slot for claimer (CLAIM + MOVE body)
+                SpawnRequestPriority.NORMAL + 40,
+                1,
+                50,
+                650
+            );
         }
     }
 }

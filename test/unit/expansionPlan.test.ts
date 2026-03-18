@@ -49,7 +49,7 @@ describe("ExpansionPlan", () => {
             W1N0: { 7: "W0N0" }
         });
 
-        const { ExpansionPlan } = require("../../src/plans/defintions/ExpansionPlan");
+        const { ExpansionPlan } = require("../../src/plans/definitions/ExpansionPlan");
         const plan = new ExpansionPlan();
 
         const world = {
@@ -93,7 +93,7 @@ describe("ExpansionPlan", () => {
             lastEvaluated: 1
         };
 
-        const { ExpansionPlan } = require("../../src/plans/defintions/ExpansionPlan");
+        const { ExpansionPlan } = require("../../src/plans/definitions/ExpansionPlan");
         const plan = new ExpansionPlan();
 
         const world = {
@@ -131,7 +131,7 @@ describe("ExpansionPlan", () => {
             lastEvaluated: 1
         };
 
-        const { ExpansionPlan } = require("../../src/plans/defintions/ExpansionPlan");
+        const { ExpansionPlan } = require("../../src/plans/definitions/ExpansionPlan");
         const plan = new ExpansionPlan();
 
         const world = {

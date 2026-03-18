@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { RemoteMiningPlan } from "../../src/plans/defintions/RemoteMiningPlan";
+import { RemoteMiningPlan } from "../../src/plans/definitions/RemoteMiningPlan";
 import { roomCanConsiderTask } from "../../src/tasks/core/TaskDistributor";
 import { updateRoomGrowth } from "../../src/rooms/RoomGrowth";
 import { updateRoomSupportState } from "../../src/rooms/RoomSupport";

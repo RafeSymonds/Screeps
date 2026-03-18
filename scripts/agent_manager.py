@@ -28,6 +28,19 @@ STATE_DIR = REPO_ROOT / ".agent-manager"
 DEFAULT_STATE_FILE = STATE_DIR / "state.json"
 LOCKS_DIR = STATE_DIR / "locks"
 
+HOT_PATHS = [
+    "src/main.ts",
+    "src/plans",
+    "src/tasks",
+    "src/spawner",
+]
+
+CORE_ROLES = [
+    "technical-architect",
+    "economy-engineer",
+    "operations-engineer",
+]
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -302,9 +315,9 @@ def update_assignment_status(
         item["last_launch_at"] = utc_now()
 
 
-def build_prompt(role: str, task: str, extra_files: list[str]) -> str:
+def build_prompt(role: str, task: str, extra_files: list[str], active_roles: list[str] | None = None) -> str:
     agent_path = role_dir(role)
-    files = [
+    foundational_paths = [
         REPO_ROOT / "README.md",
         REPO_ROOT / "AGENTS.md",
         REPO_ROOT / "docs" / "agents" / "REPO_MAP.md",
@@ -315,34 +328,66 @@ def build_prompt(role: str, task: str, extra_files: list[str]) -> str:
         agent_path / "backlog.md",
         agent_path / "history.md",
     ]
-    resolved_extras = [str((REPO_ROOT / path).resolve()) for path in extra_files]
-    startup_lines = "\n".join(f"- {path}" for path in files)
-    extra_lines = ""
-    if resolved_extras:
-        extra_lines = "\nExtra files to inspect up front:\n" + "\n".join(f"- {path}" for path in resolved_extras)
+
+    preloaded_context = ""
+    for path in foundational_paths:
+        if path.exists():
+            rel_path = path.relative_to(REPO_ROOT)
+            content = path.read_text(encoding="utf-8")
+            preloaded_context += f"\n--- FILE: {rel_path} ---\n{content}\n"
+
+    resolved_extras = []
+    extra_context = ""
+    for path_str in extra_files:
+        path = REPO_ROOT / path_str
+        if path.exists():
+            resolved_extras.append(str(path.resolve()))
+            rel_path = path.relative_to(REPO_ROOT)
+            content = path.read_text(encoding="utf-8")
+            extra_context += f"\n--- EXTRA FILE: {rel_path} ---\n{content}\n"
+
+    concurrency_context = ""
+    if active_roles and len(active_roles) > 1:
+        others = sorted([r for r in active_roles if r != role])
+        concurrency_context = (
+            "\n# CONCURRENCY ADVISORY\n"
+            f"You are running in parallel with these other agents: {', '.join(others)}.\n"
+            "Be extremely cautious when modifying shared files. Use surgical edits and verify that your changes do not conflict with concurrent work.\n"
+        )
+
+    hot_path_list = "\n".join([f"- {path}" for path in HOT_PATHS])
+    hot_path_context = (
+        "\n# SHARED HOT PATHS\n"
+        "The following paths are considered high-conflict areas. Avoid modifying them unless your task explicitly requires it:\n"
+        f"{hot_path_list}\n"
+    )
 
     return f"""You are the {role} agent for the Screeps AI workspace.
 
-Primary working directory: {agent_path}
-Shared repo root: {REPO_ROOT}
+# SYSTEM CONTEXT
+- Repository Root: {REPO_ROOT}
+- Role Directory: {agent_path}
+- Runtime: You are executing headlessly via the Gemini CLI in autonomous mode.
+- Tooling: You have access to standard filesystem and shell tools. Use absolute paths for all file operations to ensure correctness across the repo.
+- Persistence: Treat {agent_path} as your long-term memory. Record history, assumptions, and state there.
 
-Start by reading these files in order:
-{startup_lines}
-{extra_lines}
+# PRE-LOADED CONTEXT
+The following foundational files have been provided to you directly in this prompt. Use them to understand your role, the repository structure, and the system workflows:
+{preloaded_context}
+{extra_context}
+{concurrency_context}
+{hot_path_context}
 
-After that, consult files under docs/, data/, research/, and other agent inboxes only when the task requires them.
-
-Task for this session:
+# TASK
 {task}
 
-Required behavior:
-- Work the task end to end, making the repo edits or doc updates that your role owns.
-- Treat {agent_path} as your durable working memory.
-- Keep shared design truth in docs/ and structured content in data/ when the task requires updates there.
-- Do not overwrite another agent's history.md.
-- Record decisions, assumptions, and follow-ups in your own role files when relevant.
-- If you need another role to act, draft a concrete request in that role's inbox.md.
-- End with a concise completion summary that states what changed, what is still open, and whether a handoff was created.
+# CONSTRAINTS & BEHAVIOR
+- **Action-First**: Your goal is to deliver functional, verified code. Do not just discuss or plan; implement the changes. You are a senior engineer with full autonomy to modify files in your ownership area.
+- **End-to-End Delivery**: Work the task end to end, making the repo edits or doc updates that your role owns.
+- **Source of Truth**: Keep shared design truth in docs/ and structured content in data/ when the task requires updates there.
+- **Persistence**: Do not overwrite another agent's history.md. Record decisions, assumptions, and follow-ups in your own role files.
+- **Collaboration**: If you need another role to act, draft a concrete request in that role's inbox.md using the 'inbox draft' command format if possible, or just edit the file.
+- **Completion**: End with a concise completion summary that states what changed, what is still open, and whether a handoff was created.
 """
 
 
@@ -417,11 +462,13 @@ def try_resolve_auto_task(role: str) -> tuple[str, str] | None:
 def resolve_provider(name: str) -> str:
     if name != "auto":
         return name
+    if shutil.which("gemini"):
+        return "gemini"
     if shutil.which("codex"):
         return "codex"
     if shutil.which("claude"):
         return "claude"
-    raise SystemExit("No supported agent CLI found. Install codex or claude.")
+    raise SystemExit("No supported agent CLI found. Install gemini, codex or claude.")
 
 
 def run_dir_for(session_id: str, role: str) -> Path:
@@ -562,6 +609,29 @@ def build_claude_exec_command(
     return command
 
 
+def build_gemini_exec_command(
+    role: str,
+    prompt: str,
+    output_path: Path,
+    model: str | None,
+    provider_session_id: str,
+) -> list[str]:
+    command = [
+        "gemini",
+        "--prompt",
+        prompt,
+        "--approval-mode",
+        "yolo",
+        "--include-directories",
+        str(REPO_ROOT),
+        "--output-format",
+        "text",
+    ]
+    if model:
+        command.extend(["--model", model])
+    return command
+
+
 def stream_process_output(role: str, process: subprocess.Popen[str], output_path: Path) -> str:
     selector = selectors.DefaultSelector()
     assert process.stdout is not None
@@ -608,8 +678,9 @@ def execute_assignment(
     extra_files: list[str],
     model: str | None,
     dry_run: bool,
+    active_roles: list[str] | None = None,
 ) -> RunResult:
-    prompt = build_prompt(role, task, extra_files)
+    prompt = build_prompt(role, task, extra_files, active_roles=active_roles)
     run_dir = run_dir_for(session_id, role)
     prompt_path = run_dir / "prompt.txt"
     output_path = run_dir / "output.txt"
@@ -624,6 +695,9 @@ def execute_assignment(
     elif provider == "claude":
         command = build_claude_exec_command(role, prompt, output_path, model, provider_session_id)
         cwd = role_dir(role)
+    elif provider == "gemini":
+        command = build_gemini_exec_command(role, prompt, output_path, model, provider_session_id)
+        cwd = REPO_ROOT
     else:
         raise SystemExit(f"Unsupported provider '{provider}'.")
 
@@ -667,7 +741,7 @@ def execute_assignment(
     streamed_output = stream_process_output(role, process, stream_path)
     completed = process.wait()
     meta["streamed_output"] = streamed_output
-    if provider == "claude" and not output_path.exists():
+    if provider in {"claude", "gemini"} and not output_path.exists():
         write_text(output_path, streamed_output)
     if provider == "codex" and not output_path.exists():
         write_text(output_path, "")
@@ -923,6 +997,7 @@ def cmd_launch(args: argparse.Namespace) -> int:
             extra_files=args.file or [],
             model=args.model,
             dry_run=args.dry_run,
+            active_roles=[args.role],
         )
 
         run_data = build_run_data(result)
@@ -975,6 +1050,14 @@ def cmd_process(args: argparse.Namespace) -> int:
     if not queued_roles:
         print("No roles to process.")
         return 0
+
+    core_running = [r for r in queued_roles if r in CORE_ROLES]
+    if args.max_parallel > 1 and len(core_running) > 1:
+        print(f"\n!!! WARNING: Multiple core roles running in parallel: {', '.join(core_running)}")
+        print("!!! This may lead to race conditions in high-conflict areas like src/main.ts.")
+        if not args.dry_run:
+            print("!!! Consider using --dry-run first to verify the plan.")
+
     if args.max_parallel > 1 and args.auto_commit:
         raise SystemExit("Parallel processing requires --no-auto-commit to avoid cross-role git races.")
 
@@ -1007,6 +1090,7 @@ def cmd_process(args: argparse.Namespace) -> int:
                     extra_files=args.file or [],
                     model=args.model,
                     dry_run=args.dry_run,
+                    active_roles=queued_roles,
                 )
 
                 run_data = build_run_data(result)
@@ -1059,6 +1143,7 @@ def cmd_process(args: argparse.Namespace) -> int:
                             extra_files=args.file or [],
                             model=args.model,
                             dry_run=args.dry_run,
+                            active_roles=queued_roles,
                         )
                         futures[future] = role
                     save_json(args.state_file, state)
@@ -1124,7 +1209,7 @@ def build_parser() -> argparse.ArgumentParser:
     process_parser.add_argument("--session", help="Session id to use")
     process_parser.add_argument(
         "--provider",
-        choices=["auto", "codex", "claude"],
+        choices=["auto", "codex", "claude", "gemini"],
         default="auto",
         help="Agent CLI to use for headless execution",
     )
@@ -1181,7 +1266,7 @@ def build_parser() -> argparse.ArgumentParser:
     launch_parser.add_argument("--model", help="Provider model override")
     launch_parser.add_argument(
         "--provider",
-        choices=["auto", "codex", "claude"],
+        choices=["auto", "codex", "claude", "gemini"],
         default="auto",
         help="Agent CLI to use",
     )

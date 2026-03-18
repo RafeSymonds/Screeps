@@ -1,4 +1,4 @@
 # History
 
-- 2026-03-17: Role initialized for orchestration. No completed tooling tasks recorded yet.
-- 2026-03-17: Tightened headless operator docs to match `package.json`. Decision: keep npm aliases limited to `agent:roles`, `agent:queue`, and the dry-run `agent:process` wrapper; document `launch` and other subcommands through `python3 scripts/agent_manager.py ...`. Preserved the existing Screeps deploy command set and carried forward the known `test`/`lint` baseline caveat from `AGENTS.md`.
+- 2026-03-18: Role refined to focus on Strategy, Intelligence, and Expansion. Previous script-side and infrastructure items moved to `systems-engineer`. Base Layout and Combat Strategy items moved to `base-specialist` and `combat-specialist`.
+- 2026-03-17: (Items moved to systems-engineer, base-specialist, and combat-specialist during role refinement)

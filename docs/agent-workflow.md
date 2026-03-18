@@ -22,29 +22,115 @@ The workflow is designed to:
 - `agents/<role>/done.md` archives completed inbox requests.
 - `.agent-manager/` holds session state, locks, prompts, and run logs.
 
-## Queue resolution
+## Session State and Storage
 
-The manager resolves work in this order:
+The orchestration manager maintains state in these locations:
 
-1. first live inbox item for the role
-2. `agents/task-board.md` item in `## Ready now`
-3. first live backlog item for the role
+- **State File**: `.agent-manager/state.json` tracks the current session name, active assignments, and completion status.
+- **Locks**: `.agent-manager/locks/` prevents parallel runs for the same role.
+- **Logs**: `.agent-manager/runs/<session>/<role>/` contains full prompt transcripts and tool outputs for every execution.
+- **Work Area**: `agents/<role>/` is where the role's working files (backlog, history, inbox) live.
+
+## Queue Resolution Order
+
+The manager resolves work automatically in this priority:
+
+1. **Inbox**: the first live item in `agents/<role>/inbox.md`.
+2. **Task Board**: a matching `## Ready now` item in `agents/task-board.md`.
+3. **Backlog**: the first live item in `agents/<role>/backlog.md`.
+
+This order ensures that direct handoffs from other roles are handled before general project tasks or background backlog work.
+
+## Safe Defaults and Behavior
+
+- **One Task per Role**: Only one active task is allowed for a role in a given session.
+- **Inbox Archiving**: Items are automatically moved from `inbox.md` to `done.md` after a successful non-dry-run execution.
+- **Provider Choice**: Defaults to `auto` (preferring `gemini`, then `codex` if available locally, falling back to `claude`).
+- **Context Injection**: Use `--file <path>` repeatedly during `launch` or `process` to force extra repo-relative context into the session.
+- **Commits**: Multi-role `process` runs default to `--no-auto-commit`. Single-role runs should use `--dry-run` until the plan is verified.
+
+## Provider Backends
+
+- **gemini**: preferred for all tasks; runs with absolute path awareness.
+- **codex**: alternate for local development and high-volume tasks.
+- **claude**: fallback for complex reasoning or when other providers are unavailable.
+- **auto**: automatic selection (Gemini first, then Codex, then Claude).
 
 ## Screeps-specific guardrails
-
 - Read `AGENTS.md`, `docs/agents/REPO_MAP.md`, and `docs/agents/SCREEPS_PRIMER.md` before changing behavior.
+- **Review Checklist**: Use the [Shared Review Checklist](qa/REVIEW_CHECKLIST.md) for changes affecting `Memory`, spawning, remotes, or deployment. For surgical economy or memory changes, use the [Lightweight Regression Checklist](qa/REGRESSION_CHECKLIST.md).
 - Trace changes through `Memory`, plan scheduling, spawning, task assignment, tower behavior, and creep execution.
 - Prefer small, ownership-aligned edits.
 - Treat `src/main.ts`, `src/plans`, `src/tasks`, and `src/spawner` as high-conflict areas for parallel work.
+- **Script-Side Guardrails**: The `agent_manager.py` script will warn when multiple core roles (`technical-architect`, `economy-engineer`, `operations-engineer`) are run in parallel. Agent prompts also include concurrency advisories and hot-path warnings when multi-role sessions are active.
 - When a task touches persistent memory or planner sequencing, involve `technical-architect` and `qa-reviewer`.
 
-## Roles
+## Roles and Ownership
 
-- `technical-architect`: tick-pipeline boundaries, shared contracts, and decomposition.
-- `economy-engineer`: economy, spawning, hauling, remote mining, and room-growth throughput.
-- `operations-engineer`: tooling, orchestration, build and deploy workflows.
-- `qa-reviewer`: regression review, validation plans, and release-risk notes.
-- `documentation-owner`: shared workflow, onboarding, and architecture docs.
+Specific file-level ownership ensures that agents do not introduce conflicting logic or break implicit cross-tick contracts. For a detailed map of state boundaries and risks, see [docs/qa/CROSS_TICK_BOUNDARIES.md](/docs/qa/CROSS_TICK_BOUNDARIES.md).
+
+- **technical-architect**:
+    - **Core Loop**: `src/main.ts` (tick pipeline, top-level `Memory` schema).
+    - **Planning Core**: `src/plans/core/` (ordering, scheduling, intervals).
+    - **Task Core**: `src/tasks/core/` (rehydration, assignment, pruning logic).
+    - **World Model**: `src/world/` (shared views).
+- **economy-engineer**:
+    - **Economy Plans**: `src/plans/definitions/` (`EconomyPlan`, `LinkPlan`, `RemoteMiningPlan`, `SupportPlan`).
+    - **Spawning**: `src/spawner/` (heuristics, body builders, pressure logic).
+    - **Economy Tasks**: `src/tasks/definitions/` (`HarvestTask`, `DeliverTask`, `RemoteHarvestTask`, etc.).
+    - **Economy Memory**: `RoomMemory.remoteMining`, `RoomMemory.spawnStats`, `RoomMemory.supportRequest`.
+- **operations-engineer**:
+    - **Strategy & Expansion**: `src/plans/definitions/` (`ScoutingPlan`, `ExpansionPlan`).
+    - **Intelligence**: `src/rooms/` (RoomIntel, Scouting, InterRoomRouter).
+    - **Expansion Tasks**: `src/tasks/definitions/` (`ScoutTask`, `ClaimTask`).
+    - **Intelligence Memory**: `RoomMemory.intel`.
+- **combat-specialist**:
+    - **Military Strategy**: `src/plans/definitions/` (`AttackPlan`, `DefensePlan`, `ReservationPlan`).
+    - **Tactical Logic**: `src/combat/` (Tower defense, combat movement, healing/attacking utils).
+    - **Military Tasks**: `src/tasks/definitions/` (`AttackTask`, `CombatTask`, `ReserveTask`).
+    - **Combat Memory**: `RoomMemory.combat`, `CreepMemory.combat`.
+- **base-specialist**:
+    - **Infrastructure Planning**: `src/plans/definitions/` (`InfrastructurePlan`, `BasePlan`).
+    - **Base Topology**: `src/basePlaner/` (Anchor selection, road planning).
+    - **Construction Tasks**: `src/tasks/definitions/` (`BuildTask`, `RepairTask`).
+    - **Base Memory**: `RoomMemory.basePlan`, `RoomMemory.topology`.
+- **systems-engineer**:
+    - **Tooling & Build**: `rollup.config.js`, `package.json`, `tsconfig.json`.
+    - **Scripts**: `scripts/`, deployment tools, `agent_manager.py`.
+    - **Infrastructure**: `.agent-manager/`.
+    - **Repository Health**: Lint debt, testing, CI/CD.
+- **qa-reviewer**:
+    - **Validation**: release-risk notes, validation plans, regression review.
+- **documentation-owner**:
+    - **Shared Docs**: `docs/`, `README.md`, `AGENTS.md`.
+
+## Architectural Ownership and Escalation
+
+Because the Screeps runtime is cross-tick and CPU-throttled, certain changes have high ripple effects. Follow these escalation rules:
+
+### 1. Memory Schema Changes
+Any change to the ambient `Memory`, `CreepMemory`, or `RoomMemory` interfaces in `src/main.ts` must be reviewed by the **technical-architect**. These are global contracts that affect every subsystem.
+
+**Important**: All schema changes MUST adhere to the [Memory Migration Rules](/docs/qa/MEMORY_MIGRATIONS.md) to prevent runtime crashes or persistent memory bloat. If you change a key or type, you are responsible for providing a cleanup snippet or a "bridge" in the code.
+
+### 2. Plan Scheduling
+Modifying plan intervals or priorities in `src/plans/core/PlanManager.ts` or `PlanScheduler.ts` requires **technical-architect** review. Throttling changes can cause stale state in dependent plans (e.g., `SpawnManager` relying on tasks from a skipped `RemoteMiningPlan`). See [docs/qa/CROSS_TICK_BOUNDARIES.md](/docs/qa/CROSS_TICK_BOUNDARIES.md) for a map of these dependencies.
+
+### 3. Task Lifecycle & Spawning
+If you add a new `TaskKind` or modify `TaskRequirements`, you must verify the impact on the `SpawnManager` demand calculation. Significant changes to labor requirements should be reviewed by both the **economy-engineer** (for spawn pressure) and the **technical-architect** (for assignment logic).
+
+### 4. Inter-Room Resource Allocation
+Changes to `RoomMemory.supportRequest` or `SupportPlan` logic that affect how energy is moved between rooms must be reviewed by the **economy-engineer**.
+
+### 5. Cross-Tick State Implicit Contracts
+Plans that read state from `RoomMemory` set by other plans must:
+- Check for existence of the data (plans may be throttled).
+- Verify data freshness via `lastEvaluated` or `lastScouted` timestamps if available.
+- Default to safe, conservative behavior if the expected state is missing.
+- See [docs/qa/CROSS_TICK_BOUNDARIES.md](/docs/qa/CROSS_TICK_BOUNDARIES.md) for the map of shared state.
+
+### 6. Multi-Agent Conflict Resolution
+If a task requires changes in another agent's primary ownership area, use the `inbox draft` command to hand off the specific sub-task or request a review. Do not perform "drive-by" edits on core heuristics owned by another role.
 
 ## Common commands
 

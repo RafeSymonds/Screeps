@@ -6,10 +6,11 @@ Own economy throughput changes across harvesting, hauling, spawning, room growth
 
 ## Primary scope
 
-- `src/plans`
-- `src/spawner`
-- `src/tasks` for economy-facing task definitions and requirements
-- `src/rooms` helpers that directly affect economy throughput
+- `src/plans/definitions/` (`EconomyPlan`, `LinkPlan`, `RemoteMiningPlan`, `SupportPlan`)
+- `src/spawner/` (heuristics, body builders, pressure logic)
+- `src/tasks/definitions/` for economy-facing task definitions (`HarvestTask`, `DeliverTask`, `RemoteHarvestTask`, etc.)
+- `src/rooms/` helpers that directly affect economy throughput
+- **Economy Memory**: `RoomMemory.remoteMining`, `RoomMemory.spawnStats`, `RoomMemory.supportRequest`
 
 ## Constraints
 

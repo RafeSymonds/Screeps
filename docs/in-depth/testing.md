@@ -1,98 +1,35 @@
 # Testing
 
-Automated testing helps prevent regressions and reproduce complex failure
-scenarios for bug fixing or feature implementation. This project comes with
-support for both unit and integration testing with your Screeps code.
+Automated testing in this repository is currently in a **legacy state**. While the structure for unit and integration testing exists, the standard `npm test` command is known to fail under current environment assumptions.
 
-You can read more about [unit and integration testing on
-Wikipedia](https://en.wikipedia.org/wiki/Test-driven_development).
+## Current Test Status
 
-This documentation will cover the testing setup for those already familiar with
-the process of test driven design.
+- **`npm run test`**: Runs both unit and integration tests. Expect failures due to legacy Mocha/TypeScript harness mismatches.
+- **Unit Testing**: Tests core logic in isolation. These are generally faster but may require updates to match the current world-model behavior.
+- **Integration Testing**: Designed to run against a mock Screeps server. These tests are currently scaffolded but not fully integrated into the development loop.
 
-Tests are written via [Mocha](https://mochajs.org/) and executed as tests only
-if they include `.test.ts` in their filename. If you have written a test file
-but aren't seeing it executed, this is probably why. There are two separate test
-commands and configurations, as unit tests don't need the complete Screeps
-server run-time as integration tests do.
+### Running Legacy Tests
 
-## Running Tests
-
-The standard `npm test` will execute all unit and integration tests in sequence.
-This is helpful for CI/CD and pre-publish checks, however during active
-development it's better to run just a subset of interesting tests.
-
-You can use `npm run test-unit` or `npm run test-integration` to run just one of
-the test suites. Additionally you can supply Mocha options to these test
-commands to further control the testing behavior. As an example, the following
-command will only execute integration tests with the word `memory` in their
-description:
-
-```
-npm run test-integration -- -g memory
-```
-
-Note that arguments after the initial `--` will be passed to `mocha` directly.
-
-## Unit Testing
-
-You can test code with simple run-time dependencies via the unit testing
-support. Since unit testing is much faster than integration testing by orders of
-magnitude, it is recommended to prefer unit tests wherever possible.
-
-## Integration Testing
-
-### Installing Screeps Server Mockup
-
-Before starting to use integration testing, you must install [screeps-server-mockup](https://github.com/screepers/screeps-server-mockup) to your project.
-Please view that repository for more instruction on installation.
+If you need to run tests for reference or to reproduce specific logic issues, use these commands:
 
 ```bash
-# Using yarn:
-yarn add -D screeps-server-mockup
-# Using npm
-npm install --save-dev screeps-server-mockup
+# Run unit tests only
+npm run test-unit
+
+# Run integration tests only
+npm run test-integration
 ```
 
-You will also need to add scripts to run integration tests.
+For more details on why tests might be failing, check [AGENTS.md](../../AGENTS.md).
 
-In `package.json`, add a new `test-integration` script and add the new integration testing to the main `test` script.
+## Future Directions
 
-```json
-  "scripts": {
-    "test": "npm run test-unit && npm run test-integration",
-    "test-integration": "npm run build && mocha test/integration/**/*.ts",
-  }
-```
+Improving the test harness is a known backlog item. New features should ideally include unit tests, but be aware that you may need to fix or bypass pre-existing harness issues in `tsconfig.test.json` or the `test/helpers` setup.
 
-Now you can run integration tests by using the `test-integration` script or run both unit and integration tests using the `test` script.
+### Unit Testing Strategy
 
-### Integration Testing with Screeps Server Mockup
+Unit tests are located in `test/unit/**/*.test.ts`. They use `mocha` and `chai` for assertions.
 
-Integration testing is for code that depends heavily on having a full game
-environment. Integration tests are completely representative of the real game
-(in fact they run with an actual Screeps server). This comes at the cost of
-performance and very involved setup when creating specific scenarios.
+### Integration Testing Strategy
 
-Server testing support is implemented via
-[screeps-server-mockup](https://github.com/screepers/screeps-server-mockup). View
-this repository for more information on the API.
-
-By default the test helper will create a "stub" world with a 3x3 grid of rooms
-with sources and controllers. Additionally it spawns a bot called "player"
-running the compiled main.js file from this repository.
-
-It falls on the user to properly set up preconditions using the
-screeps-server-mockup API. Importantly, most methods exposed with this API are
-asynchronous, so using them requires frequent use of the `await` keyword to get
-a result and ensure order of execution. If you find that some of your
-preconditions don't seem to take effect, or that you receive a Promise object
-rather than an expected value, you're likely missing `await` on an API method.
-
-Finally, please note that screeps-server-mockup, and this repo by extension,
-come with a specific screeps server version at any given time. It's possible
-that either your local package.json, or the screeps-server-mockup package itself
-are out of date and pulling in an older version of the [screeps
-server](https://github.com/screeps/screeps). If you notice that test environment
-behavior differs from the MMO server, ensure that all of these dependencies are
-correctly up to date.
+Integration tests are located in `test/integration/**/*.ts`. They utilize `screeps-server-mockup` to simulate a live game environment. Note that these tests are significantly slower than unit tests.

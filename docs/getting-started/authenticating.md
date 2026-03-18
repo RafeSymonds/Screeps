@@ -1,58 +1,52 @@
 # Authenticating with Screeps
 
-Screeps has recently introduced a [token-based auth system](http://blog.screeps.com/2017/12/auth-tokens/), and the old authentication system will be deprecated by 01 February 2018. The starter kit has been updated to support this new authentication process.
+Screeps uses a token-based authentication system. This repository is configured to pull your authentication token from `screeps.json`.
 
-## Migrating to the new auth system
+## Setting up Screeps Authentication
 
-If you have an existing copy of your starter kit, follow these steps:
-
-* Remove the `"username"` and `"password"` keys from your `screeps.json` file, and replace them with `"token"`.
-* Upgrade `rollup-plugin-screeps` to version 0.1.1.
-* Follow the authentication steps as defined below.
-
-## Setting up Screeps authentication
-
-The authentication token is pulled by the starter kit from a file named `screeps.json`. A sample config file \(`screeps.sample.json`\) is provided within the project, to use it, simply make a copy and rename it to `screeps.json`.
+A sample configuration file (`screeps.sample.json`) is provided. To use it, copy it and rename it to `screeps.json`.
 
 ```bash
 cp screeps.sample.json screeps.json
 ```
 
 {% hint style="danger" %}
-**IMPORTANT:** The `screeps.json` file contains your Screeps credentials! If you use any source control to store your codebase, **DO NOT** check in this file into your repository.
+**IMPORTANT:** The `screeps.json` file contains your Screeps credentials. It is already included in `.gitignore` to prevent it from being committed. **DO NOT** check this file into source control.
 {% endhint %}
 
-## Generating an auth token
+## Generating an Auth Token
 
-To generate an authentication token, click **\[your username\] &gt; Manage account**. You should see the **Auth tokens** in the options now, click it.
+1. Log in to the official Screeps website.
+2. Go to **Account Settings** (click your username > Manage account).
+3. Select **Auth Tokens**.
+4. Generate a **Full Access** token.
+5. Copy the generated token immediately (it is only shown once).
 
-![authenticating-1](../.gitbook/assets/authenticating-1.png)
+## Adding the Token to `screeps.json`
 
-On the next screen, we'll create a full access token. We pick the **Full access** option, then click the **Generate Token** button.
+Open `screeps.json` and paste your token into the `token` field for the relevant environment (e.g., `main`).
 
-![authenticating-2](../.gitbook/assets/authenticating-2.png)
+```json
+{
+  "main": {
+    "token": "YOUR_TOKEN_HERE",
+    "branch": "main",
+    "shard": "shard3"
+  }
+}
+```
 
-Your generated token should now be shown on your screen. Copy it to your clipboard.
+## Verifying Authentication
 
-![authenticating-3](../.gitbook/assets/authenticating-3.png)
-
-> **Note:** This token will be displayed **only once**! Make sure to never lose it. However, if you did lose it, simply remove said token from your account, and create a new one.
-
-Now, paste it to your `screeps.json` file.
-
-![authenticating-4](../.gitbook/assets/authenticating-4.png)
-
-## Sanity check
-
-Now we'll do a quick check if things are running properly. Let's perform a quick deploy.
+To verify that your token is working, perform a test build or deploy:
 
 ```bash
+npm run build
+# Or push to your main target
 npm run push-main
 ```
 
-Now go to your Screeps client and check if the `main` branch is created, or if said branch already exists, the code is overwriten to it.
+If the upload succeeds, your authentication is correctly configured.
 
-It works? Good, you've successfully authenticated!
-
-Next up, we'll configure our environment and [run our first code deploy](deploying.md).
+Next up, [learn more about deploying](deploying.md).
 

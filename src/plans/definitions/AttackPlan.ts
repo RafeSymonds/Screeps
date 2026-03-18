@@ -1,4 +1,4 @@
-import { upsertSpawnRequest, clearSpawnRequest } from "spawner/SpawnRequests";
+import { planSpawnRequest, clearSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
 import { createAttackTaskData } from "tasks/definitions/AttackTask";
 import { World } from "world/World";
 import { Plan } from "./Plan";
@@ -18,21 +18,23 @@ export class AttackPlan extends Plan {
 
             const target = this.findAttackTarget(room);
             if (!target) {
-                clearSpawnRequest(room, "attacker", `attack:${room.name}`);
+                clearSpawnRequest(room, "attacker", `plan:attack:${room.name}`);
                 room.memory.attackTarget = undefined;
                 continue;
             }
 
             room.memory.attackTarget = target.roomName;
 
-            upsertSpawnRequest(room, {
-                role: "attacker",
-                priority: 100,
-                desiredCreeps: target.squadSize,
-                expiresAt: Game.time + 30,
-                requestedBy: `attack:${room.name}`,
-                minEnergy: 800
-            });
+            planSpawnRequest(
+                room,
+                "attack",
+                room.name,
+                "attacker",
+                SpawnRequestPriority.NORMAL + 10,
+                target.squadSize,
+                30,
+                800
+            );
 
             world.taskManager.add(createAttackTaskData(target.roomName, room.name, target.squadSize));
         }

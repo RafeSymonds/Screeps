@@ -1,5 +1,5 @@
 import { assert } from "chai";
-import { InfrastructurePlan } from "../../src/plans/defintions/InfrastructurePlan";
+import { InfrastructurePlan } from "../../src/plans/definitions/InfrastructurePlan";
 import { createRoom, getConstructionSites, resetScreeps } from "../helpers/screeps-fixture";
 
 describe("infrastructure planning", () => {

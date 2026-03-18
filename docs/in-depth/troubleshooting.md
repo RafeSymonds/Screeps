@@ -1,23 +1,25 @@
 # Troubleshooting
 
-This page outlines any common issues that you'll run into while setting up the TypeScript starter, as well as how to fix them.
+This page outlines common issues you might encounter while setting up or developing this custom Screeps AI.
 
-## Unable to upload code to Screeps private server
+## Unable to Upload Code to a Private Server
 
-If you're getting the following error:
+If you receive errors about `/api/auth/signin` or `UnhandledPromiseRejectionWarning`:
 
-```text
-(node:80116) UnhandledPromiseRejectionWarning: Unhandled promise rejection (rejection id: 1): Error: Cannot POST /api/auth/signin
-```
+1. Ensure the private server has [screepsmod-auth](https://github.com/ScreepsMods/screepsmod-auth) installed.
+2. Verify you have set a password for the account on the private server.
+3. Check `screeps.json` to ensure the `hostname`, `port`, `email`, and `password` match your private server configuration.
+4. Try using `npm run privateServer` if you are deploying to a local server.
 
-Make sure you have [screepsmod-auth](https://github.com/ScreepsMods/screepsmod-auth) installed on your private server, and you've set a password on the account in your private server as well.
+## Unable to Extend Type Interfaces (e.g., `Memory`, `CreepMemory`)
 
-## Unable to extend type interfaces \(e.g. `Game`, `Memory`\)
+The ambient declarations for global Screeps interfaces are primarily located in [src/main.ts](../../src/main.ts).
 
-Make sure you declare any extensions to the type interfaces as an [_ambient declaration_](https://stackoverflow.com/a/40916055). You can either:
+If you are adding new fields to `Memory`, `CreepMemory`, or `RoomMemory`, you must update the interfaces in `src/main.ts`. Note that any changes to these global contracts should be reviewed by the **technical-architect**.
 
-* put them inside a `*.d.ts` file, or
-* in an existing `.ts` file \(with at least one `import` or `export`\), you can use `declare global { interface CreepMemory { ... } }` to accomplish the same effect.
+For more on memory management, see the [Repo Map](../agents/REPO_MAP.md).
 
-**For more info:** [https://github.com/screepers/typed-screeps/issues/27](https://github.com/screepers/typed-screeps/issues/27)
+## Unit Tests or Linting Failures
+
+The project currently has some legacy lint and test debt. Check [AGENTS.md](../../AGENTS.md) for the current baseline. If your changes introduce *new* failures, ensure they are resolved, but be aware that some pre-existing failures may be present in the codebase.
 

@@ -1,8 +1,8 @@
 # Agents Workspace
 
-This directory holds the durable multi-agent workflow for this Screeps repository.
+This directory holds the durable multi-agent workflow for this Screeps repository. For the full architectural and process guide, see [docs/agent-workflow.md](/Users/rafe/games/screeps/docs/agent-workflow.md).
 
-## Folder meanings
+## Folder Structure
 
 - `orchestrator.md`: shared entrypoint instructions for any role session.
 - `task-board.md`: cross-role shared queue for work that is ready now or blocked.
@@ -13,46 +13,22 @@ This directory holds the durable multi-agent workflow for this Screeps repositor
 - `*/done.md`: archived completed inbox items.
 - `*/artifacts/`: role-local outputs that do not belong in shared docs or source files.
 
-## Queue resolution order
+## Work Assignment and Priority
 
-The agent manager resolves work in this order:
+The agent manager resolves work automatically according to the priority defined in [docs/agent-workflow.md](/Users/rafe/games/screeps/docs/agent-workflow.md#queue-resolution-order). The default order is:
+1. `agents/<role>/inbox.md`
+2. `agents/task-board.md` (`## Ready now`)
+3. `agents/<role>/backlog.md`
 
-1. first live item in `agents/<role>/inbox.md`
-2. matching `## Ready now` item in `agents/task-board.md`
-3. first live item in `agents/<role>/backlog.md`
+## Parallelism and Safety
 
-That keeps direct handoffs ahead of background work.
+- Different roles may run concurrently; use `--no-auto-commit` in this case.
+- Avoid overlapping ownership in hot paths: `src/plans`, `src/tasks`, `src/spawner`, and `src/main.ts`.
+- See the full list of [Screeps-specific guardrails](/Users/rafe/games/screeps/docs/agent-workflow.md#screeps-specific-guardrails) for safety rules.
 
-## Session behavior
+## Example Commands
 
-- Session state is stored in `.agent-manager/state.json`.
-- Per-run logs are stored under `.agent-manager/runs/<session>/<role>/`.
-- Only one active task is allowed for a role in a given session.
-- Inbox items are archived into `done.md` after a successful role run that originated from inbox work.
-- Headless runs can force extra startup context with repeated `--file <repo-relative-path>` arguments.
-
-## Provider backends
-
-- `codex`: preferred when available locally.
-- `claude`: fallback if installed and configured.
-- `auto`: choose `codex` first, then `claude`.
-
-## Parallelism rules
-
-- Different roles may run at the same time.
-- The same role must never run twice at once.
-- Use `--no-auto-commit` when processing multiple roles in parallel.
-- For this repo, parallel runs should avoid overlapping ownership in hot paths like `src/plans`, `src/tasks`, `src/spawner`, and `src/main.ts`.
-
-## Inbox and done model
-
-- Request work from another role by appending a concrete bullet to that role's `inbox.md`.
-- Include the needed output, constraint, and blocking reason when relevant.
-- The receiving role should not edit the sender's local memory files.
-
-## Example commands
-
-`package.json` only wraps the three most common headless commands:
+`package.json` wraps the most common headless commands:
 
 ```bash
 npm run agent:roles
@@ -60,18 +36,11 @@ npm run agent:queue
 npm run agent:process
 ```
 
-Use the direct manager entrypoint for `launch`, `assign`, `pick`, `session`, and `inbox`.
+Use the direct Python entrypoint for more granular control:
 
 ```bash
-python3 scripts/agent_manager.py roles
-python3 scripts/agent_manager.py queue
 python3 scripts/agent_manager.py queue --session remote-mining-20260317-abc123
-python3 scripts/agent_manager.py session new --name remote-mining
-python3 scripts/agent_manager.py assign economy-engineer --auto
-python3 scripts/agent_manager.py launch economy-engineer --dry-run
 python3 scripts/agent_manager.py launch economy-engineer --auto --dry-run
 python3 scripts/agent_manager.py launch documentation-owner --file docs/agent-workflow.md --dry-run
-python3 scripts/agent_manager.py process --max-parallel 2 --no-auto-commit --dry-run
-python3 scripts/agent_manager.py process --roles economy-engineer qa-reviewer --max-parallel 2 --no-auto-commit --dry-run
 python3 scripts/agent_manager.py inbox draft economy-engineer qa-reviewer "Review the hauling regression risk for remote mining saturation changes."
 ```

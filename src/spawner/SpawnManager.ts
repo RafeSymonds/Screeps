@@ -4,7 +4,7 @@ import { getDefaultCreepMemory } from "creeps/CreepMemory";
 import { countBodyParts, countCombatParts, hasBodyPart, hasCombatPart } from "creeps/CreepUtils";
 import { TaskRequirements, requirementCreeps, requirementParts } from "tasks/core/TaskRequirements";
 import { CreepState } from "creeps/CreepState";
-import { clearSpawnRequest, getActiveSpawnRequests, upsertSpawnRequest } from "./SpawnRequests";
+import { clearSpawnRequest, getActiveSpawnRequests, SpawnRequestPriority, upsertSpawnRequest } from "./SpawnRequests";
 import { TaskKind } from "tasks/core/TaskKind";
 
 /* ============================================================
@@ -703,11 +703,11 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
 
     const minerPriority =
         supply.mine === 0 && supply.incomingMiners === 0 && demand.mine > 0
-            ? 220
+            ? SpawnRequestPriority.EMERGENCY
             : minerImmediate >= 1 && supply.idleMiners === 0
-              ? 180
+              ? SpawnRequestPriority.CRITICAL
               : shouldSpawnForPressure(stats.mine)
-                ? 80 + stats.mine.pressure * 100
+                ? SpawnRequestPriority.LOW + 30 + stats.mine.pressure * 100
                 : 0;
 
     if (minerPriority > 0) {
@@ -725,11 +725,11 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
 
     const haulerPriority =
         supply.haulerCreeps === 0 && supply.incomingHaulers === 0 && targetCarry > 0
-            ? 210
+            ? SpawnRequestPriority.EMERGENCY - 10
             : carryImmediate >= 1 && supply.idleHaulers === 0
-              ? 170
+              ? SpawnRequestPriority.CRITICAL - 10
               : shouldSpawnForPressure(stats.carry)
-                ? 75 + stats.carry.pressure * 100
+                ? SpawnRequestPriority.LOW + 25 + stats.carry.pressure * 100
                 : 0;
 
     if (haulerPriority > 0) {
@@ -747,9 +747,9 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
 
     const scoutPriority =
         demand.scout > 0 && supply.scout === 0
-            ? 120
+            ? SpawnRequestPriority.NORMAL + 30
             : scoutImmediate > 0 && shouldSpawnForPressure(stats.scout)
-              ? 70 + stats.scout.pressure * 100
+              ? SpawnRequestPriority.LOW + 20 + stats.scout.pressure * 100
               : 0;
 
     if (scoutPriority > 0) {
@@ -772,9 +772,9 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
     const workerPriority = !hasBasicEconomy
         ? 0
         : workImmediate > 0 && supply.idleWorkers === 0
-          ? 90 + workImmediate * 100
+          ? SpawnRequestPriority.NORMAL + workImmediate * 100
           : (workImmediate > 0 || stats.work.pressure > 0) && shouldSpawnForPressure(stats.work)
-            ? 65 + stats.work.pressure * 100
+            ? SpawnRequestPriority.LOW + 15 + stats.work.pressure * 100
             : 0;
 
     if (workerPriority > 0) {

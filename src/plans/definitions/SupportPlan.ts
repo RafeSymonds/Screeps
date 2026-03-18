@@ -3,7 +3,7 @@ import { updateRoomSupportState, roomCanHelp } from "rooms/RoomSupport";
 import { World } from "world/World";
 import { ownedRooms } from "rooms/RoomUtils";
 import { createBootstrapTaskData } from "tasks/definitions/BootstrapTask";
-import { upsertSpawnRequest } from "spawner/SpawnRequests";
+import { planSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
 import { estimateSafeRouteLength } from "rooms/InterRoomRouter";
 
 export class SupportPlan extends Plan {
@@ -33,14 +33,16 @@ export class SupportPlan extends Plan {
             // Spawn workers in the helper room for this purpose
             const desiredWorkers = onboarding.stage === "settling" ? 3 : 2;
 
-            upsertSpawnRequest(helper, {
-                role: "worker",
-                priority: 160, // Higher than normal workers
-                desiredCreeps: desiredWorkers,
-                expiresAt: Game.time + 30,
-                requestedBy: `bootstrap:${room.name}`,
-                minEnergy: 400
-            });
+            planSpawnRequest(
+                helper,
+                "support",
+                room.name,
+                "worker",
+                SpawnRequestPriority.HIGH + 20, // High priority for cross-room help
+                desiredWorkers,
+                30,
+                400
+            );
         }
     }
 

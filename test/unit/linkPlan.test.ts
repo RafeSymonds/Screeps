@@ -54,7 +54,7 @@ describe("LinkPlan", () => {
             myStructures: [spawn, sinkLink, sourceLink]
         });
 
-        const { LinkPlan } = require("../../src/plans/defintions/LinkPlan");
+        const { LinkPlan } = require("../../src/plans/definitions/LinkPlan");
         const plan = new LinkPlan();
         plan.run({ rooms: new Map([["W0N0", { room: (global as any).Game.rooms["W0N0"] }]]) });
 
@@ -109,7 +109,7 @@ describe("LinkPlan", () => {
             ]
         });
 
-        const { LinkPlan } = require("../../src/plans/defintions/LinkPlan");
+        const { LinkPlan } = require("../../src/plans/definitions/LinkPlan");
         const plan = new LinkPlan();
         plan.run({ rooms: new Map([["W0N0", { room: (global as any).Game.rooms["W0N0"] }]]) });
 
@@ -137,7 +137,7 @@ describe("LinkPlan", () => {
             myStructures: [link]
         });
 
-        const { LinkPlan } = require("../../src/plans/defintions/LinkPlan");
+        const { LinkPlan } = require("../../src/plans/definitions/LinkPlan");
         const plan = new LinkPlan();
         plan.run({ rooms: new Map([["W0N0", { room: (global as any).Game.rooms["W0N0"] }]]) });
 

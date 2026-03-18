@@ -5,9 +5,12 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
 ## Start Here
 
 1. Read [README.md](/Users/rafe/games/screeps/README.md).
-2. Read [docs/agents/REPO_MAP.md](/Users/rafe/games/screeps/docs/agents/REPO_MAP.md).
-3. Read [docs/agents/SCREEPS_PRIMER.md](/Users/rafe/games/screeps/docs/agents/SCREEPS_PRIMER.md).
-4. Inspect the code you are about to change, starting from [src/main.ts](/Users/rafe/games/screeps/src/main.ts).
+2. Read [docs/agent-workflow.md](/Users/rafe/games/screeps/docs/agent-workflow.md).
+3. Review the [Shared Review Checklist](/Users/rafe/games/screeps/docs/qa/REVIEW_CHECKLIST.md) (or the lightweight [Regression Checklist](/Users/rafe/games/screeps/docs/qa/REGRESSION_CHECKLIST.md) for economy/memory changes) for risky changes.
+4. Read [docs/agents/REPO_MAP.md](/Users/rafe/games/screeps/docs/agents/REPO_MAP.md).
+5. Read [docs/architecture/ECONOMY_DECOMPOSITION.md](/Users/rafe/games/screeps/docs/architecture/ECONOMY_DECOMPOSITION.md) for economy-facing task boundaries.
+6. Read [docs/agents/SCREEPS_PRIMER.md](/Users/rafe/games/screeps/docs/agents/SCREEPS_PRIMER.md).
+7. Inspect the code you are about to change, starting from [src/main.ts](/Users/rafe/games/screeps/src/main.ts).
 
 ## Repository Intent
 
@@ -16,15 +19,15 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
   `loop -> task rehydration -> World -> CPU-aware plans -> task pruning -> spawning -> task assignment -> tower actions -> creep actions -> persist memory`
 - This repo extends the upstream `screeps-typescript-starter` with higher-level planning, CPU throttling, task assignment, scouting, room intel, combat automation, and private-server deployment.
 
-## Agent Workflow
+## Architectural Guardrails
 
-- Before changing behavior, trace how the relevant data flows through `Memory`, task creation, and creep action execution.
-- Prefer small changes that fit the current architecture instead of introducing a parallel control system.
-- Preserve path aliases and existing folder boundaries. Imports use `baseUrl: "src/"`.
-- Validate with:
-  `npm run build`
-  `npm run test`
-  `npm run lint`
+- **Architectural Guardrails**: This repo uses Architectural Ownership and Escalation rules. Changes to `Memory` schemas MUST follow the [Memory Migration Rules](/docs/qa/MEMORY_MIGRATIONS.md).
+- **Ownership**: Each role (technical-architect, economy-engineer, operations-engineer, combat-specialist, base-specialist, systems-engineer) owns specific file paths and `Memory` keys. Check `docs/agent-workflow.md` for the current ownership map.
+- **Escalation**: Any change to `Memory` schemas in `src/main.ts` or plan scheduling in `src/plans/core/` **MUST** be reviewed by the `technical-architect`.
+- **Throttling Awareness**: Code must tolerate "missing" or "stale" state in `RoomMemory` since plans are CPU-throttled and may be skipped.
+- **Task-Driven Demand**: `SpawnManager` derives demand from the current task list. If your plan adds tasks, you are responsible for the spawn pressure impact.
+
+## Workflow Summary
 - Current baseline:
   `npm run build` passes.
   `npm run test` currently fails under the repo's legacy TypeScript/Mocha harness assumptions.

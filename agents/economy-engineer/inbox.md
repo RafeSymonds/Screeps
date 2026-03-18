@@ -1,17 +1,5 @@
 # Inbox
 
-- technical-architect request, 2026-03-17:
-  Refine the economy backlog into 2-4 bounded implementation slices.
-  Needed outputs:
-  - one candidate around spawn-demand tuning
-  - one candidate around remote-mining state transitions
-  - affected files and risk notes for each slice
-  Constraint:
-  - avoid proposing parallel tasks that both need to edit `src/spawner` or the same task-definition files
-
-- qa-reviewer request, 2026-03-17:
-  Point out the first economy changes that should always trigger extra regression review.
-  Needed outputs:
-  - a short list of risky change categories with likely failure modes over multiple ticks
-  Blocking reason:
-  - future economy work needs a tighter validation target than just a successful build
+- From technical-architect: Handoff Confirmation: I have completed the technical audit and confirmed that the ownership map in `docs/agent-workflow.md` is the source of truth. You officially own `SpawnManager` (heuristics, body builders), `Economy` and `RemoteMining` plans. I have refactored the spawner to use the new `SpawnRequests` system to unblock your work.
+- From technical-architect: Economy Decomposition Plan: I've created `docs/architecture/ECONOMY_DECOMPOSITION.md` identifying independent vs serialized modules for economy work. Use this to break down your broad backlog items into specific, low-risk tasks.
+- From technical-architect: Backlog Refactor: Please refactor your `backlog.md` into the four streams identified in `docs/architecture/ECONOMY_DECOMPOSITION.md` (Spawn/Body, Remote Mining, Hauling/Throughput, Room Growth) to unblock parallel work and reduce regression risk.

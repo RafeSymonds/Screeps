@@ -1,7 +1,7 @@
 import { Plan } from "./Plan";
 import { World } from "world/World";
 import { createReserveTaskData } from "tasks/definitions/ReserveTask";
-import { upsertSpawnRequest } from "spawner/SpawnRequests";
+import { planSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
 import { getMyUsername } from "utils/GameUtils";
 
 const RESERVATION_THRESHOLD = 2500;
@@ -27,14 +27,16 @@ export class ReservationPlan extends Plan {
 
             world.taskManager.add(createReserveTaskData(remoteRoomName, strategy.ownerRoom));
 
-            upsertSpawnRequest(ownerRoom, {
-                role: "reserver",
-                priority: 110,
-                desiredCreeps: 1,
-                expiresAt: Game.time + 30,
-                requestedBy: `reserve:${remoteRoomName}`,
-                minEnergy: 650
-            });
+            planSpawnRequest(
+                ownerRoom,
+                "reserve",
+                remoteRoomName,
+                "reserver",
+                SpawnRequestPriority.NORMAL + 20,
+                1,
+                30,
+                650
+            );
         }
     }
 

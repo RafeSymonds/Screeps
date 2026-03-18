@@ -1,10 +1,11 @@
 # Table of contents
 
-- [Introduction](README.md)
+- [Introduction](getting-started/intro.md)
 
 ## Getting Started
 
 - [Installation](getting-started/installation.md)
+- [Project Overview](getting-started/overview.md)
 - [Authenticating with Screeps](getting-started/authenticating.md)
 - [Deploying](getting-started/deploying.md)
 
@@ -15,9 +16,17 @@
 - [TypeScript](in-depth/typescript.md)
 - [Prettier](in-depth/prettier.md)
 - [Testing](in-depth/testing.md)
-- [Cookbook](in-depth/cookbook/README.md)
-  - [Environment variables](in-depth/cookbook/environment-variables.md)
-  - [One-line PowerShell setup](in-depth/cookbook/one-line-powershell.md)
-- [Remote Development](in-depth/remote-development.md)
 - [Troubleshooting](in-depth/troubleshooting.md)
 - [Contributing to the docs](in-depth/contributing.md)
+- [Remote Development](in-depth/remote-development.md)
+
+## Agent Guidance
+
+- [Workflow Overview](agent-workflow.md)
+- [Review Checklist](qa/REVIEW_CHECKLIST.md)
+- [Repository Map](agents/REPO_MAP.md)
+- [Screeps Primer](agents/SCREEPS_PRIMER.md)
+
+## Screeps API Reference
+
+- [API Reference Index](screeps-api/index.md)

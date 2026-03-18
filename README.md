@@ -69,10 +69,10 @@ npm run agent:process
 
 ## Agent Guidance
 
-Agent-oriented repository guidance lives in:
+This project uses a durable multi-agent workflow for development and maintenance. For onboarding and architectural guidance, see:
 
-- [AGENTS.md](/Users/rafe/games/screeps/AGENTS.md)
-- [docs/agents/REPO_MAP.md](/Users/rafe/games/screeps/docs/agents/REPO_MAP.md)
-- [docs/agents/SCREEPS_PRIMER.md](/Users/rafe/games/screeps/docs/agents/SCREEPS_PRIMER.md)
-- [docs/agent-workflow.md](/Users/rafe/games/screeps/docs/agent-workflow.md)
-- [agents/README.md](/Users/rafe/games/screeps/agents/README.md)
+- [AGENTS.md](/Users/rafe/games/screeps/AGENTS.md): The "Start Here" guide for all agents and contributors.
+- [docs/agent-workflow.md](/Users/rafe/games/screeps/docs/agent-workflow.md): Comprehensive guide to roles, session state, and queue resolution.
+- [docs/agents/REPO_MAP.md](/Users/rafe/games/screeps/docs/agents/REPO_MAP.md): Technical overview of the tick pipeline and codebase subsystems.
+- [docs/agents/SCREEPS_PRIMER.md](/Users/rafe/games/screeps/docs/agents/SCREEPS_PRIMER.md): Summary of Screeps game rules and their impact on this AI.
+- [agents/README.md](/Users/rafe/games/screeps/agents/README.md): Quick reference for the `agents/` workspace.

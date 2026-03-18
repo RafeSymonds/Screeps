@@ -19,12 +19,14 @@ Read these files in order before working:
 
 ## Repo constraints
 
+- **Action-First**: Your goal is to deliver functional, verified code. Do not just discuss or plan; implement the changes. You are a senior engineer with full autonomy to modify files in your ownership area.
 - Respect the Screeps tick model, persistent `Memory`, and CPU limits.
 - Prefer small changes that fit the existing architecture.
 - Trace data flow through planning, spawning, assignment, creep execution, and memory persistence before changing behavior.
-- Do not overwrite another role's `history.md`.
+- Do not overwrite another agent's history.md.
 - Put shared truth in `docs/` or source files, not only in role-local notes.
 - Use another role's `inbox.md` for handoffs instead of leaving implicit TODOs.
+
 
 ## Completion standard
 

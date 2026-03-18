@@ -1,3 +1,37 @@
 # History
 
 - 2026-03-17: Role initialized for the Screeps multi-agent workflow. No completed architecture investigations recorded yet.
+- 2026-03-18: Conducted technical audit of planning and task pipeline.
+    - Identified implicit cross-tick contracts in `RoomMemory` and `SpawnManager` demand.
+    - Formalized file-level and memory-key ownership for all gameplay-facing roles.
+    - Established escalation rules for `Memory` schema changes and plan scheduling in `docs/agent-workflow.md`.
+    - Updated `AGENTS.md` with architectural guardrails for multi-agent safety.
+    - Sent inbox handoffs to `economy-engineer` and `operations-engineer` regarding their formal ownership.
+- 2026-03-18: Mapped high-risk cross-tick state boundaries.
+    - Created `docs/qa/CROSS_TICK_BOUNDARIES.md` covering Task Lifecycle, Spawn Demand, Room Intelligence, Resource Allocation, and Scheduling.
+    - Updated `docs/agent-workflow.md` with explicit ownership guidance for `src/main.ts`, `src/plans`, `src/tasks`, and `src/spawner`.
+    - Provided concrete handoff points and risk assessments for other roles.
+- 2026-03-18: Responded to user request to setup new agents and update system prompts.
+    - Created three new agent roles: `combat-specialist`, `base-specialist`, and `systems-engineer`.
+    - Refined `operations-engineer` to focus on Strategy, Intelligence, and Expansion.
+    - Updated `docs/agent-workflow.md`, `AGENTS.md`, and `agents/orchestrator.md` with new ownership map and an "Action-First" mandate.
+    - Modified `scripts/agent_manager.py` to strengthen the system prompt for all agents, prioritizing code implementation over discussion.
+    - Sent inbox handoffs to the new and updated agents to initiate their tasks.
+- 2026-03-18: Defined shared spawn-request contract and standardized priorities.
+    - Created `docs/architecture/SPAWN_REQUEST_CONTRACT.md` detailing precedence, naming, and priority tiers.
+    - Updated `src/spawner/SpawnRequests.ts` with `SpawnRequestPriority` constants and `planSpawnRequest` helper.
+    - Refactored `SpawnManager.ts` to use standardized priority levels for baseline economy requests.
+    - Updated `SupportPlan`, `ReservationPlan`, `ExpansionPlan`, `DefensePlan`, and `AttackPlan` to adhere to the new contract.
+    - Verified build integrity after the refactor.
+- 2026-03-18: Finalized ownership verification and cross-tick audit.
+    - Reviewed `docs/agent-workflow.md` to confirm the full ownership map and escalation rules.
+    - Verified that all `Memory` schema extensions are centralized in `src/main.ts`.
+    - Confirmed `SpawnManager.ts` follows the new `SpawnRequests` contract and is ready for `economy-engineer` to take over heuristics.
+    - Documented critical state boundaries in `docs/qa/CROSS_TICK_BOUNDARIES.md`.
+    - Responded to `economy-engineer` and `operations-engineer` inbox items to clarify that their role scope is officially active and the ownership map in `docs/agent-workflow.md` is the source of truth.
+    - Cleaned up `operations-engineer` history/backlog; moved script and infrastructure items to the new `systems-engineer` role.
+- 2026-03-18: Completed technical audit of cross-tick state boundaries and fixed system-wide typo.
+    - Expanded `docs/qa/CROSS_TICK_BOUNDARIES.md` with four new sections: Resource Reservations, Spawn Stats & Pressure, Onboarding & Support signaling, and Long-Interval Persistence.
+    - Refined `docs/agent-workflow.md` escalation guidance with inter-room allocation and shared state references.
+    - Corrected the pervasive `defintions` typo by renaming `src/plans/defintions` to `src/plans/definitions` and updating all 27 references across the project.
+    - Verified architectural integrity with `npm run build`.
