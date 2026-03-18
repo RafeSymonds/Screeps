@@ -27,6 +27,11 @@ export class ScoutingPlan extends Plan {
             if (growth?.nextClaimTarget) {
                 scoutFrontier(growth.nextClaimTarget, 1, taskManager);
             }
+
+            // Prioritize scouting specifically identified expansion candidates
+            if (growth?.nextScoutTarget) {
+                scoutFrontier(growth.nextScoutTarget, 0, taskManager); // radius 0 means just the room itself
+            }
         }
     }
 }

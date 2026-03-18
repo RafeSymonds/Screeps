@@ -4,8 +4,6 @@ import { ownedRooms } from "rooms/RoomUtils";
 import { createClaimTaskData } from "tasks/definitions/ClaimTask";
 import { SpawnRequestPriority, planSpawnRequest } from "spawner/SpawnRequests";
 
-const MIN_STORAGE_ENERGY = 50000;
-const MIN_EXPANSION_SCORE = 120;
 const MIN_BUCKET = 5000;
 
 export class ExpansionPlan extends Plan {
@@ -27,21 +25,11 @@ export class ExpansionPlan extends Plan {
         for (const room of owned) {
             const growth = room.memory.growth;
 
-            if (!growth || !growth.expansionReady) {
-                continue;
-            }
-
-            // Double check thresholds
-            const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
-            if (storageEnergy < MIN_STORAGE_ENERGY || growth.expansionScore < MIN_EXPANSION_SCORE) {
+            if (!growth || !growth.expansionReady || !growth.nextClaimTarget) {
                 continue;
             }
 
             const target = growth.nextClaimTarget;
-
-            if (!target) {
-                continue;
-            }
 
             // Don't claim rooms we already own
             if (Game.rooms[target]?.controller?.my) {

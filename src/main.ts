@@ -159,6 +159,7 @@ declare global {
         desiredRemoteCount: number;
         expansionScore: number;
         nextClaimTarget?: string;
+        nextScoutTarget?: string;
         expansionReady: boolean;
         lastEvaluated: number;
     }

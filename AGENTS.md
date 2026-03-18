@@ -22,7 +22,7 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
 ## Architectural Guardrails
 
 - **Architectural Guardrails**: This repo uses Architectural Ownership and Escalation rules. Changes to `Memory` schemas MUST follow the [Memory Migration Rules](/docs/qa/MEMORY_MIGRATIONS.md).
-- **Ownership**: Each role (technical-architect, economy-engineer, operations-engineer, combat-specialist, base-specialist, systems-engineer) owns specific file paths and `Memory` keys. Check `docs/agent-workflow.md` for the current ownership map.
+- **Ownership**: Each role (technical-architect, economy-engineer, operations-engineer, combat-specialist, base-specialist, systems-engineer, documentation-owner, qa-reviewer) owns specific file paths and `Memory` keys. Check `docs/agent-workflow.md` for the current ownership map.
 - **Escalation**: Any change to `Memory` schemas in `src/main.ts` or plan scheduling in `src/plans/core/` **MUST** be reviewed by the `technical-architect`.
 - **Throttling Awareness**: Code must tolerate "missing" or "stale" state in `RoomMemory` since plans are CPU-throttled and may be skipped.
 - **Task-Driven Demand**: `SpawnManager` derives demand from the current task list. If your plan adds tasks, you are responsible for the spawn pressure impact.

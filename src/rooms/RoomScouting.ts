@@ -18,7 +18,10 @@ function needsScouting(roomName: string): boolean {
 }
 
 export function scoutFrontier(home: string, radius: number, taskManager: TaskManager) {
-    for (const room of roomsWithin(home, radius)) {
+    const targets = roomsWithin(home, radius);
+    targets.add(home);
+
+    for (const room of targets) {
         if (needsScouting(room)) {
             const intel = Memory.rooms[room]?.intel;
             let priority = 1;

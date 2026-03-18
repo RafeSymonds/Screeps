@@ -145,3 +145,36 @@ This document maps the highest-risk state boundaries in the Screeps AI runtime. 
 *   **Ownership**:
     *   **Tactical Repairs**: `combat-specialist` (`src/combat/TowerDefense.ts`)
     *   **Infrastructure Maintenance**: `base-specialist` (future `RepairTask` logic)
+
+## 11. Plan Execution Order (Sequential Dependencies)
+
+**Boundary**: `src/plans/core/PlanManager.ts`
+
+The order of execution in `runPlans(world)` is a strict contract. Plans that run later in the tick can see state changes from plans that ran earlier.
+
+*   **Current Order**:
+    1.  `DefensePlan`: Immediate response to hostiles.
+    2.  `EconomyPlan`: Basic labor tasks (mining, hauling).
+    3.  `LinkPlan`: Energy movement between links.
+    4.  `GrowthPlan`: Expansion target selection.
+    5.  `SupportPlan`: Resource allocation to neighboring rooms.
+    6.  `MaintenancePlan`: (Currently minimal)
+    7.  `InfrastructurePlan`: Road and structure layout.
+    8.  `BasePlan`: Long-range structural planning.
+    9.  `RemoteMiningPlan`: Scouting and remote assignment.
+    10. `ScoutingPlan`: Map-wide data gathering.
+    11. `ExpansionPlan`: Claiming and settling new rooms.
+    12. `TerminalPlan`: Market operations.
+    13. `ReservationPlan`: Remote controller reservations.
+    14. `AttackPlan`: Military offensive.
+
+*   **Contractual Implications**:
+    *   **State Generation**: `GrowthPlan` MUST run before `ExpansionPlan` because it identifies the targets `ExpansionPlan` consumes.
+    *   **Priority Overload**: If `EconomyPlan` and `RemoteMiningPlan` both try to create tasks for the same room, `EconomyPlan` wins by virtue of running first and potentially filling the task quota.
+    *   **Resource Availability**: Plans that run after `EconomyPlan` can rely on an updated `RoomEnergyState` if they need to check for surplus before spawning expensive units.
+
+*   **Risks**:
+    *   **Ordering Regressions**: Re-ordering these without auditing downstream dependencies can cause subtle failures (e.g., expansion targets not being updated before the claimer is sent).
+
+*   **Ownership**:
+    *   **Ordering & Pipeline**: `technical-architect`

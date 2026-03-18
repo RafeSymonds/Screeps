@@ -33,5 +33,11 @@
 - 2026-03-18: Completed technical audit of cross-tick state boundaries and fixed system-wide typo.
     - Expanded `docs/qa/CROSS_TICK_BOUNDARIES.md` with four new sections: Resource Reservations, Spawn Stats & Pressure, Onboarding & Support signaling, and Long-Interval Persistence.
     - Refined `docs/agent-workflow.md` escalation guidance with inter-room allocation and shared state references.
-    - Corrected the pervasive `defintions` typo by renaming `src/plans/defintions` to `src/plans/definitions` and updating all 27 references across the project.
+    - Corrected the pervasive `defintions` typo by renaming `src/plans/definitions` to `src/plans/definitions` and updating all 27 references across the project.
     - Verified architectural integrity with `npm run build`.
+- 2026-03-18: Audited the intelligence-to-strategy pipeline for scouting and expansion.
+    - Centralized expansion scoring and scouting target logic in `src/rooms/RoomGrowth.ts`.
+    - Improved `ScoutingPlan.ts` to prioritize specifically identified expansion candidates.
+    - Simplified `ExpansionPlan.ts` by removing redundant thresholds and relying on centralized `RoomGrowthState`.
+    - Updated `src/main.ts` interface and `scoutFrontier` helper to support the improved scouting pipeline.
+    - Verified that plans correctly rehydrate from `RoomMemory.intel` via the centralized growth processor.

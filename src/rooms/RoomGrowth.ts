@@ -8,7 +8,7 @@ const MIN_SOURCES_FOR_EXPANSION = 2;
 const MIN_BUCKET_FOR_EXPANSION = 5000;
 const CPU_HEADROOM_PER_ROOM = 10;
 
-function roomExpansionCandidateScore(ownerRoom: Room, targetRoomName: string, ownedNames: Set<string>): number {
+function roomExpansionCandidateScore(ownerRoom: Room, targetRoomName: string, ownedNames: Set<string>, ignoreStaleIntel = false): number {
     const targetMemory = Memory.rooms[targetRoomName];
 
     if (!targetMemory?.remoteMining) return -Infinity;
@@ -21,8 +21,10 @@ function roomExpansionCandidateScore(ownerRoom: Room, targetRoomName: string, ow
     if (targetMemory.intel?.keeperLairs && targetMemory.intel.keeperLairs > 0) return -Infinity;
     if (targetMemory.intel?.hasEnemyBase) return -Infinity;
 
-    // Need fresh intel
-    if (!targetMemory.intel || Game.time - targetMemory.intel.lastScouted > 5000) return -Infinity;
+    // Need fresh intel unless we are just scoring for scouting
+    if (!ignoreStaleIntel) {
+        if (!targetMemory.intel || Game.time - targetMemory.intel.lastScouted > 5000) return -Infinity;
+    }
 
     const sourceCount = targetMemory.remoteMining.sources.length;
 
@@ -51,7 +53,9 @@ function roomExpansionCandidateScore(ownerRoom: Room, targetRoomName: string, ow
         if (roomName === targetRoomName) continue;
         if (ownedNames.has(roomName)) continue;
         if (!roomMemory.remoteMining || roomMemory.remoteMining.sources.length === 0) continue;
-        if (roomMemory.intel?.owner || roomMemory.intel?.hasEnemyBase || roomMemory.intel?.keeperLairs) continue;
+        if (roomMemory.intel?.owner || roomMemory.intel?.hasEnemyBase || roomMemory.intel?.keeperLairs) {
+            continue;
+        }
 
         const remoteDist = estimateSafeRouteLength(targetRoomName, roomName);
         if (remoteDist !== null && remoteDist <= 2) {
@@ -65,23 +69,38 @@ function roomExpansionCandidateScore(ownerRoom: Room, targetRoomName: string, ow
     return score;
 }
 
-function nextClaimTarget(room: Room, ownedNames: Set<string>): string | undefined {
-    let bestRoom: string | undefined;
-    let bestScore = 0; // must be positive to qualify
+function findBestTargets(room: Room, ownedNames: Set<string>): { claim?: string; scout?: string } {
+    let bestClaimRoom: string | undefined;
+    let bestClaimScore = 0;
+
+    let bestScoutRoom: string | undefined;
+    let bestScoutScore = 0;
 
     for (const roomName in Memory.rooms) {
         if (roomName === room.name) continue;
         if (ownedNames.has(roomName)) continue;
 
-        const score = roomExpansionCandidateScore(room, roomName, ownedNames);
+        // Score for actual claiming (requires fresh intel)
+        const claimScore = roomExpansionCandidateScore(room, roomName, ownedNames, false);
+        if (claimScore > bestClaimScore) {
+            bestClaimScore = claimScore;
+            bestClaimRoom = roomName;
+        }
 
-        if (score > bestScore) {
-            bestScore = score;
-            bestRoom = roomName;
+        // Score for scouting (ignores stale intel)
+        const scoutScore = roomExpansionCandidateScore(room, roomName, ownedNames, true);
+        if (scoutScore > bestScoutScore) {
+            const targetMemory = Memory.rooms[roomName];
+            const isStale = !targetMemory.intel || Game.time - targetMemory.intel.lastScouted > 2500;
+            
+            if (isStale && scoutScore > bestScoutScore) {
+                bestScoutScore = scoutScore;
+                bestScoutRoom = roomName;
+            }
         }
     }
 
-    return bestRoom;
+    return { claim: bestClaimRoom, scout: bestScoutRoom };
 }
 
 function hasCpuForExpansion(): boolean {
@@ -151,7 +170,7 @@ export function updateRoomGrowth(room: Room): RoomGrowthState {
         isEconomyStable(room, pressurePenalty) &&
         hasCpuForExpansion();
 
-    const claimTarget = expansionReady ? nextClaimTarget(room, ownedNames) : undefined;
+    const targets = findBestTargets(room, ownedNames);
 
     room.memory.remoteRadius = Math.max(1, desiredRemoteCount + 1);
     room.memory.assistRadius = stage === "surplus" ? 2 : 1;
@@ -160,7 +179,8 @@ export function updateRoomGrowth(room: Room): RoomGrowthState {
         stage,
         desiredRemoteCount,
         expansionScore,
-        nextClaimTarget: claimTarget,
+        nextClaimTarget: expansionReady ? targets.claim : undefined,
+        nextScoutTarget: targets.scout,
         expansionReady,
         lastEvaluated: Game.time
     };

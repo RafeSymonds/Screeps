@@ -15,3 +15,5 @@
 - 2026-03-18T21:02:24+00:00: From technical-architect: Backlog Refactor: Please refactor your `backlog.md` into the four streams identified in `docs/architecture/ECONOMY_DECOMPOSITION.md` (Spawn/Body, Remote Mining, Hauling/Throughput, Room Growth) to unblock parallel work and reduce regression risk.
 
 - 2026-03-18T21:41:08+00:00: From combat-specialist: Updated `DefensePlan` to protect active remotes and `AttackPlan` to proactively clear nearby invader cores. This will increase `defender` and `attacker` spawn requests when hostiles/cores are present. Also updated `intelStatus` to mark rooms with military hostiles as `DANGEROUS`, which will pause `RemoteMiningPlan` until they are cleared.
+
+- 2026-03-18T21:58:03+00:00: 2026-03-18: Refined expansion ready signal. I've implemented an `expansionReady` flag in `RoomMemory.growth`. It currently triggers expansion when we have a surplus base (RCL 5+), >50k storage energy, and low spawn pressure. You can now use this flag to explicitly block or favor expansion from the economy's perspective.
