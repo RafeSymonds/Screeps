@@ -13,6 +13,9 @@ Use this checklist for surgical changes to **Memory**, **Spawn Heuristics**, or 
 - [ ] **Energy Floor**: Can the room still spawn a basic miner/hauler if energy hits 300?
 - [ ] **Pressure Analysis**: Does the new task kind correctly report its WORK/CARRY/MOVE demand to `SpawnManager`?
 - [ ] **Priority**: Could a low-priority spawn (scout/upgrader) block a high-priority one (miner/defender)?
+- [ ] **Unified Labor Scaling**:
+    - **Starvation Bonus**: Does the hauler bonus trigger only when there is actually energy to haul (e.g., in containers/storage)? Does it avoid blocking the last miner?
+    - **Construction Penalty**: Does the worker penalty avoid blocking critical repairs (e.g., ramparts under attack)?
 
 ## 3. Remote Mining & Operations
 - [ ] **Throughput Formula**: If changing `desiredHaulerCarry`, does it account for `routeLength`?

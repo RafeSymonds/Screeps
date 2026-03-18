@@ -22,7 +22,7 @@ This backlog is organized into the four development streams defined in [docs/arc
   Why: 1:1 ratio is wasteful when roads are available (at RCL 4+ we usually have roads).
   Affected modules: `src/spawner/SpawnManager.ts`.
 
-- `EE-QUEUE-02` Unified Labor Scaling.
+- [x] `EE-QUEUE-02` Unified Labor Scaling.
   Scope: Adjust `pressureScore` calculation to allow for cross-role balancing factors.
   Implementation: Introduce a "starvation bonus" to hauler pressure if storage is low or spawns are empty. Introduce a "construction penalty" to worker pressure if energy is low.
   Affected modules: `src/spawner/SpawnManager.ts`.

@@ -750,6 +750,32 @@ function refreshBaselineSpawnRequests(
     const workImmediate = immediatePressure(supply.work, supply.workerCreeps, demand.work, demand.workerCreeps);
     const scoutImmediate = immediatePressure(supply.scout, supply.scout, demand.scout, demand.scout);
 
+    // --- Unified Labor Scaling (EE-QUEUE-02) ---
+    let haulerBonus = 0;
+    let workerPenalty = 0;
+
+    const energyAvailable = room.energyAvailable;
+    const energyCapacity = room.energyCapacityAvailable;
+    const storage = room.storage;
+
+    // Starvation Bonus: Boost hauler priority if storage is low or spawns are empty
+    // but only if we have miners to produce energy.
+    const hasMiners = supply.minerCreeps + supply.incomingMiners > 0;
+    const lowEnergy = energyAvailable < energyCapacity * 0.5;
+    const criticalStorage = storage && storage.store.getUsedCapacity(RESOURCE_ENERGY) < 2000;
+
+    if (hasMiners && (lowEnergy || criticalStorage)) {
+        haulerBonus += 30; // Boost towards CRITICAL/HIGH
+    }
+
+    // Construction Penalty: Reduce worker priority if energy is low and we don't have enough haulers.
+    // This prevents workers from competing for energy that should go to the economy.
+    const lowHaulers = supply.haulerCreeps + supply.incomingHaulers < demand.haulerCreeps * 0.5;
+    if (lowEnergy && lowHaulers) {
+        workerPenalty -= 40;
+    }
+    // --------------------------------------------
+
     // Miner
     const minerPriority = calculateBaselinePriority(
         "miner",
@@ -757,7 +783,7 @@ function refreshBaselineSpawnRequests(
         supply.mine,
         demand.minerCreeps,
         demand.mine,
-        minerImmediate, // Pass immediate as 'smoothed' for quick response if minerImmediate > 0.5? No, use stats.
+        minerImmediate,
         stats.mine.pressure,
         supply.idleMiners
     );
@@ -787,10 +813,13 @@ function refreshBaselineSpawnRequests(
         supply.idleHaulers
     );
 
-    if (haulerPriority > 0) {
+    const finalHaulerPriority =
+        haulerPriority > 0 ? haulerPriority + haulerBonus + rolePriorityBoost(room, "hauler") : 0;
+
+    if (finalHaulerPriority > 0) {
         upsertSpawnRequest(room, {
             role: "hauler",
-            priority: haulerPriority + rolePriorityBoost(room, "hauler"),
+            priority: finalHaulerPriority,
             desiredCreeps: Math.max(1, demand.haulerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("hauler", room.name),
@@ -838,11 +867,13 @@ function refreshBaselineSpawnRequests(
     );
 
     const workerPriority = hasBasicEconomy ? baseWorkerPriority : 0;
+    const finalWorkerPriority =
+        workerPriority > 0 ? Math.max(1, workerPriority + workerPenalty + rolePriorityBoost(room, "worker")) : 0;
 
-    if (workerPriority > 0) {
+    if (finalWorkerPriority > 0) {
         upsertSpawnRequest(room, {
             role: "worker",
-            priority: workerPriority + rolePriorityBoost(room, "worker"),
+            priority: finalWorkerPriority,
             desiredCreeps: Math.max(1, demand.workerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("worker", room.name),
