@@ -46,7 +46,7 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
 - `npm run build`: bundle without uploading.
 - `npm run push-main`: upload using the `main` target from `screeps.json`.
 - `npm run privateServer`: deploy to the local path controlled by `SCREEPS_LOCAL_PATH`.
-- `npm run test`: unit tests.
+- `npm run test`: unit and integration tests.
 - `npm run lint`: ESLint on `src/**/*.ts`.
 
 ## Secrets And Local Config
@@ -58,6 +58,6 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
 ## Known Sharp Edges
 
 - Upstream docs in `docs/` still describe the starter kit broadly; this repo contains custom game logic beyond those docs.
-- Integration tests are scaffolded but not wired into the default `npm test` command.
+- Integration tests are wired into the default `npm test` command along with unit tests.
 - The unit-test harness and lint ruleset are partially out of date relative to the currently installed Node/Mocha/ESLint versions.
 - If you touch `Memory` schemas, update the ambient interfaces in [src/main.ts](/Users/rafe/games/screeps/src/main.ts) and any default-memory helpers.

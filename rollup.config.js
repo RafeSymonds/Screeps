@@ -7,11 +7,12 @@ import typescript from 'rollup-plugin-typescript2';
 import screeps from 'rollup-plugin-screeps';
 import { existsSync, mkdirSync, accessSync, constants } from 'fs';
 
-const defaultLocalHostLocation = "/mnt/c/Users/rafes/AppData/Local/Screeps/scripts/127_0_0_1___21025/default";
+const defaultLocalHostLocation = "/mnt/c/Users/rafe/AppData/Local/Screeps/scripts/127_0_0_1___21025/default";
 
 const localHostLocation = process.env.SCREEPS_LOCAL_PATH || defaultLocalHostLocation;
 
-//C:\\Users\\rafes\\AppData\\Local\\Screeps\\scripts\\127_0_0_1___21025\\default";
+// Example for macOS or custom paths:
+// export SCREEPS_LOCAL_PATH="/Users/rafe/Library/Application Support/Screeps/scripts/127_0_0_1___21025/default"
 let cfg;
 const dest2 = process.env.DEST;
 let dest;
