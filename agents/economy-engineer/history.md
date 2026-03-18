@@ -9,6 +9,10 @@
 - 2026-03-18: Formalized ownership of `SpawnManager` (heuristics, body builders, pressure logic), `Economy`/`RemoteMining` plans, and related economy tasks/memory as requested by `technical-architect`. Reviewed `docs/agent-workflow.md` to confirm alignment.
 - 2026-03-18: Performed a deep-dive review of `SpawnManager`, `DeliverTask`, `RemoteStrategy`, and `LinkPlan` to refine the economy backlog. Added `EE-ECON-01` (Link-Aware Remote Hauling) and improved the scope for `EE-QUEUE-01`, `EE-REMOTE-02`, and `EE-HAUL-01` to unblock cleaner delegation.
 - 2026-03-18: Refactored `backlog.md` into the four streams requested by `technical-architect`. Completed `EE-QUEUE-01` (Deterministic Spawn Request Normalization), `EE-HAUL-01` (Dynamic Local Hauling Requirements), and `EE-REMOTE-02` (Stable Remote Mining Lifecycle).
+- 2026-03-18: Refined expansion ready signal in `src/rooms/RoomGrowth.ts` with economy-awareness (support requests, pressure, high energy bonus).
+- 2026-03-18: Implemented dynamic `UpgradeTask` requirements based on a new `desiredParts` field in `TaskData`.
+- 2026-03-18: Completed `EE-GROWTH-01` (Pressure-Aware Upgrade Throttling) in `EconomyPlan.ts`. Upgrade demand is now throttled based on storage levels, spawn pressure, and expansion readiness.
+- 2026-03-18: Verified build passes with the new economy-aware growth logic.
 - 2026-03-18: Refactored `SpawnManager.refreshBaselineSpawnRequests` to use a normalized priority calculation helper (`calculateBaselinePriority`).
 - 2026-03-18: Implemented dynamic distance and energy-share calculations for `DeliverTask` in `EconomyPlan` and updated `TaskRequirements` to use these hints.
 - 2026-03-18: Introduced `reserved` state in `RemoteRoomStrategy` and added score hysteresis/stability bias to the remote selection loop to prevent flip-flopping.

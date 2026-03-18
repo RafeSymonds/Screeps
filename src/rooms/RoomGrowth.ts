@@ -96,6 +96,20 @@ function hasCpuForExpansion(): boolean {
     return headroom >= CPU_HEADROOM_PER_ROOM;
 }
 
+function isEconomyStable(room: Room, pressurePenalty: number): boolean {
+    // A room is not stable if it's currently asking for external support
+    if (room.memory.supportRequest && room.memory.supportRequest.expiresAt >= Game.time) {
+        return false;
+    }
+
+    // High pressure means the room is struggling to maintain its own economy
+    if (pressurePenalty > 0.5) {
+        return false;
+    }
+
+    return true;
+}
+
 export function updateRoomGrowth(room: Room): RoomGrowthState {
     const rcl = room.controller?.level ?? 0;
     const capacity = room.energyCapacityAvailable;
@@ -122,12 +136,20 @@ export function updateRoomGrowth(room: Room): RoomGrowthState {
     }
 
     const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
-    const expansionScore = rcl * 20 + capacity / 40 + storageEnergy / 2000 - pressurePenalty * 30;
+    
+    // Economy Bonus: encourage expansion when we have massive energy reserves
+    const economyBonus = storageEnergy > 100000 ? 20 : 0;
+    
+    const expansionScore = rcl * 20 + capacity / 40 + storageEnergy / 2000 - pressurePenalty * 30 + economyBonus;
 
     const ownedNames = new Set(ownedRooms().map(r => r.name));
 
     const expansionReady =
-        stage === "surplus" && expansionScore >= 120 && storageEnergy >= 50000 && hasCpuForExpansion();
+        stage === "surplus" && 
+        expansionScore >= 120 && 
+        storageEnergy >= 50000 && 
+        isEconomyStable(room, pressurePenalty) &&
+        hasCpuForExpansion();
 
     const claimTarget = expansionReady ? nextClaimTarget(room, ownedNames) : undefined;
 

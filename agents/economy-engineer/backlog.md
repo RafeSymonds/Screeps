@@ -65,7 +65,7 @@ This backlog is organized into the four development streams defined in [docs/arc
 ## Stream D: Room Growth Stages (Semi-Independent)
 *Focus: Transitioning from bootstrap to surplus.*
 
-- `EE-GROWTH-01` Pressure-Aware Upgrade Throttling.
+- [x] `EE-GROWTH-01` Pressure-Aware Upgrade Throttling.
   Scope: Adjust `EconomyPlan.ts` to throttle `UpgradeTask` demand when room pressure is high or storage is low.
   Why: Prevents upgrading from starving the spawn/build pipeline during critical growth phases.
   Affected modules: `src/plans/definitions/EconomyPlan.ts`, `src/rooms/RoomGrowth.ts`.

@@ -80,7 +80,36 @@ export class EconomyPlan extends Plan {
                 // Upgrade
                 //
                 if (room.controller) {
-                    taskManager.add(createUpgradeTaskData(room.controller));
+                    const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
+                    const rcl = room.controller.level;
+                    const growth = room.memory.growth;
+                    const spawnStats = room.memory.spawnStats;
+                    
+                    const pressurePenalty =
+                        (spawnStats?.mine.pressure ?? 0) + (spawnStats?.carry.pressure ?? 0) + (spawnStats?.work.pressure ?? 0);
+
+                    // Base demand depends on RCL
+                    let desiredParts = rcl * 5;
+
+                    // Throttling Logic:
+                    if (storageEnergy < 1000) {
+                        // Emergency level: just keep it alive
+                        desiredParts = 1;
+                    } else if (storageEnergy < 10000 || pressurePenalty > 0.8) {
+                        // Struggling: minimal upgrading
+                        desiredParts = Math.max(1, Math.floor(desiredParts * 0.2));
+                    } else if (pressurePenalty > 0.4) {
+                        // Moderate pressure: halved upgrading
+                        desiredParts = Math.max(1, Math.floor(desiredParts * 0.5));
+                    } else if (growth?.expansionReady) {
+                        // Expansion ready: conserve energy for the new room
+                        desiredParts = Math.max(1, Math.floor(desiredParts * 0.3));
+                    } else if (storageEnergy > 200000) {
+                        // Surplus: boost upgrading
+                        desiredParts *= 2;
+                    }
+
+                    taskManager.add(createUpgradeTaskData(room.controller, desiredParts));
                 }
 
                 const constructionSites = room.find(FIND_CONSTRUCTION_SITES);

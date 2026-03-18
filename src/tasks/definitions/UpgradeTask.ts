@@ -15,13 +15,14 @@ export function upgradeTaskName(controller: StructureController): string {
     return "upgrade-" + controller.pos.roomName + "-" + controller.id;
 }
 
-export function createUpgradeTaskData(controller: StructureController): UpgradeTaskData {
+export function createUpgradeTaskData(controller: StructureController, desiredParts?: number): UpgradeTaskData {
     return {
         id: upgradeTaskName(controller),
         kind: TaskKind.UPGRADE,
         targetRoom: controller.pos.roomName,
         assignedCreeps: [],
-        controllerId: controller.id
+        controllerId: controller.id,
+        desiredParts
     };
 }
 
@@ -74,7 +75,7 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
     public override requirements(): TaskRequirements {
         return {
             work: {
-                parts: 15
+                parts: this.data.desiredParts ?? 15
             }
         };
     }

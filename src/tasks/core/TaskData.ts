@@ -21,6 +21,7 @@ export type BuildTaskData = BaseTask & {
 export type UpgradeTaskData = BaseTask & {
     kind: TaskKind.UPGRADE;
     controllerId: Id<StructureController>;
+    desiredParts?: number;
 };
 
 export type HarvestTaskData = BaseTask & {
