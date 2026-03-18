@@ -68,7 +68,7 @@ export function intelStatus(intel?: RoomIntel): IntelStatus {
         return IntelStatus.UNKNOWN;
     }
 
-    if (intel.keeperLairs > 0 || intel.hasEnemyBase || intel.hasInvaderCore) {
+    if (intel.keeperLairs > 0 || intel.hasEnemyBase || intel.hasInvaderCore || (intel.hostileMilitaryParts ?? 0) > 0) {
         return IntelStatus.DANGEROUS;
     }
 

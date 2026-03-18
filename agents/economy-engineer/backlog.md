@@ -15,10 +15,16 @@
   Guardrails: Do not block "unsafe" room transitions; priority should always be safety first.
 
 - `EE-HAUL-01` Dynamic Local Hauling Requirements.
-  Scope: Replace hardcoded `energyPerTick = 10` and `distance = 8` in `DeliverTask.requirements()` with values derived from actual source throughput and path distances.
+  Scope: Replace hardcoded `energyPerTick = 10` and `distance = 8` in `DeliverTask.requirements()` with values derived from actual source throughput and path distances. Also update `RemoteHaulTask.requirements()`.
   Why: Current static hints cause over-spawning in small rooms and under-spawning in large, spread-out rooms.
-  Affected modules: `src/tasks/definitions/DeliverTask.ts`, `src/rooms/ResourceManager.ts`.
-  Guardrails: Use cached distances from `ResourceManager` or `RoomTopology` to avoid per-task pathfinding CPU costs.
+  Affected modules: `src/tasks/definitions/DeliverTask.ts`, `src/tasks/definitions/RemoteHaulTask.ts`, `src/rooms/ResourceManager.ts`, `src/spawner/SpawnManager.ts`.
+  Guardrails: Use cached distances from `RemoteStrategy` or `RoomTopology` to avoid per-task pathfinding CPU costs.
+
+- `EE-ECON-01` Link-Aware Remote Hauling.
+  Scope: Optimize `RemoteHaulTask` to deliver to the closest available link in the `ownerRoom` (sink link) if storage is further away or full.
+  Why: Reduces internal travel distance for remote haulers, increasing throughput and saving CPU.
+  Affected modules: `src/tasks/definitions/RemoteHaulTask.ts`, `src/plans/definitions/LinkPlan.ts`.
+  Guardrails: Only deliver to links if they have enough free capacity to avoid haulers standing idle.
 
 ## Deferred Or Shared Follow-Ups
 
