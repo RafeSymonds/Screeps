@@ -5,11 +5,25 @@ This backlog is organized into the four development streams defined in [docs/arc
 ## Stream A: Spawn & Body Heuristics (Serialized)
 *Focus: Efficiency of the spawn pipeline.*
 
-- `EE-QUEUE-01` Deterministic Spawn Request Normalization.
-  Scope: Separate "Emergency Bootstrap" logic from "Pressure-based Scaling" in `SpawnManager`. Ensure that empty roles get immediate, high-priority requests that bypass smoothed pressure averages.
-  Why: Current logic can leave rooms "stuck" if demand is low but supply is 0, leading to 0 pressure.
-  Affected modules: `src/spawner/SpawnManager.ts`, `src/spawner/SpawnRequests.ts`.
-  Guardrails: Emergency priority must drop as soon as a creep is `spawning` or `alive` to allow other rooms to use the spawn.
+- `EE-BODY-01` Tiered Miner Body Scaling.
+  Scope: Refactor `minerBody()` in `SpawnManager.ts` to use better WORK:MOVE ratios for different energy tiers (e.g., RCL 1-3 vs 4-8).
+  Why: Current miners are too simple and don't scale efficiently with higher energy capacities.
+  Affected modules: `src/spawner/SpawnManager.ts`.
+
+- `EE-BODY-02` Efficiency-based Hauler Sizing.
+  Scope: Refactor `haulerBody()` to optimize CARRY:MOVE ratios based on road coverage and energy tiers.
+  Why: Current haulers always use 1:1 MOVE:CARRY, which is inefficient if roads are present.
+  Affected modules: `src/spawner/SpawnManager.ts`.
+
+- `EE-QUEUE-02` Unified Labor Scaling.
+  Scope: Adjust `pressureScore` calculation to allow for cross-role balancing factors (e.g., favoring haulers over workers when storage is low).
+  Why: Current pressure is role-isolated, leading to starvation scenarios where we build but can't haul.
+  Affected modules: `src/spawner/SpawnManager.ts`.
+
+- `EE-QUEUE-03` Pressure Coefficient Tuning.
+  Scope: Tune `PRESSURE_ALPHA`, `TASK_CARRY_WEIGHT`, and `PRESSURE_SPAWN_THRESHOLD` in `SpawnManager.ts`.
+  Why: Current values are guestimated; need tuning based on actual performance to prevent oscillation and ensure responsive spawning.
+  Affected modules: `src/spawner/SpawnManager.ts`.
 
 - `EE-QUEUE-X1` Shared spawn-request contract for economy versus expansion.
   Reason deferred: Crosses role boundaries with `technical-architect`. Requires unified precedence for expansion and bootstrap requests.
@@ -18,29 +32,39 @@ This backlog is organized into the four development streams defined in [docs/arc
 ## Stream B: Remote Mining Expansion (Independent)
 *Focus: Strategic source acquisition.*
 
-- `EE-REMOTE-02` Stable Remote Mining Lifecycle.
-  Scope: Introduce a `reserved` state and score hysteresis to `RemoteStrategy`. Prevent remotes from flip-flopping between `active` and `saturated` due to tick-to-tick volatility in `ownerCapacityScore`.
-  Why: Prevents wasted CPU and pathing churn when remote assignments oscillate.
-  Affected modules: `src/rooms/RemoteStrategy.ts`, `src/plans/definitions/RemoteMiningPlan.ts`.
-  Guardrails: Do not block "unsafe" room transitions; priority should always be safety first.
+- `EE-REMOTE-03` Dynamic Remote Miner Sizing.
+  Scope: Scale remote miner WORK parts based on source distance to optimize "Time-to-Harvest" vs "Lifetime" efficiency.
+  Why: Long-distance remotes waste too much time traveling if their body is too large (long spawn time) or too small (low throughput).
+  Affected modules: `src/plans/definitions/RemoteMiningPlan.ts`, `src/spawner/SpawnManager.ts`.
 
-- `EE-REMOTE-X1` Remote activation scoring and owner reassignment.
-  Reason deferred: Sliced into `EE-REMOTE-02` for immediate stability; broader scoring overhaul requires more telemetry.
+- `EE-REMOTE-04` RemoteStrategy Metric Refinement.
+  Scope: Refactor `remoteCandidateScore` in `RemoteStrategy.ts` to include CPU cost estimates and better pathing weights.
+  Why: Current scoring is purely distance/source based; doesn't account for path complexity or CPU impact of long-range hauling.
+  Affected modules: `src/rooms/RemoteStrategy.ts`.
+
+- `EE-REMOTE-05` Scouting Freshness Coordination.
+  Scope: Coordinate with `operations-engineer` to ensure `ScoutingPlan` prioritizes rooms near high-potential remotes.
+  Why: `RemoteStrategy` relies on fresh intel; stale data leads to sub-optimal remote choices or missed opportunities.
+  Affected modules: `src/plans/definitions/ScoutingPlan.ts` (inbox request).
 
 ## Stream C: Hauling & Throughput (Independent)
 *Focus: Solving the "starvation" problem.*
 
-- `EE-HAUL-01` Dynamic Local Hauling Requirements.
-  Scope: Replace hardcoded `energyPerTick = 10` and `distance = 8` in `DeliverTask.requirements()` with values derived from actual source throughput and path distances. Also update `RemoteHaulTask.requirements()`.
-  Why: Current static hints cause over-spawning in small rooms and under-spawning in large, spread-out rooms.
-  Affected modules: `src/tasks/definitions/DeliverTask.ts`, `src/tasks/definitions/RemoteHaulTask.ts`, `src/rooms/ResourceManager.ts`, `src/spawner/SpawnManager.ts`.
-  Guardrails: Use cached distances from `RemoteStrategy` or `RoomTopology` to avoid per-task pathfinding CPU costs.
-
-- `EE-ECON-01` Link-Aware Remote Hauling.
-  Scope: Optimize `RemoteHaulTask` to deliver to the closest available link in the `ownerRoom` (sink link) if storage is further away or full.
-  Why: Reduces internal travel distance for remote haulers, increasing throughput and saving CPU.
-  Affected modules: `src/tasks/definitions/RemoteHaulTask.ts`, `src/plans/definitions/LinkPlan.ts`.
+- `EE-ECON-01` Link-Aware Hauling.
+  Scope: Optimize `RemoteHaulTask` and `DeliverTask` to deliver to the closest available link in the room (sink link) if storage is further away or full.
+  Why: Reduces internal travel distance for haulers, increasing throughput and saving CPU.
+  Affected modules: `src/tasks/definitions/RemoteHaulTask.ts`, `src/tasks/definitions/DeliverTask.ts`, `src/plans/definitions/LinkPlan.ts`.
   Guardrails: Only deliver to links if they have enough free capacity to avoid haulers standing idle.
+
+- `EE-HAUL-02` Route-Specific Friction in Hauling.
+  Scope: Replace global `HAUL_TICKS_PER_TRIP` constant in `SpawnManager.ts` with dynamic per-room metrics derived from actual path distances to sources.
+  Why: Global constant overestimates hauling needs in compact rooms and underestimates them in spread-out rooms.
+  Affected modules: `src/spawner/SpawnManager.ts`, `src/rooms/ResourceManager.ts`.
+
+- `EE-HAUL-03` RemoteHaulTask Requirements Optimization.
+  Scope: Refactor `requirements()` in `RemoteHaulTask.ts` to use dynamic `energyPerTick` and actual route length.
+  Why: Current requirements are hardcoded to 10 energy/tick, which is inaccurate for many sources and leads to over/under-spawning haulers.
+  Affected modules: `src/tasks/definitions/RemoteHaulTask.ts`.
 
 ## Stream D: Room Growth Stages (Semi-Independent)
 *Focus: Transitioning from bootstrap to surplus.*
@@ -50,3 +74,13 @@ This backlog is organized into the four development streams defined in [docs/arc
   Why: Prevents upgrading from starving the spawn/build pipeline during critical growth phases.
   Affected modules: `src/plans/definitions/EconomyPlan.ts`, `src/rooms/RoomGrowth.ts`.
   Guardrails: Ensure minimal upgrading continues to prevent controller downgrade.
+
+- `EE-GROWTH-02` Improved Bootstrap Task.
+  Scope: Refactor `BootstrapTask.ts` to handle transition from "empty room" to "RCL 1 with container" more smoothly.
+  Why: Current bootstrap is often too slow or gets stuck if it can't find energy.
+  Affected modules: `src/tasks/definitions/BootstrapTask.ts`.
+
+- `EE-GROWTH-03` RoomGrowth Logic Refinement.
+  Scope: Refine `updateRoomGrowth` in `src/rooms/RoomGrowth.ts` to better handle stage transitions (e.g. RCL 4 storage, RCL 5 links).
+  Why: Stage transitions are currently a bit jarring and can cause temporary economy dips or inefficient link usage.
+  Affected modules: `src/rooms/RoomGrowth.ts`, `src/plans/definitions/EconomyPlan.ts`.
