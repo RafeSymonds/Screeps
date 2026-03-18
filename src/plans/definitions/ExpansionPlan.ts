@@ -29,6 +29,12 @@ export class ExpansionPlan extends Plan {
                 continue;
             }
 
+            // Safety check: ensure we actually have enough storage energy to support expansion
+            const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
+            if (storageEnergy < 50000) {
+                continue;
+            }
+
             const target = growth.nextClaimTarget;
 
             // Don't claim rooms we already own

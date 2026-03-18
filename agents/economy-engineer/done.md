@@ -1,5 +1,6 @@
 # Done
 
+- 2026-03-18: Fixed failing `ExpansionPlan` unit test by adding a 50,000 storage energy safety check to `ExpansionPlan.ts`.
 - `EE-QUEUE-01` Deterministic Spawn Request Normalization: Refactored `SpawnManager` to use a structured priority hierarchy, ensuring empty roles get emergency priority while avoiding pressure-smoothing lag for critical recovery.
 - `EE-HAUL-01` Dynamic Local Hauling Requirements: Replaced hardcoded constants in `DeliverTask` with dynamic distance and room-throughput-share calculations initialized during `EconomyPlan`.
 - `EE-REMOTE-02` Stable Remote Mining Lifecycle: Introduced `reserved` state for non-active remote candidates and added score hysteresis/stability bias to prevent tick-to-tick flip-flopping.

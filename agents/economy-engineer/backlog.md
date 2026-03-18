@@ -6,82 +6,75 @@ This backlog is organized into the four development streams defined in [docs/arc
 *Focus: Efficiency of the spawn pipeline.*
 
 - `EE-BODY-01` Tiered Miner Body Scaling.
-  Scope: Refactor `minerBody()` in `SpawnManager.ts` to use better WORK:MOVE ratios for different energy tiers (e.g., RCL 1-3 vs 4-8).
-  Implementation: For RCL 1-2, use 1:1 WORK:MOVE. For RCL 3-4 (with containers), use 2:1 or even less MOVE since they are stationary. For RCL 5+ (links), 1 MOVE is plenty.
-  Why: Current miners are too simple and don't scale efficiently with higher energy capacities.
+  Scope: Refactor `minerBody()` in `SpawnManager.ts` to use better WORK:MOVE ratios for different energy tiers.
+  Implementation:
+    - RCL 1-2: `[MOVE, CARRY, WORK, WORK...]` (1:1 ratio if budget permits, or at least 2 MOVE if possible).
+    - RCL 3-4 (with containers): `[MOVE, CARRY, WORK...]` where 1-2 MOVE is sufficient.
+    - RCL 5-8 (with links): `[MOVE, CARRY, 6*WORK]` (6 WORK to account for link transfer cooldown or travel time).
+  Why: Current miners don't scale efficiently.
   Affected modules: `src/spawner/SpawnManager.ts`.
 
 - `EE-BODY-02` Efficiency-based Hauler Sizing.
-  Scope: Refactor `haulerBody()` to optimize CARRY:MOVE ratios based on road coverage and energy tiers.
-  Implementation: Use `room.memory.topology.roadCoverage` (if available) to choose between 1:1 and 2:1 CARRY:MOVE. At RCL 1-3, stay with 1:1 for simplicity and swamp traversal. At RCL 4+, favor 2:1 if roads are built.
-  Why: Current haulers always use 1:1 MOVE:CARRY, which is inefficient if roads are present.
-  Affected modules: `src/spawner/SpawnManager.ts`, `src/rooms/RoomTopology.ts`.
-
-- `EE-QUEUE-02` Unified Labor Scaling.
-  Scope: Adjust `pressureScore` calculation to allow for cross-role balancing factors (e.g., favoring haulers over workers when storage is low).
-  Why: Current pressure is role-isolated, leading to starvation scenarios where we build but can't haul.
+  Scope: Refactor `haulerBody()` to optimize CARRY:MOVE ratios based on RCL and road status.
+  Implementation:
+    - If RCL >= 4 and storage exists, use 2:1 CARRY:MOVE ratio.
+    - Otherwise, stick to 1:1 CARRY:MOVE for swamp/rough terrain traversal.
+  Why: 1:1 ratio is wasteful when roads are available (at RCL 4+ we usually have roads).
   Affected modules: `src/spawner/SpawnManager.ts`.
 
-- `EE-QUEUE-03` Pressure Coefficient Tuning.
-  Scope: Tune `PRESSURE_ALPHA`, `TASK_CARRY_WEIGHT`, and `PRESSURE_SPAWN_THRESHOLD` in `SpawnManager.ts`.
-  Why: Current values are guestimated; need tuning based on actual performance to prevent oscillation and ensure responsive spawning.
+- `EE-QUEUE-02` Unified Labor Scaling.
+  Scope: Adjust `pressureScore` calculation to allow for cross-role balancing factors.
+  Implementation: Introduce a "starvation bonus" to hauler pressure if storage is low or spawns are empty. Introduce a "construction penalty" to worker pressure if energy is low.
   Affected modules: `src/spawner/SpawnManager.ts`.
 
 ## Stream B: Remote Mining Expansion (Independent)
 *Focus: Strategic source acquisition.*
 
 - `EE-REMOTE-03` Dynamic Remote Miner Sizing.
-  Scope: Scale remote miner WORK parts based on source distance to optimize "Time-to-Harvest" vs "Lifetime" efficiency.
-  Implementation: Refactor `minerBody()` in `SpawnManager.ts` to accept optional `routeLength`. For remotes, calculate the ticks spent traveling vs ticks spent mining. Ensure they have enough WORK to deplete the source despite travel time, or cap at 5 WORK (full source) to save energy.
-  Why: Long-distance remotes waste too much time traveling if their body is too large (long spawn time) or too small (low throughput).
-  Affected modules: `src/plans/definitions/RemoteMiningPlan.ts`, `src/spawner/SpawnManager.ts`, `src/tasks/definitions/RemoteHarvestTask.ts`.
+  Scope: Scale remote miner WORK parts based on source capacity and distance.
+  Implementation:
+    - Pass source capacity (1500/3000/4000) to `RemoteHarvestTask`.
+    - Adjust `requirements()` to use `Math.ceil(capacity / 300 / 2)` WORK parts.
+    - Adjust `minerBody()` in `SpawnManager.ts` to match these requirements.
+    - For long routes (> 100 ticks round trip), add extra WORK to ensure source is depleted despite travel time.
+  Why: Prevents over-spawning miners in neutral rooms and under-spawning in SK rooms.
+  Affected modules: `src/spawner/SpawnManager.ts`, `src/tasks/definitions/RemoteHarvestTask.ts`, `src/plans/definitions/RemoteMiningPlan.ts`.
 
 - `EE-REMOTE-04` RemoteStrategy Metric Refinement.
-  Scope: Refactor `remoteCandidateScore` in `RemoteStrategy.ts` to include CPU cost estimates and better pathing weights.
-  Why: Current scoring is purely distance/source based; doesn't account for path complexity or CPU impact of long-range hauling.
+  Scope: Include CPU cost estimates in `remoteCandidateScore`.
   Affected modules: `src/rooms/RemoteStrategy.ts`.
 
-- `EE-REMOTE-05` Scouting Freshness Coordination.
-  Scope: Coordinate with `operations-engineer` to ensure `ScoutingPlan` prioritizes rooms near high-potential remotes.
-  Why: `RemoteStrategy` relies on fresh intel; stale data leads to sub-optimal remote choices or missed opportunities.
-  Affected modules: `src/plans/definitions/ScoutingPlan.ts` (inbox request).
+- `EE-REMOTE-06` Remote Support Scaling.
+  Scope: Scale `ReserveTask` requirements based on current reservation level and distance.
+  Implementation: If reservation > 4000, 1 reserver is enough. If < 1000 or expiring soon, prioritize.
+  Affected modules: `src/tasks/definitions/ReserveTask.ts`, `src/plans/definitions/ReservationPlan.ts`.
 
 ## Stream C: Hauling & Throughput (Independent)
 *Focus: Solving the "starvation" problem.*
 
-- `EE-ECON-01` Link-Aware Hauling.
-  Scope: Optimize `RemoteHaulTask` and `DeliverTask` to deliver to the closest available link in the room (sink link) if storage is further away or full.
-  Why: Reduces internal travel distance for haulers, increasing throughput and saving CPU.
-  Affected modules: `src/tasks/definitions/RemoteHaulTask.ts`, `src/tasks/definitions/DeliverTask.ts`, `src/plans/definitions/LinkPlan.ts`.
-  Guardrails: Only deliver to links if they have enough free capacity to avoid haulers standing idle.
-
 - `EE-HAUL-02` Route-Specific Friction in Hauling.
-  Scope: Replace global `HAUL_TICKS_PER_TRIP` constant in `SpawnManager.ts` with dynamic per-task metrics.
-  Implementation: Update `deriveDemand` to accumulate weighted trip times based on `TaskRequirements`. `DeliverTask` and `RemoteHaulTask` should provide their `routeLength` or estimated distance in their requirements.
-  Why: Global constant overestimates hauling needs in compact rooms and underestimates them in spread-out rooms.
-  Affected modules: `src/spawner/SpawnManager.ts`, `src/tasks/definitions/DeliverTask.ts`, `src/tasks/definitions/RemoteHaulTask.ts`.
+  Scope: Replace global `HAUL_TICKS_PER_TRIP` with dynamic per-task metrics in `SpawnManager.ts`.
+  Implementation:
+    - `deriveDemand` should accumulate `totalDistanceWeighted` from tasks.
+    - `haulingFromMining` should be replaced or augmented by `demand.carryHint` which now includes real distances.
+  Affected modules: `src/spawner/SpawnManager.ts`.
 
 - `EE-HAUL-03` RemoteHaulTask Requirements Optimization.
-  Scope: Refactor `requirements()` in `RemoteHaulTask.ts` and `DeliverTask.ts` to use dynamic `energyPerTick` and actual route length.
-  Implementation: Update `createRemoteHaulTaskData` and `createDeliverTaskData` to accept and persist `energyPerTick`. `RemoteMiningPlan` should pass this value based on source capacity (standard 10, center 20). Update the requirement math to use these persisted values.
-  Why: Current requirements are hardcoded to 10 energy/tick, which is inaccurate for many sources and leads to over/under-spawning haulers.
-  Affected modules: `src/tasks/definitions/RemoteHaulTask.ts`, `src/tasks/definitions/DeliverTask.ts`, `src/plans/definitions/RemoteMiningPlan.ts`.
+  Scope: Update `RemoteHaulTask` to use dynamic `energyPerTick`.
+  Implementation: `RemoteMiningPlan` should detect if a room is reserved (10 e/t) or not (5 e/t) and pass this to `createRemoteHaulTaskData`.
+  Affected modules: `src/tasks/definitions/RemoteHaulTask.ts`, `src/plans/definitions/RemoteMiningPlan.ts`.
 
 ## Stream D: Room Growth Stages (Semi-Independent)
 *Focus: Transitioning from bootstrap to surplus.*
 
 - [x] `EE-GROWTH-01` Pressure-Aware Upgrade Throttling.
-  Scope: Adjust `EconomyPlan.ts` to throttle `UpgradeTask` demand when room pressure is high or storage is low.
-  Why: Prevents upgrading from starving the spawn/build pipeline during critical growth phases.
-  Affected modules: `src/plans/definitions/EconomyPlan.ts`, `src/rooms/RoomGrowth.ts`.
-  Guardrails: Ensure minimal upgrading continues to prevent controller downgrade.
-
-- `EE-GROWTH-02` Improved Bootstrap Task.
-  Scope: Refactor `BootstrapTask.ts` to handle transition from "empty room" to "RCL 1 with container" more smoothly.
-  Why: Current bootstrap is often too slow or gets stuck if it can't find energy.
-  Affected modules: `src/tasks/definitions/BootstrapTask.ts`.
 
 - `EE-GROWTH-03` RoomGrowth Logic Refinement.
-  Scope: Refine `updateRoomGrowth` in `src/rooms/RoomGrowth.ts` to better handle stage transitions (e.g. RCL 4 storage, RCL 5 links).
-  Why: Stage transitions are currently a bit jarring and can cause temporary economy dips or inefficient link usage.
+  Scope: Refine stage transitions for RCL 4 (storage) and RCL 5 (links).
+  Implementation: Add a "storage" stage that prioritizes building the storage and then switches to "remote" expansion. Add logic for "link" optimization in "surplus" stage.
   Affected modules: `src/rooms/RoomGrowth.ts`, `src/plans/definitions/EconomyPlan.ts`.
+
+- `EE-GROWTH-04` EconomyPlan Throttling.
+  Scope: Throttle `EconomyPlan` execution more aggressively based on CPU bucket.
+  Implementation: Change interval from 1 to 5-10 if bucket is low. Ensure critical `DeliverTask` for spawns/extensions are still managed (maybe move them to a more frequent plan or handle locally in `WorldRoom`).
+  Affected modules: `src/plans/core/PlanManager.ts`.
