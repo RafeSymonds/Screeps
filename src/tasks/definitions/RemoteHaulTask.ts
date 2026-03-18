@@ -41,6 +41,10 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override isStillValid(): boolean {
+        if (this.isDangerous()) {
+            return false;
+        }
+
         const strategy = remoteAssignmentForRoom(this.data.targetRoom);
 
         return strategy?.state === "active" && strategy.ownerRoom === this.data.ownerRoom;

@@ -13,4 +13,8 @@
 - 2026-03-18: Implemented dynamic distance and energy-share calculations for `DeliverTask` in `EconomyPlan` and updated `TaskRequirements` to use these hints.
 - 2026-03-18: Introduced `reserved` state in `RemoteRoomStrategy` and added score hysteresis/stability bias to the remote selection loop to prevent flip-flopping.
 - 2026-03-18: Fixed a missing `WorldRoom` import in `DefensePlan.ts` to unblock the build.
-- 2026-03-18: Decomposed broad backlog items into specific, low-risk tasks across the four development streams defined in `docs/architecture/ECONOMY_DECOMPOSITION.md`. Added new tasks for body scaling, labor balancing, route-specific friction, and growth stage refinements.
+- 2026-03-18: Reacted to `combat-specialist`'s `DefensePlan` and `AttackPlan` updates.
+- 2026-03-18: Added `recordRoom()` call to `WorldRoom.ts` to ensure intel (including hostile military presence) is updated tick-perfectly whenever vision is available.
+- 2026-03-18: Updated `RemoteHarvestTask`, `RemoteHaulTask`, and `ReserveTask` to be immediately pruned from the task list if their target room becomes `DANGEROUS`.
+- 2026-03-18: Verified that `SpawnManager` correctly reduces labor demand and handles increased military spawn pressure during remote defense scenarios.
+- 2026-03-18: Decomposed broad backlog items into specific, low-risk tasks across the four development streams defined in `docs/architecture/ECONOMY_DECOMPOSITION.md`. Added new tasks for body scaling, labor balancing, route-specific friction, and growth stage refinements. Reviewed `SpawnManager`, `DeliverTask`, `RemoteHaulTask`, `EconomyPlan`, and `RemoteMiningPlan` to ensure clear module boundaries and unblock delegated work.

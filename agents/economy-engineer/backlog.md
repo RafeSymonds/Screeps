@@ -6,7 +6,7 @@ This backlog is organized into the four development streams defined in [docs/arc
 *Focus: Efficiency of the spawn pipeline.*
 
 - `EE-BODY-01` Tiered Miner Body Scaling.
-  Scope: Refactor `minerBody()` in `SpawnManager.ts` to use better WORK:MOVE ratios for different energy tiers (e.g., RCL 1-3 vs 4-8).
+  Scope: Refactor `minerBody()` in `SpawnManager.ts` to use better WORK:MOVE ratios for different energy tiers (e.g., RCL 1-3 vs 4-8). Use 1 MOVE per 2 WORK if on roads, otherwise 1:1.
   Why: Current miners are too simple and don't scale efficiently with higher energy capacities.
   Affected modules: `src/spawner/SpawnManager.ts`.
 
@@ -24,10 +24,6 @@ This backlog is organized into the four development streams defined in [docs/arc
   Scope: Tune `PRESSURE_ALPHA`, `TASK_CARRY_WEIGHT`, and `PRESSURE_SPAWN_THRESHOLD` in `SpawnManager.ts`.
   Why: Current values are guestimated; need tuning based on actual performance to prevent oscillation and ensure responsive spawning.
   Affected modules: `src/spawner/SpawnManager.ts`.
-
-- `EE-QUEUE-X1` Shared spawn-request contract for economy versus expansion.
-  Reason deferred: Crosses role boundaries with `technical-architect`. Requires unified precedence for expansion and bootstrap requests.
-  Likely modules: `src/spawner/SpawnManager.ts`, `src/spawner/SpawnRequests.ts`, `src/plans/definitions/SupportPlan.ts`.
 
 ## Stream B: Remote Mining Expansion (Independent)
 *Focus: Strategic source acquisition.*

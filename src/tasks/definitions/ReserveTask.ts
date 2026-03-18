@@ -31,6 +31,10 @@ export class ReserveTask extends Task<ReserveTaskData> {
     }
 
     public override isStillValid(): boolean {
+        if (this.isDangerous()) {
+            return false;
+        }
+
         const room = Game.rooms[this.data.targetRoom];
 
         // Still valid if we can't see the room (creep in transit)
