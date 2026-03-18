@@ -10,7 +10,8 @@ export enum TaskKind {
     CLAIM,
     ATTACK,
     RESERVE,
-    BOOTSTRAP
+    BOOTSTRAP,
+    REPAIR
 }
 
 export namespace TaskKind {

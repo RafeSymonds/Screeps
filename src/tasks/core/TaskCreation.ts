@@ -13,7 +13,8 @@ import { DefendTask } from "tasks/definitions/DefendTask";
 import { ClaimTask } from "tasks/definitions/ClaimTask";
 import { AttackTask } from "tasks/definitions/AttackTask";
 import { ReserveTask } from "tasks/definitions/ReserveTask";
-import { BootstrapTask } from "tasks/definitions/BootstrapTask";
+import { BootstrapTask } from "../definitions/BootstrapTask";
+import { RepairTask } from "../definitions/RepairTask";
 
 function constructTask(data: TaskData): AnyTask {
     switch (data.kind) {
@@ -52,8 +53,12 @@ function constructTask(data: TaskData): AnyTask {
 
         case TaskKind.BOOTSTRAP:
             return new BootstrapTask(data);
+
+        case TaskKind.REPAIR:
+            return new RepairTask(data);
     }
 }
+
 
 export function createTask(data: TaskData): AnyTask | null {
     const task = constructTask(data);

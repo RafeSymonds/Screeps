@@ -114,14 +114,34 @@ This document maps the highest-risk state boundaries in the Screeps AI runtime. 
 *   **Ownership**:
     *   **Cross-Plan Signaling**: `technical-architect`
 
-## 8. Long-Interval Persistence
+## 9. Base Topology and Infrastructure
 
-**Boundary**: `GrowthPlan`, `ExpansionPlan`, `BasePlan`, etc. (Intervals > 25)
+**Boundary**: `RoomMemory.basePlan` ↔ `BasePlan` ↔ `InfrastructurePlan` ↔ `EconomyPlan`
 
 *   **Flow**:
-    1.  These plans run rarely (every 25-50 ticks).
-    2.  Their results (`RoomMemory.growth`, `RoomMemory.basePlan`) are treated as "Current Truth" by all other systems until the next run.
+    1.  `BasePlan` (Interval 50) executes `selectAnchor` and caches `RoomMemory.basePlan`.
+    2.  `BasePlan` and `InfrastructurePlan` (Interval 25) create construction sites based on the anchor and RCL.
+    3.  `EconomyPlan` (Interval 1) scans for construction sites and creates `BuildTask`s in the `TaskManager`.
+    4.  `SpawnManager` reads `BuildTask`s to calculate construction demand.
 *   **Risks**:
-    *   **Laggy Response**: If the environment changes (e.g., a room is lost), an `ExpansionPlan` running on a 50-tick interval may continue to request claimers for a target that is no longer viable.
+    *   **Anchor Staleness**: If the anchor is destroyed or the room layout changes significantly, `basePlan` remains cached until the next 50-tick run.
+    *   **Construction Site Bloat**: `InfrastructurePlan` has a hard limit of `MAX_NEW_SITES_PER_RUN = 6` to prevent draining the energy budget too quickly.
+    *   **Redundant Pathfinding**: Both `InfrastructurePlan` and `RoadPlanner` use `PathFinder.search` to plan roads; inconsistencies between them could lead to inefficient road networks.
 *   **Ownership**:
-    *   **High-Level Strategy**: `operations-engineer` or `base-specialist`
+    *   **Topology & Infrastructure**: `base-specialist` (`src/basePlaner/`, `src/plans/definitions/BasePlan.ts`, `InfrastructurePlan.ts`)
+    *   **Construction Task Creation**: `economy-engineer` (`src/plans/definitions/EconomyPlan.ts`) - *Note: Task definitions (BuildTask) are owned by base-specialist.*
+
+## 10. Tower Defense and Repairs
+
+**Boundary**: `TowerDefense.ts` ↔ `WorldRoom.towers` ↔ `Structure.hits`
+
+*   **Flow**:
+    1.  `performTowerDefense` runs every tick.
+    2.  Towers prioritize attacking hostiles, then healing wounded creeps, then repairing critical structures (below `TOWER_REPAIR_TARGET`).
+    3.  Fortifications (walls/ramparts) are repaired up to an RCL-dependent `hpTarget` when CPU and energy allow.
+*   **Risks**:
+    *   **Single Point of Failure**: Currently, structure maintenance relies entirely on towers. If towers are empty or destroyed, there is no backup `RepairTask` for creeps.
+    *   **Energy Drain**: Aggressive fortification can drain a room's energy budget, potentially starving the spawn or upgrade pipelines.
+*   **Ownership**:
+    *   **Tactical Repairs**: `combat-specialist` (`src/combat/TowerDefense.ts`)
+    *   **Infrastructure Maintenance**: `base-specialist` (future `RepairTask` logic)

@@ -87,6 +87,11 @@ export type BootstrapTaskData = BaseTask & {
     ownerRoom: string;
 };
 
+export type RepairTaskData = BaseTask & {
+    kind: TaskKind.REPAIR;
+    targetId: Id<Structure>;
+};
+
 export type TaskData =
     | BuildTaskData
     | UpgradeTaskData
@@ -99,7 +104,8 @@ export type TaskData =
     | ClaimTaskData
     | AttackTaskData
     | ReserveTaskData
-    | BootstrapTaskData;
+    | BootstrapTaskData
+    | RepairTaskData;
 
 export type RoomTaskData = {
     name: string;

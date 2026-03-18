@@ -11,6 +11,7 @@ import { RemoteMiningPlan } from "plans/definitions/RemoteMiningPlan";
 import { ScoutingPlan } from "plans/definitions/ScoutingPlan";
 import { SupportPlan } from "plans/definitions/SupportPlan";
 import { TerminalPlan } from "plans/definitions/TerminalPlan";
+import { MaintenancePlan } from "plans/definitions/MaintenancePlan";
 import { shouldRunPlan } from "./PlanScheduler";
 import { World } from "world/World";
 import { computeThrottleTier, PlanPriority } from "cpu/CpuBudget";
@@ -24,8 +25,10 @@ export function runPlans(world: World) {
         { key: "link", interval: 1, priority: "critical", plan: new LinkPlan() },
         { key: "growth", interval: 25, priority: "important", plan: new GrowthPlan() },
         { key: "support", interval: 10, priority: "important", plan: new SupportPlan() },
+        { key: "maintenance", interval: 10, priority: "important", plan: new MaintenancePlan() },
         { key: "infrastructure", interval: 25, priority: "important", plan: new InfrastructurePlan() },
         { key: "base", interval: 50, priority: "optional", plan: new BasePlan() },
+
         { key: "remoteMining", interval: 10, priority: "important", plan: new RemoteMiningPlan() },
         { key: "scouting", interval: 15, priority: "optional", plan: new ScoutingPlan() },
         { key: "expansion", interval: 50, priority: "optional", plan: new ExpansionPlan() },
