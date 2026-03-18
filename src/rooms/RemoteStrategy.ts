@@ -1,14 +1,14 @@
 import { estimateSafeRouteLength } from "./InterRoomRouter";
-import { intelStatus, IntelStatus } from "./RoomIntel";
+import { IntelStatus, intelStatus } from "./RoomIntel";
 import { ownedRooms } from "./RoomUtils";
 
-type Candidate = {
+interface Candidate {
     remoteRoom: string;
     ownerRoom: string;
     routeLength: number;
     score: number;
     sourceCount: number;
-};
+}
 
 function sourceCount(roomMemory: RoomMemory): number {
     return roomMemory.remoteMining?.sources.length ?? 0;
@@ -17,7 +17,8 @@ function sourceCount(roomMemory: RoomMemory): number {
 function ownerCapacityScore(room: Room): number {
     const growth = room.memory.growth;
     const stageBonus = growth?.stage === "surplus" ? 30 : growth?.stage === "remote" ? 15 : 0;
-    const pressurePenalty = ((room.memory.spawnStats?.mine.pressure ?? 0) + (room.memory.spawnStats?.carry.pressure ?? 0)) * 20;
+    const pressurePenalty =
+        ((room.memory.spawnStats?.mine.pressure ?? 0) + (room.memory.spawnStats?.carry.pressure ?? 0)) * 20;
 
     return room.energyCapacityAvailable / 40 + stageBonus - pressurePenalty;
 }
@@ -225,4 +226,3 @@ export function refreshRemoteStrategies(): void {
         });
     }
 }
-

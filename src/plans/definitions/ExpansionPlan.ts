@@ -2,7 +2,7 @@ import { Plan } from "./Plan";
 import { World } from "world/World";
 import { ownedRooms } from "rooms/RoomUtils";
 import { createClaimTaskData } from "tasks/definitions/ClaimTask";
-import { planSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
+import { SpawnRequestPriority, planSpawnRequest } from "spawner/SpawnRequests";
 
 const MIN_STORAGE_ENERGY = 50000;
 const MIN_EXPANSION_SCORE = 120;
@@ -27,17 +27,13 @@ export class ExpansionPlan extends Plan {
         for (const room of owned) {
             const growth = room.memory.growth;
 
-            if (!growth || growth.stage !== "surplus") {
+            if (!growth || !growth.expansionReady) {
                 continue;
             }
 
-            if (growth.expansionScore < MIN_EXPANSION_SCORE) {
-                continue;
-            }
-
+            // Double check thresholds
             const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
-
-            if (storageEnergy < MIN_STORAGE_ENERGY) {
+            if (storageEnergy < MIN_STORAGE_ENERGY || growth.expansionScore < MIN_EXPANSION_SCORE) {
                 continue;
             }
 

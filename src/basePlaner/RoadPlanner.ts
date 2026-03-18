@@ -33,12 +33,16 @@ export function planRoads(room: Room, anchorX: number, anchorY: number): void {
     for (const target of targets) {
         if (placed >= MAX_ROAD_SITES_PER_RUN) break;
 
-        const result = PathFinder.search(storagePos, { pos: target, range: 1 }, {
-            plainCost: 2,
-            swampCost: 3,
-            maxOps: 1000,
-            roomCallback: getRoomCostMatrix
-        });
+        const result = PathFinder.search(
+            storagePos,
+            { pos: target, range: 1 },
+            {
+                plainCost: 2,
+                swampCost: 3,
+                maxOps: 1000,
+                roomCallback: getRoomCostMatrix
+            }
+        );
 
         if (result.incomplete) continue;
 

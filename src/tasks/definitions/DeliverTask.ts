@@ -6,7 +6,7 @@ import { TransferAction } from "actions/TransferAction";
 import { DropAction } from "actions/DropAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "../requirements/EnergyRequirement";
-import { hasBodyPart, countBodyParts, creepEnergy } from "creeps/CreepUtils";
+import { countBodyParts, creepEnergy, hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy, creepStoreFullPercentage } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";

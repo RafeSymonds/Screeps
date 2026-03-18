@@ -59,7 +59,6 @@ function constructTask(data: TaskData): AnyTask {
     }
 }
 
-
 export function createTask(data: TaskData): AnyTask | null {
     const task = constructTask(data);
 

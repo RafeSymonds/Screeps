@@ -60,9 +60,7 @@ function roomExpansionCandidateScore(ownerRoom: Room, targetRoomName: string, ow
     }
 
     // Score: reward sources, nearby remotes, penalize distance
-    let score = sourceCount * 120
-        + potentialRemotes * 40
-        - routeLength * 35;
+    const score = sourceCount * 120 + potentialRemotes * 40 - routeLength * 35;
 
     return score;
 }
@@ -128,11 +126,10 @@ export function updateRoomGrowth(room: Room): RoomGrowthState {
 
     const ownedNames = new Set(ownedRooms().map(r => r.name));
 
-    const canExpand = stage === "surplus"
-        && expansionScore >= 120
-        && hasCpuForExpansion();
+    const expansionReady =
+        stage === "surplus" && expansionScore >= 120 && storageEnergy >= 50000 && hasCpuForExpansion();
 
-    const claimTarget = canExpand ? nextClaimTarget(room, ownedNames) : undefined;
+    const claimTarget = expansionReady ? nextClaimTarget(room, ownedNames) : undefined;
 
     room.memory.remoteRadius = Math.max(1, desiredRemoteCount + 1);
     room.memory.assistRadius = stage === "surplus" ? 2 : 1;
@@ -142,6 +139,7 @@ export function updateRoomGrowth(room: Room): RoomGrowthState {
         desiredRemoteCount,
         expansionScore,
         nextClaimTarget: claimTarget,
+        expansionReady,
         lastEvaluated: Game.time
     };
 

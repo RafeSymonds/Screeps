@@ -1,13 +1,12 @@
 import { Action } from "actions/Action";
-import { TaskData } from "../core/TaskData";
+import { TaskData, TaskSafetyPolicy } from "../core/TaskData";
 import { CreepState } from "creeps/CreepState";
 import { ResourceManager } from "rooms/ResourceManager";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
 import { TaskKind } from "tasks/core/TaskKind";
-import { intelStatus, IntelStatus } from "rooms/RoomIntel";
+import { IntelStatus, intelStatus } from "rooms/RoomIntel";
 import { activeSupportRequest } from "rooms/RoomSupport";
-import { TaskSafetyPolicy } from "tasks/core/TaskData";
 import { estimateSafeRouteLength } from "rooms/InterRoomRouter";
 
 export abstract class Task<T extends TaskData> {
@@ -48,7 +47,10 @@ export abstract class Task<T extends TaskData> {
             return explicitLength;
         }
 
-        return estimateSafeRouteLength(fromRoom, this.data.targetRoom) ?? Game.map.getRoomLinearDistance(fromRoom, this.data.targetRoom);
+        return (
+            estimateSafeRouteLength(fromRoom, this.data.targetRoom) ??
+            Game.map.getRoomLinearDistance(fromRoom, this.data.targetRoom)
+        );
     }
 
     public assignmentScore(creepState: CreepState): number {

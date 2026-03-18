@@ -1,4 +1,4 @@
-type RemoteRoomIntel = {
+interface RemoteRoomIntel {
     roomName: string;
 
     // Static
@@ -16,4 +16,4 @@ type RemoteRoomIntel = {
     // Safety
     hostileOwner: boolean;
     lastSeen: number;
-};
+}

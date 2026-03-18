@@ -13,7 +13,7 @@ export class TaskManager {
         this.tasks = new Map();
 
         for (const taskData of Memory.tasks) {
-            let task = createTask(taskData);
+            const task = createTask(taskData);
 
             if (task) {
                 this.tasks.set(taskData.id, task);
@@ -29,7 +29,7 @@ export class TaskManager {
             return;
         }
 
-        let task = createTask(taskData);
+        const task = createTask(taskData);
 
         if (task) {
             task.validCreationSetup();

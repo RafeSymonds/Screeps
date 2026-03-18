@@ -20,9 +20,9 @@ export class LinkPlan extends Plan {
                 continue;
             }
 
-            const links = room.find(FIND_MY_STRUCTURES).filter(
-                (s): s is StructureLink => s.structureType === STRUCTURE_LINK
-            );
+            const links = room
+                .find(FIND_MY_STRUCTURES)
+                .filter((s): s is StructureLink => s.structureType === STRUCTURE_LINK);
 
             if (links.length < 2) {
                 continue;

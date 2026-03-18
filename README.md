@@ -39,6 +39,7 @@ The main loop in [src/main.ts](/Users/rafe/games/screeps/src/main.ts) runs in th
 npm run build
 npm run test
 npm run lint
+npm run lint:fix
 npm run push-main
 npm run push-pserver
 npm run push-season
@@ -65,6 +66,7 @@ npm run agent:process
 - `npm run build` is the current reliable baseline check.
 - `npm run test` runs both unit and integration suites via the TypeScript test build.
 - `npm run lint` targets `src/**/*.ts`.
+- `npm run lint:fix` can be used to automatically fix many lint violations.
 - Some agent docs call out known failures or pre-existing lint debt; check [AGENTS.md](/Users/rafe/games/screeps/AGENTS.md) before treating those as regressions.
 
 ## Agent Guidance

@@ -33,7 +33,7 @@ module.exports = {
     "@typescript-eslint/consistent-type-definitions": "error",
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/explicit-member-accessibility": [
-      "error",
+      "warn",
       {
         accessibility: "explicit"
       }
@@ -41,9 +41,16 @@ module.exports = {
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-parameter-properties": "off",
     "@typescript-eslint/no-shadow": [
-      "error",
+      "warn",
       {
         hoist: "all"
+      }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_"
       }
     ],
     "@typescript-eslint/no-unused-expressions": "error",
@@ -64,7 +71,7 @@ module.exports = {
     "max-classes-per-file": ["error", 1],
     "new-parens": "off",
     "newline-per-chained-call": "off",
-    "no-bitwise": "error",
+    "no-bitwise": "off",
     "no-caller": "error",
     "no-cond-assign": "error",
     "no-console": "off",
@@ -76,7 +83,7 @@ module.exports = {
     "no-throw-literal": "error",
     "no-trailing-spaces": "off",
     "no-undef-init": "error",
-    "no-underscore-dangle": "warn",
+    "no-underscore-dangle": "off",
     "no-var": "error",
     "object-shorthand": "error",
     "one-var": ["error", "never"],

@@ -22,7 +22,10 @@ export class EconomyPlan extends Plan {
                 const storage = room.storage;
                 const sourceContainers = room
                     .find(FIND_STRUCTURES)
-                    .filter((s): s is StructureContainer => s.structureType === STRUCTURE_CONTAINER && containerIsSourceTied(s));
+                    .filter(
+                        (s): s is StructureContainer =>
+                            s.structureType === STRUCTURE_CONTAINER && containerIsSourceTied(s)
+                    );
                 const origins = storage ? [storage, ...sourceContainers] : sourceContainers;
 
                 //

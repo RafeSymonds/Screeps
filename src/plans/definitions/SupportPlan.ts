@@ -1,9 +1,9 @@
 import { Plan } from "./Plan";
-import { updateRoomSupportState, roomCanHelp } from "rooms/RoomSupport";
+import { roomCanHelp, updateRoomSupportState } from "rooms/RoomSupport";
 import { World } from "world/World";
 import { ownedRooms } from "rooms/RoomUtils";
 import { createBootstrapTaskData } from "tasks/definitions/BootstrapTask";
-import { planSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
+import { SpawnRequestPriority, planSpawnRequest } from "spawner/SpawnRequests";
 import { estimateSafeRouteLength } from "rooms/InterRoomRouter";
 
 export class SupportPlan extends Plan {

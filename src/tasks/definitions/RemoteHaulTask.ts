@@ -71,7 +71,11 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override score(creep: Creep): number {
-        return -10000 - this.data.routeLength * 40 - Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 25;
+        return (
+            -10000 -
+            this.data.routeLength * 40 -
+            Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 25
+        );
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {

@@ -159,6 +159,7 @@ declare global {
         desiredRemoteCount: number;
         expansionScore: number;
         nextClaimTarget?: string;
+        expansionReady: boolean;
         lastEvaluated: number;
     }
 
@@ -209,9 +210,9 @@ export const loop = ErrorMapper.wrapLoop(() => {
         Memory.rooms = {};
     }
 
-    let rooms = Object.values(Game.rooms);
+    const rooms = Object.values(Game.rooms);
 
-    let taskManager = new TaskManager();
+    const taskManager = new TaskManager();
 
     // TODO: deal with dead creeps somewhere in here
     for (const name in Memory.creeps) {
@@ -228,7 +229,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
         }
     }
 
-    let myCreeps = Object.values(Game.creeps);
+    const myCreeps = Object.values(Game.creeps);
 
     for (const creep of myCreeps) {
         if (creep.memory === undefined || creep.memory.ownerRoom === undefined) {
@@ -238,12 +239,12 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     const myCreepStates = myCreeps.map(creep => new CreepState(creep, getCreepMemory(creep.name)));
 
-    let world = new World(rooms, myCreepStates, taskManager);
+    const world = new World(rooms, myCreepStates, taskManager);
 
     runPlans(world);
     taskManager.pruneInvalid();
 
-    let spawnManager = new SpawnManager();
+    const spawnManager = new SpawnManager();
     spawnManager.run(world);
 
     assignCreeps(world);

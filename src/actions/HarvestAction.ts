@@ -20,11 +20,12 @@ export class HarvestAction extends Action {
 
         // If the miner has CARRY and energy, transfer to an adjacent link or container
         if (creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
-            const link = creep.pos.findInRange(FIND_MY_STRUCTURES, 1).find(
-                (s): s is StructureLink =>
-                    s.structureType === STRUCTURE_LINK &&
-                    s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
-            );
+            const link = creep.pos
+                .findInRange(FIND_MY_STRUCTURES, 1)
+                .find(
+                    (s): s is StructureLink =>
+                        s.structureType === STRUCTURE_LINK && s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+                );
 
             if (link) {
                 creep.transfer(link, RESOURCE_ENERGY);
@@ -33,11 +34,12 @@ export class HarvestAction extends Action {
 
             // Transfer to adjacent container if store is full
             if (creep.store.getFreeCapacity(RESOURCE_ENERGY) === 0) {
-                const container = creep.pos.findInRange(FIND_STRUCTURES, 1).find(
-                    (s): s is StructureContainer =>
-                        s.structureType === STRUCTURE_CONTAINER &&
-                        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
-                );
+                const container = creep.pos
+                    .findInRange(FIND_STRUCTURES, 1)
+                    .find(
+                        (s): s is StructureContainer =>
+                            s.structureType === STRUCTURE_CONTAINER && s.store.getFreeCapacity(RESOURCE_ENERGY) > 0
+                    );
 
                 if (container) {
                     creep.transfer(container, RESOURCE_ENERGY);

@@ -6,8 +6,20 @@ import commonjs from '@rollup/plugin-commonjs';
 import typescript from 'rollup-plugin-typescript2';
 import screeps from 'rollup-plugin-screeps';
 import { existsSync, mkdirSync, accessSync, constants } from 'fs';
+import os from 'os';
 
-const defaultLocalHostLocation = "/mnt/c/Users/rafe/AppData/Local/Screeps/scripts/127_0_0_1___21025/default";
+const isWindows = process.platform === 'win32';
+const isMac = process.platform === 'darwin';
+
+let defaultLocalHostLocation;
+if (isWindows) {
+  defaultLocalHostLocation = `${process.env.APPDATA}\\Screeps\\scripts\\127_0_0_1___21025\\default`;
+} else if (isMac) {
+  defaultLocalHostLocation = `${os.homedir()}/Library/Application Support/Screeps/scripts/127_0_0_1___21025/default`;
+} else {
+  // Default to the WSL path as a fallback for Linux/WSL users
+  defaultLocalHostLocation = "/mnt/c/Users/rafe/AppData/Local/Screeps/scripts/127_0_0_1___21025/default";
+}
 
 const localHostLocation = process.env.SCREEPS_LOCAL_PATH || defaultLocalHostLocation;
 

@@ -44,7 +44,9 @@ export function resetScreeps(): void {
         spawns: {},
         constructionSites: {},
         cpu: {
-            getUsed: () => 0
+            getUsed: () => 0,
+            bucket: 10000,
+            limit: 100
         },
         map: {
             describeExits(roomName: string) {
@@ -177,6 +179,11 @@ export function createRoom(spec: RoomSpec): Room {
         },
         createConstructionSite() {
             return OK;
+        },
+        getTerrain() {
+            return {
+                get: () => 0
+            };
         }
     } as unknown as Room;
 

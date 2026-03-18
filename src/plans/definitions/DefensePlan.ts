@@ -1,5 +1,5 @@
 import { findSafeAnchor, requestedDefenders, roomThreat } from "combat/CombatUtils";
-import { clearSpawnRequest, planSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
+import { SpawnRequestPriority, clearSpawnRequest, planSpawnRequest } from "spawner/SpawnRequests";
 import { createDefendTaskData } from "tasks/definitions/DefendTask";
 import { World } from "world/World";
 import { WorldRoom } from "world/WorldRoom";

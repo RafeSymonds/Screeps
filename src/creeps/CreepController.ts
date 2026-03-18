@@ -90,6 +90,6 @@ export function moveTo(creepState: CreepState, target: RoomPosition | { pos: Roo
             ? destination
             : nextRoomWaypoint(creepState.creep.room.name, destination);
 
-    const waypointPos = "pos" in waypoint ? (waypoint as any).pos as RoomPosition : waypoint;
+    const waypointPos = "pos" in waypoint ? ((waypoint as any).pos as RoomPosition) : waypoint;
     cachedMoveTo(creepState, waypointPos);
 }

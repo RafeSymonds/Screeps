@@ -23,7 +23,7 @@ export function getRoomCostMatrix(roomName: string): CostMatrix | false {
             matrix.set(struct.pos.x, struct.pos.y, 1);
         } else if (
             struct.structureType !== STRUCTURE_CONTAINER &&
-            !(struct.structureType === STRUCTURE_RAMPART && (struct as StructureRampart).my)
+            !(struct.structureType === STRUCTURE_RAMPART && struct.my)
         ) {
             matrix.set(struct.pos.x, struct.pos.y, 255);
         }

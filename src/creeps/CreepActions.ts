@@ -13,23 +13,16 @@ export function performCreepActions(world: World) {
                     ? room.hostileCreeps
                     : creepState.creep.room.find(FIND_HOSTILE_CREEPS);
 
-            if (
-                currentRoomHostiles.length > 0 &&
-                !hasCombatPart(creepState.creep)
-            ) {
-                moveAwayFromThreats(
-                    creepState,
-                    currentRoomHostiles,
-                    safeAnchorPosition(room.room.name)
-                );
+            if (currentRoomHostiles.length > 0 && !hasCombatPart(creepState.creep)) {
+                moveAwayFromThreats(creepState, currentRoomHostiles, safeAnchorPosition(room.room.name));
                 continue;
             }
 
             if (creepState.memory.energyTargetId) {
-                let energyTarget = Game.getObjectById(creepState.memory.energyTargetId);
+                const energyTarget = Game.getObjectById(creepState.memory.energyTargetId);
 
                 if (energyTarget) {
-                    let action = new CollectAction(energyTarget);
+                    const action = new CollectAction(energyTarget);
                     action.perform(creepState);
                 } else {
                     creepState.memory.energyTargetId = undefined;

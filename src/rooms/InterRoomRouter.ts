@@ -1,4 +1,4 @@
-import { intelStatus, IntelStatus } from "./RoomIntel";
+import { IntelStatus, intelStatus } from "./RoomIntel";
 import { getDefaultRoomMemory } from "./RoomMemory";
 import { buildNeighborMap } from "./RoomTopology";
 

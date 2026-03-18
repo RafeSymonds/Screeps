@@ -48,6 +48,10 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
 - `npm run privateServer`: deploy to the local path controlled by `SCREEPS_LOCAL_PATH`.
 - `npm run test`: unit and integration tests.
 - `npm run lint`: ESLint on `src/**/*.ts`.
+- `npm run lint:fix`: automatically fix many lint violations.
+- `npm run agent:roles`: list available agent roles.
+- `npm run agent:queue`: build the current session queue from agent files.
+- `npm run agent:process`: run assigned roles headlessly in dry-run mode.
 
 ## Secrets And Local Config
 

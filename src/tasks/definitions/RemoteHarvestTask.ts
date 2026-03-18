@@ -27,8 +27,8 @@ export function createRemoteHarvestTaskData(
         targetRoom: sourcePos.roomName,
         assignedCreeps: [],
         targetId: sourceId,
-        sourcePos: sourcePos,
-        ownerRoom: ownerRoom,
+        sourcePos,
+        ownerRoom,
         routeLength
     };
 }
@@ -61,7 +61,11 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
     }
 
     public override score(creep: Creep): number {
-        return -1000 - this.data.routeLength * 25 - Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 10;
+        return (
+            -1000 -
+            this.data.routeLength * 25 -
+            Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 10
+        );
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {

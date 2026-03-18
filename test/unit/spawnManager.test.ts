@@ -58,7 +58,7 @@ describe("SpawnManager", () => {
         new SpawnManager().run(world);
 
         assert.lengthOf(spawnCalls, 1);
-        assert.deepEqual(spawnCalls[0].body, [MOVE, WORK, WORK]);
+        assert.deepEqual(spawnCalls[0].body, [MOVE, CARRY, WORK]);
         assert.match(spawnCalls[0].name, /^MINER-/);
         assert.equal(spawnCalls[0].opts.memory.ownerRoom, "W0N0");
     });
@@ -85,7 +85,7 @@ describe("SpawnManager", () => {
         const worker = {
             id: "worker1",
             name: "worker1",
-            body: [{ type: WORK }, { type: CARRY }, { type: MOVE }],
+            body: [{ type: CARRY }, { type: MOVE }], // Remove WORK to avoid triggering hauler demand via "miner" classification
             memory: { ownerRoom: "W0N0", taskId: "task", taskTicks: 0, working: true },
             store: {
                 getUsedCapacity: () => 0,

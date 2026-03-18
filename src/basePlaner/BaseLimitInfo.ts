@@ -4,7 +4,10 @@
 
 export type PlannedStructure = keyof typeof BUNKER.buildings;
 
-export type Offset = { x: number; y: number };
+export interface Offset {
+    x: number;
+    y: number;
+}
 
 /* ================================
    UNLOCK RULES

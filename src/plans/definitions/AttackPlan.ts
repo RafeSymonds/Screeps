@@ -1,4 +1,4 @@
-import { planSpawnRequest, clearSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
+import { SpawnRequestPriority, clearSpawnRequest, planSpawnRequest } from "spawner/SpawnRequests";
 import { createAttackTaskData } from "tasks/definitions/AttackTask";
 import { World } from "world/World";
 import { Plan } from "./Plan";
@@ -13,7 +13,7 @@ export class AttackPlan extends Plan {
             const growth = room.memory.growth;
             const storage = room.storage;
             const energy = storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
-            const isSurplus = (growth?.stage === "surplus") && energy > 80000;
+            const isSurplus = growth?.stage === "surplus" && energy > 80000;
             const isHealthy = energy > 20000;
 
             const target = this.findAttackTarget(room, isSurplus, isHealthy);
@@ -40,7 +40,11 @@ export class AttackPlan extends Plan {
         }
     }
 
-    private findAttackTarget(room: Room, isSurplus: boolean, isHealthy: boolean): { roomName: string; squadSize: number; priority: number } | null {
+    private findAttackTarget(
+        room: Room,
+        isSurplus: boolean,
+        isHealthy: boolean
+    ): { roomName: string; squadSize: number; priority: number } | null {
         let bestTarget: string | null = null;
         let bestScore = -Infinity;
         let bestPriority = SpawnRequestPriority.NORMAL + 10;
@@ -62,7 +66,7 @@ export class AttackPlan extends Plan {
 
             // Proactive clearing of cores in remote radius
             const inRemoteRadius = routeLength <= (room.memory.remoteRadius ?? 2);
-            
+
             // If not surplus, only attack cores in remote radius if healthy
             if (!isSurplus) {
                 if (!hasCore || !inRemoteRadius || !isHealthy) continue;

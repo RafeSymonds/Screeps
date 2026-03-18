@@ -30,10 +30,10 @@ function structureValue(type: BuildableStructureConstant): number {
    ACTION CANDIDATES — scored options the creep can take
    ============================================================ */
 
-type ActionCandidate = {
+interface ActionCandidate {
     score: number;
     execute: (creepState: CreepState) => void;
-};
+}
 
 export class BootstrapAction extends Action {
     constructor(
@@ -90,7 +90,7 @@ export class BootstrapAction extends Action {
 
             candidates.push({
                 score,
-                execute: (cs) => {
+                execute: cs => {
                     const result = cs.creep.build(site);
                     if (result === ERR_NOT_IN_RANGE) moveTo(cs, site);
                 }
@@ -109,7 +109,7 @@ export class BootstrapAction extends Action {
 
             candidates.push({
                 score,
-                execute: (cs) => {
+                execute: cs => {
                     const result = cs.creep.repair(struct);
                     if (result === ERR_NOT_IN_RANGE) moveTo(cs, struct);
                 }
@@ -124,7 +124,7 @@ export class BootstrapAction extends Action {
 
             candidates.push({
                 score,
-                execute: (cs) => {
+                execute: cs => {
                     const result = cs.creep.upgradeController(room.controller!);
                     if (result === ERR_NOT_IN_RANGE) moveTo(cs, room.controller!);
                 }
@@ -144,11 +144,11 @@ export class BootstrapAction extends Action {
             const range = creep.pos.getRangeTo(room.storage);
             const amount = Math.min(freeCapacity, room.storage.store.getUsedCapacity(RESOURCE_ENERGY));
             // Withdraw is instant — high throughput
-            const score = (amount / 50 * 8 - range * 2) * needRatio;
+            const score = ((amount / 50) * 8 - range * 2) * needRatio;
 
             candidates.push({
                 score,
-                execute: (cs) => {
+                execute: cs => {
                     const result = cs.creep.withdraw(room.storage!, RESOURCE_ENERGY);
                     if (result === ERR_NOT_IN_RANGE) moveTo(cs, room.storage!);
                 }
@@ -158,17 +158,17 @@ export class BootstrapAction extends Action {
         // Containers
         for (const struct of room.find(FIND_STRUCTURES)) {
             if (struct.structureType !== STRUCTURE_CONTAINER) continue;
-            const container = struct as StructureContainer;
+            const container = struct;
             const amount = container.store.getUsedCapacity(RESOURCE_ENERGY);
             if (amount === 0) continue;
 
             const range = creep.pos.getRangeTo(container);
             const pickup = Math.min(freeCapacity, amount);
-            const score = (pickup / 50 * 6 - range * 2) * needRatio;
+            const score = ((pickup / 50) * 6 - range * 2) * needRatio;
 
             candidates.push({
                 score,
-                execute: (cs) => {
+                execute: cs => {
                     const result = cs.creep.withdraw(container, RESOURCE_ENERGY);
                     if (result === ERR_NOT_IN_RANGE) moveTo(cs, container);
                 }
@@ -180,11 +180,11 @@ export class BootstrapAction extends Action {
             if (resource.resourceType !== RESOURCE_ENERGY) continue;
             const range = creep.pos.getRangeTo(resource);
             const pickup = Math.min(freeCapacity, resource.amount);
-            const score = (pickup / 50 * 7 - range * 2) * needRatio;
+            const score = ((pickup / 50) * 7 - range * 2) * needRatio;
 
             candidates.push({
                 score,
-                execute: (cs) => {
+                execute: cs => {
                     const result = cs.creep.pickup(resource);
                     if (result === ERR_NOT_IN_RANGE) moveTo(cs, resource);
                 }
@@ -196,11 +196,11 @@ export class BootstrapAction extends Action {
             const amount = tomb.store.getUsedCapacity(RESOURCE_ENERGY);
             if (amount === 0) continue;
             const range = creep.pos.getRangeTo(tomb);
-            const score = (Math.min(freeCapacity, amount) / 50 * 7 - range * 2) * needRatio;
+            const score = ((Math.min(freeCapacity, amount) / 50) * 7 - range * 2) * needRatio;
 
             candidates.push({
                 score,
-                execute: (cs) => {
+                execute: cs => {
                     const result = cs.creep.withdraw(tomb, RESOURCE_ENERGY);
                     if (result === ERR_NOT_IN_RANGE) moveTo(cs, tomb);
                 }
@@ -212,11 +212,11 @@ export class BootstrapAction extends Action {
             const amount = ruin.store.getUsedCapacity(RESOURCE_ENERGY);
             if (amount === 0) continue;
             const range = creep.pos.getRangeTo(ruin);
-            const score = (Math.min(freeCapacity, amount) / 50 * 7 - range * 2) * needRatio;
+            const score = ((Math.min(freeCapacity, amount) / 50) * 7 - range * 2) * needRatio;
 
             candidates.push({
                 score,
-                execute: (cs) => {
+                execute: cs => {
                     const result = cs.creep.withdraw(ruin, RESOURCE_ENERGY);
                     if (result === ERR_NOT_IN_RANGE) moveTo(cs, ruin);
                 }
@@ -231,7 +231,7 @@ export class BootstrapAction extends Action {
 
             candidates.push({
                 score,
-                execute: (cs) => {
+                execute: cs => {
                     const result = cs.creep.harvest(source);
                     if (result === ERR_NOT_IN_RANGE) moveTo(cs, source);
                 }

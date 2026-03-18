@@ -68,9 +68,9 @@ export class AttackAction extends Action {
 
         // In target room
         const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
-        const hostileStructures = creep.room.find(FIND_HOSTILE_STRUCTURES).filter(
-            s => s.structureType !== STRUCTURE_CONTROLLER && s.structureType !== STRUCTURE_KEEPER_LAIR
-        );
+        const hostileStructures = creep.room
+            .find(FIND_HOSTILE_STRUCTURES)
+            .filter(s => s.structureType !== STRUCTURE_CONTROLLER && s.structureType !== STRUCTURE_KEEPER_LAIR);
 
         // No hostiles and no structures - we're done or need to demolish
         if (hostiles.length === 0 && hostileStructures.length === 0) {

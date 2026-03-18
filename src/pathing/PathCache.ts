@@ -30,12 +30,16 @@ export function findCachedPath(from: RoomPosition, to: RoomPosition): RoomPositi
 }
 
 export function searchAndCachePath(from: RoomPosition, to: RoomPosition, range: number = 1): RoomPosition[] {
-    const result = PathFinder.search(from, { pos: to, range }, {
-        plainCost: 2,
-        swampCost: 10,
-        maxOps: 2000,
-        roomCallback: getRoomCostMatrix
-    });
+    const result = PathFinder.search(
+        from,
+        { pos: to, range },
+        {
+            plainCost: 2,
+            swampCost: 10,
+            maxOps: 2000,
+            roomCallback: getRoomCostMatrix
+        }
+    );
 
     if (result.incomplete) {
         return result.path;

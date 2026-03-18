@@ -12,11 +12,7 @@ const DIRECTION_OFFSETS: Record<DirectionConstant, [number, number]> = {
     [LEFT]: [-1, 0],
     [TOP_LEFT]: [-1, -1]
 };
-const PASSABLE_STRUCTURES = new Set<StructureConstant>([
-    STRUCTURE_CONTAINER,
-    STRUCTURE_ROAD,
-    STRUCTURE_RAMPART
-]);
+const PASSABLE_STRUCTURES = new Set<StructureConstant>([STRUCTURE_CONTAINER, STRUCTURE_ROAD, STRUCTURE_RAMPART]);
 
 function isPassable(pos: RoomPosition): boolean {
     if (pos.x <= 0 || pos.x >= 49 || pos.y <= 0 || pos.y >= 49) {

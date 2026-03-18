@@ -3,11 +3,11 @@
  */
 export const SpawnRequestPriority = {
     EMERGENCY: 220, // Critical bootstrap (0 energy), emergency defense
-    CRITICAL: 180,  // First miner/hauler in a room, high-pressure recovery
-    HIGH: 140,      // Cross-room Support/Bootstrap, high-pressure economy
-    NORMAL: 90,     // Expansion (Claim), Reservation, Scouting, typical labor
-    LOW: 50,        // Secondary builders, surplus haulers, optimization
-    IDLE: 10        // Opportunistic or low-value tasks
+    CRITICAL: 180, // First miner/hauler in a room, high-pressure recovery
+    HIGH: 140, // Cross-room Support/Bootstrap, high-pressure economy
+    NORMAL: 90, // Expansion (Claim), Reservation, Scouting, typical labor
+    LOW: 50, // Secondary builders, surplus haulers, optimization
+    IDLE: 10 // Opportunistic or low-value tasks
 } as const;
 
 export function getActiveSpawnRequests(room: Room): RoomSpawnRequest[] {

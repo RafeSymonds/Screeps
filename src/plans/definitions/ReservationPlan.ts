@@ -1,7 +1,7 @@
 import { Plan } from "./Plan";
 import { World } from "world/World";
 import { createReserveTaskData } from "tasks/definitions/ReserveTask";
-import { planSpawnRequest, SpawnRequestPriority } from "spawner/SpawnRequests";
+import { SpawnRequestPriority, planSpawnRequest } from "spawner/SpawnRequests";
 import { getMyUsername } from "utils/GameUtils";
 
 const RESERVATION_THRESHOLD = 2500;

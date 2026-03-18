@@ -1,5 +1,5 @@
 import { WorldRoom } from "world/WorldRoom";
-import { RoomEnergyState, EnergyTarget } from "./RoomEnergyState";
+import { EnergyTarget, RoomEnergyState } from "./RoomEnergyState";
 import { CreepState } from "creeps/CreepState";
 import { TaskManager } from "tasks/core/TaskManager";
 
@@ -24,7 +24,7 @@ export class ResourceManager {
                 const creep = cs.creep;
 
                 /* -------- Target-level pickup reservations -------- */
-                const targetId = cs.memory.energyTargetId as Id<EnergyTarget> | undefined;
+                const targetId = cs.memory.energyTargetId;
                 if (targetId) {
                     const amt = creep.store.getFreeCapacity(RESOURCE_ENERGY);
                     if (amt > 0) {

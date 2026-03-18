@@ -1,4 +1,4 @@
-import { safeAnchorPosition, moveAwayFromThreats } from "combat/CombatMovement";
+import { moveAwayFromThreats, safeAnchorPosition } from "combat/CombatMovement";
 import { combatPower, hostileThreat, selectPriorityHostile, weakestFriendly } from "combat/CombatUtils";
 import { moveTo } from "creeps/CreepController";
 import { countBodyParts } from "creeps/CreepUtils";
@@ -70,10 +70,13 @@ export class CombatAction extends Action {
         const meleeParts = countBodyParts(creep, ATTACK);
         const rangedParts = countBodyParts(creep, RANGED_ATTACK);
         const squad = this.squadMates().filter(squadMate => squadMate.room.name === this.targetRoom);
-        const nearbySquad = squad.filter(squadMate => squadMate.id !== creep.id && creep.pos.getRangeTo(squadMate) <= 4);
+        const nearbySquad = squad.filter(
+            squadMate => squadMate.id !== creep.id && creep.pos.getRangeTo(squadMate) <= 4
+        );
         const nearbyThreats = hostiles.filter(hostile => creep.pos.getRangeTo(hostile) <= 4);
         const nearbyThreat = nearbyThreats.reduce((total, hostile) => total + hostileThreat(hostile), 0);
-        const nearbySupport = combatPower(creep) + nearbySquad.reduce((total, squadMate) => total + combatPower(squadMate), 0);
+        const nearbySupport =
+            combatPower(creep) + nearbySquad.reduce((total, squadMate) => total + combatPower(squadMate), 0);
         const lowHealth = creep.hits < creep.hitsMax * 0.6;
         const shouldRetreat = lowHealth || nearbyThreat > nearbySupport * 1.5;
         const shouldRegroup =

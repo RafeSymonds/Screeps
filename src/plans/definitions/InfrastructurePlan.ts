@@ -11,9 +11,11 @@ function isWalkable(pos: RoomPosition): boolean {
         return false;
     }
 
-    return !pos.lookFor(LOOK_STRUCTURES).some(
-        structure => structure.structureType !== STRUCTURE_ROAD && structure.structureType !== STRUCTURE_CONTAINER
-    );
+    return !pos
+        .lookFor(LOOK_STRUCTURES)
+        .some(
+            structure => structure.structureType !== STRUCTURE_ROAD && structure.structureType !== STRUCTURE_CONTAINER
+        );
 }
 
 function hasStructureOrSite(pos: RoomPosition, structureType: BuildableStructureConstant): boolean {
@@ -82,7 +84,10 @@ function planContainerAt(pos: RoomPosition): boolean {
 
 function planRoads(path: RoomPosition[], created: { count: number }) {
     for (const pos of path) {
-        if (created.count >= MAX_NEW_SITES_PER_RUN || Object.keys(Game.constructionSites).length >= MAX_CONSTRUCTION_SITES) {
+        if (
+            created.count >= MAX_NEW_SITES_PER_RUN ||
+            Object.keys(Game.constructionSites).length >= MAX_CONSTRUCTION_SITES
+        ) {
             return;
         }
 
@@ -104,12 +109,8 @@ function planLinkNearSource(room: Room, source: Source, created: { count: number
     }
 
     // Count existing links
-    const existingLinks = room.find(FIND_MY_STRUCTURES).filter(
-        s => s.structureType === STRUCTURE_LINK
-    ).length;
-    const linkSites = room.find(FIND_CONSTRUCTION_SITES).filter(
-        s => s.structureType === STRUCTURE_LINK
-    ).length;
+    const existingLinks = room.find(FIND_MY_STRUCTURES).filter(s => s.structureType === STRUCTURE_LINK).length;
+    const linkSites = room.find(FIND_CONSTRUCTION_SITES).filter(s => s.structureType === STRUCTURE_LINK).length;
 
     const linkLimits = [0, 0, 0, 0, 2, 3, 4, 6]; // per RCL
     const maxLinks = linkLimits[rcl - 1] ?? 0;
@@ -119,12 +120,10 @@ function planLinkNearSource(room: Room, source: Source, created: { count: number
     }
 
     // Check if there's already a link near this source
-    const nearbyLinks = source.pos.findInRange(FIND_MY_STRUCTURES, 2).filter(
-        s => s.structureType === STRUCTURE_LINK
-    );
-    const nearbySites = source.pos.findInRange(FIND_CONSTRUCTION_SITES, 2).filter(
-        s => s.structureType === STRUCTURE_LINK
-    );
+    const nearbyLinks = source.pos.findInRange(FIND_MY_STRUCTURES, 2).filter(s => s.structureType === STRUCTURE_LINK);
+    const nearbySites = source.pos
+        .findInRange(FIND_CONSTRUCTION_SITES, 2)
+        .filter(s => s.structureType === STRUCTURE_LINK);
 
     if (nearbyLinks.length > 0 || nearbySites.length > 0) {
         return;
@@ -193,7 +192,11 @@ function planOwnedRoomInfrastructure(room: Room, created: { count: number }) {
         // Delay containers until RCL 3+ — extensions and upgrading first
         const containerPos = rcl >= 3 ? bestContainerPosition(anchor.pos, source) : null;
 
-        if (containerPos && created.count < MAX_NEW_SITES_PER_RUN && Object.keys(Game.constructionSites).length < MAX_CONSTRUCTION_SITES) {
+        if (
+            containerPos &&
+            created.count < MAX_NEW_SITES_PER_RUN &&
+            Object.keys(Game.constructionSites).length < MAX_CONSTRUCTION_SITES
+        ) {
             if (planContainerAt(containerPos)) {
                 created.count += 1;
             }
@@ -232,7 +235,11 @@ function planRemoteInfrastructure(ownerRoom: Room, remoteRoom: Room, created: { 
     for (const source of remoteRoom.find(FIND_SOURCES)) {
         const containerPos = bestContainerPosition(anchor.pos, source);
 
-        if (containerPos && created.count < MAX_NEW_SITES_PER_RUN && Object.keys(Game.constructionSites).length < MAX_CONSTRUCTION_SITES) {
+        if (
+            containerPos &&
+            created.count < MAX_NEW_SITES_PER_RUN &&
+            Object.keys(Game.constructionSites).length < MAX_CONSTRUCTION_SITES
+        ) {
             if (planContainerAt(containerPos)) {
                 created.count += 1;
             }

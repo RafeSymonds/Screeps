@@ -2,19 +2,19 @@ import { WorldRoom } from "world/WorldRoom";
 
 export type EnergyTarget = StructureContainer | StructureStorage | Tombstone | Ruin | Resource;
 
-export type EnergySource = {
+export interface EnergySource {
     target: EnergyTarget;
     amount: number;
-};
+}
 
 /* ================================
    RESERVATIONS
    ================================ */
 
-type TargetReservation = {
+interface TargetReservation {
     owner: Id<Creep>;
     amount: number;
-};
+}
 
 /* ================================
    ROOM ENERGY STATE

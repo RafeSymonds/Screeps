@@ -55,7 +55,7 @@ export class BootstrapTask extends Task<BootstrapTaskData> {
     }
 
     public override nextAction(creepState: CreepState, _resourceManager: ResourceManager): Action | null {
-        return new BootstrapAction(this.data.targetRoom, this.data.ownerRoom!);
+        return new BootstrapAction(this.data.targetRoom, this.data.ownerRoom);
     }
 
     public override validCreationSetup(): void {}

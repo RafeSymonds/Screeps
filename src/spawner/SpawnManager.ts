@@ -4,7 +4,7 @@ import { getDefaultCreepMemory } from "creeps/CreepMemory";
 import { countBodyParts, countCombatParts, hasBodyPart, hasCombatPart } from "creeps/CreepUtils";
 import { TaskRequirements, requirementCreeps, requirementParts } from "tasks/core/TaskRequirements";
 import { CreepState } from "creeps/CreepState";
-import { clearSpawnRequest, getActiveSpawnRequests, SpawnRequestPriority, upsertSpawnRequest } from "./SpawnRequests";
+import { SpawnRequestPriority, clearSpawnRequest, getActiveSpawnRequests, upsertSpawnRequest } from "./SpawnRequests";
 import { TaskKind } from "tasks/core/TaskKind";
 
 /* ============================================================
@@ -51,12 +51,12 @@ type SpawnIntent =
     | { kind: SpawnIntentKind.CLAIMER }
     | { kind: SpawnIntentKind.ATTACKER };
 
-type ResolvedSpawnRequest = {
+interface ResolvedSpawnRequest {
     kind: SpawnIntentKind;
     priority: number;
     unmetCreeps: number;
     minEnergy?: number;
-};
+}
 
 /* ============================================================
    BODY BUILDERS
@@ -132,7 +132,11 @@ function defenderBody(energy: number): BodyPartConstant[] {
     let remaining = energy;
 
     // Add TOUGH up front (cheap HP shields)
-    while (remaining >= 210 && toughParts.length < 4 && toughParts.length + combatParts.length + moveParts.length < 48) {
+    while (
+        remaining >= 210 &&
+        toughParts.length < 4 &&
+        toughParts.length + combatParts.length + moveParts.length < 48
+    ) {
         toughParts.push(TOUGH);
         moveParts.push(MOVE);
         remaining -= 60; // 10 + 50
@@ -181,7 +185,11 @@ function attackerBody(energy: number): BodyPartConstant[] {
     let remaining = energy;
 
     // Add TOUGH + MOVE pairs (cheap HP)
-    while (remaining >= 260 && toughParts.length < 3 && toughParts.length + combatParts.length + moveParts.length < 48) {
+    while (
+        remaining >= 260 &&
+        toughParts.length < 3 &&
+        toughParts.length + combatParts.length + moveParts.length < 48
+    ) {
         toughParts.push(TOUGH);
         moveParts.push(MOVE);
         remaining -= 60;
@@ -234,7 +242,12 @@ function isClaimer(cs: CreepState): boolean {
 }
 
 function isScout(cs: CreepState): boolean {
-    return hasBodyPart(cs.creep, MOVE) && !hasBodyPart(cs.creep, WORK) && !hasBodyPart(cs.creep, CARRY) && !hasBodyPart(cs.creep, CLAIM);
+    return (
+        hasBodyPart(cs.creep, MOVE) &&
+        !hasBodyPart(cs.creep, WORK) &&
+        !hasBodyPart(cs.creep, CARRY) &&
+        !hasBodyPart(cs.creep, CLAIM)
+    );
 }
 
 function isCombat(cs: CreepState): boolean {
@@ -280,7 +293,7 @@ function isExpiringSoon(creep: Creep, role: SpawnRequestRole): boolean {
    SUPPLY TOTALS
    ============================================================ */
 
-type SupplyTotals = {
+interface SupplyTotals {
     mine: number; // WORK on miners
     minerCreeps: number;
     idleMiners: number;
@@ -304,7 +317,7 @@ type SupplyTotals = {
     incomingScouts: number;
     incomingDefenders: number;
     incomingAttackers: number;
-};
+}
 
 function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
     const supply: SupplyTotals = {
@@ -412,7 +425,7 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
    TASK DEMAND (MINING IS AUTHORITATIVE)
    ============================================================ */
 
-type DemandTotals = {
+interface DemandTotals {
     mine: number;
     minerCreeps: number;
     work: number;
@@ -422,7 +435,7 @@ type DemandTotals = {
     scout: number;
     combat: number;
     defenderCreeps: number;
-};
+}
 
 function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTotals {
     const demand: DemandTotals = {
@@ -516,14 +529,7 @@ function statsSnapshot(
         demandParts,
         demandCreeps,
         idleCreeps,
-        pressure: pressureScore(
-            supplyParts,
-            supplyCreeps,
-            demandParts,
-            demandCreeps,
-            previous?.pressure ?? 0,
-            alpha
-        )
+        pressure: pressureScore(supplyParts, supplyCreeps, demandParts, demandCreeps, previous?.pressure ?? 0, alpha)
     };
 }
 
@@ -731,7 +737,12 @@ function calculateBaselinePriority(
     return 0;
 }
 
-function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: DemandTotals, stats: RoomSpawnStats): void {
+function refreshBaselineSpawnRequests(
+    room: Room,
+    supply: SupplyTotals,
+    demand: DemandTotals,
+    stats: RoomSpawnStats
+): void {
     const targetCarry = stats.carry.demandParts;
 
     const minerImmediate = immediatePressure(supply.mine, supply.minerCreeps, demand.mine, demand.minerCreeps);
@@ -812,8 +823,8 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
 
     // Worker
     // Don't spawn workers until basic economy exists (miner + hauler)
-    const hasBasicEconomy = (supply.minerCreeps + supply.incomingMiners > 0) &&
-        (supply.haulerCreeps + supply.incomingHaulers > 0);
+    const hasBasicEconomy =
+        supply.minerCreeps + supply.incomingMiners > 0 && supply.haulerCreeps + supply.incomingHaulers > 0;
 
     const baseWorkerPriority = calculateBaselinePriority(
         "worker",
@@ -842,16 +853,11 @@ function refreshBaselineSpawnRequests(room: Room, supply: SupplyTotals, demand: 
     }
 }
 
-
 /* ============================================================
    SPAWN DECISION
    ============================================================ */
 
-function selectSpawnIntent(
-    room: Room,
-    supply: SupplyTotals,
-    availableEnergy: number
-): SpawnIntent | null {
+function selectSpawnIntent(room: Room, supply: SupplyTotals, availableEnergy: number): SpawnIntent | null {
     const requests = explicitSpawnRequests(room, supply)
         .filter(request => request.minEnergy === undefined || availableEnergy >= request.minEnergy)
         .sort((a, b) => {
@@ -871,13 +877,27 @@ function selectSpawnIntent(
 
 function incrementIncomingSupply(supply: SupplyTotals, kind: SpawnIntentKind): void {
     switch (kind) {
-        case SpawnIntentKind.SCOUT: supply.incomingScouts += 1; break;
-        case SpawnIntentKind.MINER: supply.incomingMiners += 1; break;
-        case SpawnIntentKind.HAULER: supply.incomingHaulers += 1; break;
-        case SpawnIntentKind.WORKER: supply.incomingWorkers += 1; break;
-        case SpawnIntentKind.DEFENDER: supply.incomingDefenders += 1; break;
-        case SpawnIntentKind.CLAIMER: supply.incomingScouts += 1; break;
-        case SpawnIntentKind.ATTACKER: supply.incomingAttackers += 1; break;
+        case SpawnIntentKind.SCOUT:
+            supply.incomingScouts += 1;
+            break;
+        case SpawnIntentKind.MINER:
+            supply.incomingMiners += 1;
+            break;
+        case SpawnIntentKind.HAULER:
+            supply.incomingHaulers += 1;
+            break;
+        case SpawnIntentKind.WORKER:
+            supply.incomingWorkers += 1;
+            break;
+        case SpawnIntentKind.DEFENDER:
+            supply.incomingDefenders += 1;
+            break;
+        case SpawnIntentKind.CLAIMER:
+            supply.incomingScouts += 1;
+            break;
+        case SpawnIntentKind.ATTACKER:
+            supply.incomingAttackers += 1;
+            break;
     }
 }
 

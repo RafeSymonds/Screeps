@@ -19,15 +19,13 @@ export function recordRoom(room: Room) {
     if (!mem.remoteMining) {
         const sources = room.find(FIND_SOURCES).map((source): [Id<Source>, RoomPosition] => [source.id, source.pos]);
 
-        mem.remoteMining = { lastHarvestTick: -1, sources: sources, ownerRoom: undefined };
+        mem.remoteMining = { lastHarvestTick: -1, sources, ownerRoom: undefined };
     }
 
     // Track hostile military presence
     const hostiles = room.find(FIND_HOSTILE_CREEPS);
     const hostileMilitaryParts = hostiles.reduce((total, creep) => {
-        return total + creep.body.filter(
-            p => p.type === ATTACK || p.type === RANGED_ATTACK || p.type === HEAL
-        ).length;
+        return total + creep.body.filter(p => p.type === ATTACK || p.type === RANGED_ATTACK || p.type === HEAL).length;
     }, 0);
 
     // Intel: refreshed
@@ -54,7 +52,7 @@ function recordTopology(roomName: string): RoomTopology {
         neighbors[cardinal] = exits[Number(dir) as ExitConstant]!;
     }
 
-    return { neighbors: neighbors };
+    return { neighbors };
 }
 
 export enum IntelStatus {

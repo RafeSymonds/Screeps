@@ -17,7 +17,7 @@ export function harvestTaskName(source: Source): string {
 export function createHarvestTaskData(source: Source): HarvestTaskData {
     let harvestSpots = 9;
 
-    let terrain = source.room.lookForAtArea(
+    const terrain = source.room.lookForAtArea(
         LOOK_TERRAIN,
         source.pos.y - 1,
         source.pos.x - 1,
@@ -60,7 +60,7 @@ export class HarvestTask extends Task<HarvestTaskData> {
     }
 
     protected override taskIsFull(): boolean {
-        let workParts = this.data.assignedCreeps.reduce((total, creepInfo) => {
+        const workParts = this.data.assignedCreeps.reduce((total, creepInfo) => {
             const creep = Game.getObjectById(creepInfo[0]);
 
             if (creep) {

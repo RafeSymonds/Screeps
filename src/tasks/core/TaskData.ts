@@ -5,13 +5,13 @@ export enum TaskSafetyPolicy {
     ALLOW_DANGEROUS_ASSIGNMENT = "allowDangerousAssignment"
 }
 
-export type BaseTask = {
+export interface BaseTask {
     id: string;
     targetRoom: string;
     assignedCreeps: [Id<Creep>, string][];
     safetyPolicy?: TaskSafetyPolicy;
     ownerRoom?: string;
-};
+}
 
 export type BuildTaskData = BaseTask & {
     kind: TaskKind.BUILD;
@@ -62,6 +62,7 @@ export type DeliverTaskData = BaseTask & {
 
 export type ScoutTaskData = BaseTask & {
     kind: TaskKind.SCOUT;
+    priority?: number;
 };
 
 export type DefendTaskData = BaseTask & {
@@ -109,7 +110,7 @@ export type TaskData =
     | BootstrapTaskData
     | RepairTaskData;
 
-export type RoomTaskData = {
+export interface RoomTaskData {
     name: string;
     tasks: TaskData[];
-};
+}

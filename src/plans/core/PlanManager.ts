@@ -14,7 +14,7 @@ import { TerminalPlan } from "plans/definitions/TerminalPlan";
 import { MaintenancePlan } from "plans/definitions/MaintenancePlan";
 import { shouldRunPlan } from "./PlanScheduler";
 import { World } from "world/World";
-import { computeThrottleTier, PlanPriority } from "cpu/CpuBudget";
+import { PlanPriority, computeThrottleTier } from "cpu/CpuBudget";
 
 export function runPlans(world: World) {
     const tier = computeThrottleTier();

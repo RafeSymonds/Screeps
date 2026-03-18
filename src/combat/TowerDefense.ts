@@ -1,6 +1,6 @@
 import { selectPriorityHostile, weakestFriendly } from "./CombatUtils";
 import { World } from "world/World";
-import { computeThrottleTier, ThrottleTier } from "cpu/CpuBudget";
+import { ThrottleTier, computeThrottleTier } from "cpu/CpuBudget";
 
 const TOWER_REPAIR_RESERVE = 700;
 const TOWER_REPAIR_TARGET = 10000;
@@ -46,8 +46,7 @@ function lowestFortification(room: Room, target: number): Structure | null {
         .find(FIND_STRUCTURES)
         .filter(
             structure =>
-                (structure.structureType === STRUCTURE_WALL ||
-                    structure.structureType === STRUCTURE_RAMPART) &&
+                (structure.structureType === STRUCTURE_WALL || structure.structureType === STRUCTURE_RAMPART) &&
                 structure.hits < target
         )
         .sort((a, b) => a.hits - b.hits);
@@ -65,12 +64,15 @@ export function performTowerDefense(world: World): void {
         }
 
         const hostiles = worldRoom.hostileCreeps;
-        const wounded = weakestFriendly(worldRoom.room.find(FIND_MY_CREEPS).filter(creep => creep.hits < creep.hitsMax));
+        const wounded = weakestFriendly(
+            worldRoom.room.find(FIND_MY_CREEPS).filter(creep => creep.hits < creep.hitsMax)
+        );
         const repairTarget = lowestRepairTarget(worldRoom.room);
 
         const rcl = worldRoom.room.controller?.level ?? 0;
         const hpTarget = rampartHpTarget(rcl);
-        const fortificationTarget = !skipFortification && hpTarget > 0 ? lowestFortification(worldRoom.room, hpTarget) : null;
+        const fortificationTarget =
+            !skipFortification && hpTarget > 0 ? lowestFortification(worldRoom.room, hpTarget) : null;
 
         for (const tower of worldRoom.towers) {
             if (hostiles.length > 0) {

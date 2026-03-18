@@ -86,7 +86,7 @@ export class TerminalPlan extends Plan {
                 // Find a buy order for this resource
                 const orders = Game.market.getAllOrders({
                     type: ORDER_BUY,
-                    resourceType: resourceType
+                    resourceType
                 });
 
                 if (orders.length === 0) {

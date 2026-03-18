@@ -8,7 +8,7 @@ export function findBestEnergyTask(
     destination: Structure | RoomPosition | null,
     resourceManager: ResourceManager
 ) {
-    let energySource = resourceManager.findEnergyAndReserve(creepState.creep, destination);
+    const energySource = resourceManager.findEnergyAndReserve(creepState.creep, destination);
 
     if (energySource) {
         assignCreepEnegyPickup(creepState, energySource);

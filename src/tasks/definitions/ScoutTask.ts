@@ -5,23 +5,23 @@ import { Action } from "actions/Action";
 import { CreepState } from "creeps/CreepState";
 import { hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
-import { ScoutTaskData } from "tasks/core/TaskData";
+import { ScoutTaskData, TaskSafetyPolicy } from "tasks/core/TaskData";
 import { recordRoom } from "rooms/RoomIntel";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
-import { TaskSafetyPolicy } from "tasks/core/TaskData";
 
 export function scoutTaskName(originRoom: string): string {
     return "Scout-" + originRoom;
 }
 
-export function createScoutTaskData(roomToScout: string): ScoutTaskData {
+export function createScoutTaskData(roomToScout: string, priority?: number): ScoutTaskData {
     return {
         id: scoutTaskName(roomToScout),
         kind: TaskKind.SCOUT,
         targetRoom: roomToScout,
         assignedCreeps: [],
-        safetyPolicy: TaskSafetyPolicy.ALLOW_DANGEROUS_ASSIGNMENT
+        safetyPolicy: TaskSafetyPolicy.ALLOW_DANGEROUS_ASSIGNMENT,
+        priority
     };
 }
 
@@ -47,9 +47,11 @@ export class ScoutTask extends Task<ScoutTaskData> {
         return false;
     }
 
-    public override score(creep: Creep): number {
-        console.log(Game.time - (Memory.rooms[this.data.targetRoom]?.intel?.lastScouted || 0));
-        return Game.time - (Memory.rooms[this.data.targetRoom]?.intel?.lastScouted || 0);
+    public override score(_creep: Creep): number {
+        const intel = Memory.rooms[this.data.targetRoom]?.intel;
+        const freshness = Game.time - (intel?.lastScouted || 0);
+
+        return freshness * (this.data.priority ?? 1);
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {

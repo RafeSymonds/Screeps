@@ -65,7 +65,7 @@ describe("Miner Body - Link Mining", () => {
         assert.isAtLeast(workCount, 1, "should have WORK parts");
     });
 
-    it("does not include CARRY at RCL 3 without links", () => {
+    it("includes CARRY at RCL 3 even without links", () => {
         const spawnCalls: any[] = [];
 
         const spawn = {
@@ -107,6 +107,6 @@ describe("Miner Body - Link Mining", () => {
 
         assert.isAtLeast(spawnCalls.length, 1);
         const body = spawnCalls[0].body;
-        assert.isFalse(body.includes(CARRY), "miner should NOT have CARRY without links");
+        assert.isTrue(body.includes(CARRY), "miner should have CARRY even without links for container deposits");
     });
 });

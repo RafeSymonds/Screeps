@@ -8,11 +8,11 @@ function isCreepFree(creep: CreepState, taskManager: TaskManager): boolean {
     return creep.memory.taskId === undefined || !taskManager.tasks.has(creep.memory.taskId);
 }
 
-type Candidate = {
+interface Candidate {
     creep: CreepState;
     task: AnyTask;
     score: number;
-};
+}
 
 export function assignCreeps(world: World) {
     for (const [, worldRoom] of world.rooms) {

@@ -78,7 +78,7 @@ describe("loop scenarios", () => {
         loop();
 
         assert.isAtLeast(spawnCalls.length, 1);
-        assert.deepEqual(spawnCalls[0].body, [MOVE, WORK, WORK]);
+        assert.deepEqual(spawnCalls[0].body, [MOVE, CARRY, WORK]);
         assert.equal(firstSupportRun, 1);
         assert.equal(firstGrowthRun, 1);
         assert.equal((global as any).Memory.planRuns.support, 11);

@@ -29,6 +29,7 @@ describe("ExpansionPlan", () => {
             desiredRemoteCount: 3,
             expansionScore: 150,
             nextClaimTarget: "W1N0",
+            expansionReady: true,
             lastEvaluated: 1
         };
 
@@ -90,6 +91,7 @@ describe("ExpansionPlan", () => {
             desiredRemoteCount: 3,
             expansionScore: 150,
             nextClaimTarget: "W1N0",
+            expansionReady: true,
             lastEvaluated: 1
         };
 
@@ -128,6 +130,7 @@ describe("ExpansionPlan", () => {
             desiredRemoteCount: 3,
             expansionScore: 150,
             nextClaimTarget: "W1N0",
+            expansionReady: true,
             lastEvaluated: 1
         };
 

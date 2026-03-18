@@ -1,4 +1,4 @@
-import { Offset, RCL_LIMITS, STRUCTURE_RCL, PlannedStructure, RELATIVE_BUNKER } from "./BaseLimitInfo";
+import { Offset, PlannedStructure, RCL_LIMITS, RELATIVE_BUNKER, STRUCTURE_RCL } from "./BaseLimitInfo";
 import { selectAnchor } from "./AnchorSelection";
 import { planRoads } from "./RoadPlanner";
 

@@ -1,4 +1,4 @@
-import { ThrottleTier, PlanPriority, shouldRunThrottled, throttledInterval } from "cpu/CpuBudget";
+import { PlanPriority, ThrottleTier, shouldRunThrottled, throttledInterval } from "cpu/CpuBudget";
 
 export function shouldRunPlan(planKey: string, interval: number, tier: ThrottleTier, priority: PlanPriority): boolean {
     if (!shouldRunThrottled(tier, priority)) {
