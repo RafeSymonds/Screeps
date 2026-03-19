@@ -59,6 +59,11 @@ This order ensures that direct handoffs from other roles are handled before gene
 ## Screeps-specific guardrails
 - Read `AGENTS.md`, `docs/agents/REPO_MAP.md`, and `docs/agents/SCREEPS_PRIMER.md` before changing behavior.
 - **Review Checklist**: Use the [Shared Review Checklist](qa/REVIEW_CHECKLIST.md) for changes affecting `Memory`, spawning, remotes, or deployment. For surgical economy or memory changes, use the [Lightweight Regression Checklist](qa/REGRESSION_CHECKLIST.md).
+- **Lightweight Checklist Summary**:
+    - **Memory**: Ambient types updated? Migration/cleanup needed? Stale data pruning?
+    - **Balance**: 300 energy bootstrap possible? Task demand reported? Priority inversions?
+    - **Remotes**: Route length in formula? Safety interlocks? Visibility handling?
+    - **CPU**: O(n) loops avoided? Caching used? Throttling respected?
 - Trace changes through `Memory`, plan scheduling, spawning, task assignment, tower behavior, and creep execution.
 - Prefer small, ownership-aligned edits.
 - Treat `src/main.ts`, `src/plans`, `src/tasks`, and `src/spawner` as high-conflict areas for parallel work.

@@ -7,6 +7,10 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
 1. Read [README.md](/Users/rafe/games/screeps/README.md).
 2. Read [docs/agent-workflow.md](/Users/rafe/games/screeps/docs/agent-workflow.md).
 3. Review the [Shared Review Checklist](/Users/rafe/games/screeps/docs/qa/REVIEW_CHECKLIST.md) (or the lightweight [Regression Checklist](/Users/rafe/games/screeps/docs/qa/REGRESSION_CHECKLIST.md) for economy/memory changes) for risky changes.
+    - **Memory**: Ambient types updated? Migration/cleanup needed? Stale data pruning?
+    - **Balance**: 300 energy bootstrap possible? Task demand reported? Priority inversions?
+    - **Remotes**: Route length in formula? Safety interlocks? Visibility handling?
+    - **CPU**: O(n) loops avoided? Caching used? Throttling respected?
 4. Read [docs/agents/REPO_MAP.md](/Users/rafe/games/screeps/docs/agents/REPO_MAP.md).
 5. Read [docs/architecture/ECONOMY_DECOMPOSITION.md](/Users/rafe/games/screeps/docs/architecture/ECONOMY_DECOMPOSITION.md) for economy-facing task boundaries.
 6. Read [docs/agents/SCREEPS_PRIMER.md](/Users/rafe/games/screeps/docs/agents/SCREEPS_PRIMER.md).

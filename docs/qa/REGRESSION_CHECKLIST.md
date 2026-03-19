@@ -22,9 +22,12 @@ Use this checklist for surgical changes to **Memory**, **Spawn Heuristics**, or 
 - [ ] **Safety Interlocks**: Does the task correctly abort if the room status becomes `DANGEROUS`?
 - [ ] **Visibility**: Does the logic handle `null` results from `Game.getObjectById` when the room is invisible?
 
----
+## 4. CPU Efficiency & Scaling
+- [ ] **Hot-Path Loops**: Does this logic run for every creep or every tick? Does it avoid redundant `find`, `lookAt`, or `RoomVisual` calls in those loops?
+- [ ] **Caching**: If the calculation is expensive, is it cached in `Memory` (persistent) or a global (tick-local)?
+- [ ] **Throttling**: If it's a new planning pass, is it registered with `PlanScheduler`?
 
-## 4. Multi-Tick Failure Modes (Watch for these in Simulation)
+## 5. Multi-Tick Failure Modes (Watch for these in Simulation)
 
 | Change Area | Failure Mode | Success Metric (100+ Ticks) |
 | :--- | :--- | :--- |
@@ -35,7 +38,7 @@ Use this checklist for surgical changes to **Memory**, **Spawn Heuristics**, or 
 
 ---
 
-## 5. Gating Checks
+## 6. Gating Checks
 - [ ] `npm run build` passes.
 - [ ] Incremental Lint: New lines are clean (ignoring pre-existing debt).
 - [ ] Multi-tick validation: Verified for 100+ ticks in Simulator or Private Server.
