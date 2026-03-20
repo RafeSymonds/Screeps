@@ -491,7 +491,7 @@ function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTota
         demand.minerCreeps += requirementCreeps(r.mine);
 
         demand.work += requirementParts(r.work);
-        demand.workerCreeps += requirementCreeps(r.work);
+        demand.workerCreeps += Math.max(requirementCreeps(r.work), Math.ceil(requirementParts(r.work) / 5));
 
         demand.carryHint += requirementParts(r.carry);
         demand.haulerCreeps += requirementCreeps(r.carry);
@@ -511,11 +511,12 @@ function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTota
  * over-requests workers. Clamp for spawn pressure so we prioritize miners/haulers/remotes first.
  */
 const SPAWN_WORK_CAP: Record<RoomGrowthStage, { maxWorkParts: number; maxWorkerCreeps: number }> = {
-    bootstrap: { maxWorkParts: 14, maxWorkerCreeps: 3 },
-    stabilizing: { maxWorkParts: 26, maxWorkerCreeps: 6 },
+    bootstrap: { maxWorkParts: 14, maxWorkerCreeps: 5 },
+    stabilizing: { maxWorkParts: 26, maxWorkerCreeps: 8 },
     remote: { maxWorkParts: 52, maxWorkerCreeps: 12 },
     surplus: { maxWorkParts: 100, maxWorkerCreeps: 25 }
 };
+
 
 function taskKindForSpawnClamp(task: unknown): TaskKind | undefined {
     if (task && typeof (task as AnyTask).type === "function") {
@@ -528,12 +529,12 @@ function clampWorkerSpawnDemand(room: Room, supply: SupplyTotals, raw: DemandTot
     const stage = room.memory.growth?.stage ?? "bootstrap";
     const cap = SPAWN_WORK_CAP[stage] ?? SPAWN_WORK_CAP.bootstrap;
 
-    let buildSites = 0;
+    let workTasks = 0;
     let upgradeDesired = 0;
     for (const t of tasks) {
         const kind = taskKindForSpawnClamp(t);
-        if (kind === TaskKind.BUILD) {
-            buildSites += 1;
+        if (kind === TaskKind.BUILD || kind === TaskKind.UPGRADE || kind === TaskKind.REPAIR) {
+            workTasks += 1;
         }
         if (kind === TaskKind.UPGRADE) {
             const d = (t as AnyTask).data as UpgradeTaskData | undefined;
@@ -542,11 +543,10 @@ function clampWorkerSpawnDemand(room: Room, supply: SupplyTotals, raw: DemandTot
     }
 
     const upgradeAllow = Math.min(upgradeDesired, stage === "surplus" ? 100 : stage === "remote" ? 50 : 25);
-    const siteScaled = 6 + Math.ceil(buildSites * 2);
-    let workCeiling = Math.min(cap.maxWorkParts, siteScaled + upgradeAllow);
-
-    let work = Math.min(raw.work, workCeiling);
-    let workerCreeps = Math.min(raw.workerCreeps, cap.maxWorkerCreeps);
+    const taskMinCreeps = Math.min(cap.maxWorkerCreeps, workTasks);
+    
+    let work = Math.min(raw.work, cap.maxWorkParts);
+    let workerCreeps = Math.max(taskMinCreeps, Math.min(raw.workerCreeps, cap.maxWorkerCreeps));
 
     // Only clamp if we have truly idle workers (not working)
     if (supply.idleWorkers >= 2) {
