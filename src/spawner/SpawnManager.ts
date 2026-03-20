@@ -897,7 +897,6 @@ function refreshBaselineSpawnRequests(
         supply.idleHaulers
     );
 
-    const hasMiners = supply.minerCreeps + supply.incomingMiners > 0;
     const finalHaulerPriority =
         haulerPriority > 0 ? haulerPriority + haulerBonus + rolePriorityBoost(room, "hauler", supply) : 0;
 
