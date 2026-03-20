@@ -171,9 +171,15 @@ export class DeliverTask extends Task<DeliverTaskData> {
             return false;
         }
 
+        const energy = creepEnergy(creepState.creep);
+        if (energy <= 0) {
+            return false;
+        }
+
+        // Dedicated haulers should deliver even if not full if the room is empty
         const energyOk =
             creepStoreFullPercentage(creepState.creep) >= 0.5 ||
-            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
+            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name) === false;
 
         if (!energyOk) {
             return false;

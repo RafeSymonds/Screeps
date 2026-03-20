@@ -97,11 +97,10 @@ function minerBody(energy: number, room?: Room): BodyPartConstant[] {
     const cap = room?.energyCapacityAvailable ?? 300;
     const budget = cap < 550 ? Math.min(energy, cap - 100) : energy;
 
-    // All miners get 1 CARRY so they can deposit into containers
-    // and drop excess energy for haulers to collect
-    const maxWork = Math.floor((budget - 100) / 100); // 50 MOVE + 50 CARRY + N*100 WORK
+    // Dedicated miners should not have a carry.
+    const maxWork = Math.floor((budget - 50) / 100); // 50 MOVE + N*100 WORK
     const work = Math.max(1, maxWork);
-    return [MOVE, CARRY, ...Array(work).fill(WORK)];
+    return [MOVE, ...Array(work).fill(WORK)];
 }
 
 function desiredHaulerCarry(room: Room, routeLength?: number): number {
@@ -978,11 +977,11 @@ function selectSpawnIntent(room: Room, supply: SupplyTotals, availableEnergy: nu
                 return b.priority - a.priority;
             }
 
-            if (b.unmetCreeps !== a.unmetCreeps) {
-                return b.unmetCreeps - a.unmetCreeps;
+            if (spawnIntentPreference(b.kind) !== spawnIntentPreference(a.kind)) {
+                return spawnIntentPreference(b.kind) - spawnIntentPreference(a.kind);
             }
 
-            return spawnIntentPreference(b.kind) - spawnIntentPreference(a.kind);
+            return b.unmetCreeps - a.unmetCreeps;
         });
 
     if (requests.length > 0) {
