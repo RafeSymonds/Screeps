@@ -75,7 +75,7 @@ export class DefendTask extends Task<DefendTaskData> {
         return 500 + roomBias + rangeBias + countCombatParts(creep) * 20;
     }
 
-    public override nextAction(creepState: CreepState, _resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
         return new CombatAction(this.data.targetRoom, this.data.assignedCreeps, this.desiredDefenders());
     }
 

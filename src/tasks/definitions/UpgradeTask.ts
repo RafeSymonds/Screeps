@@ -66,13 +66,13 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
         return -10 + roleBias;
     }
 
-    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
         if (!this.controller) {
             creepState.memory.taskId = undefined;
             return null;
         }
 
-        if (creepNeedsEnergy(creepState)) {
+        if (creepNeedsEnergy(creepState, world)) {
             return findBestEnergyTask(creepState, null, resourceManager);
         }
 
@@ -93,7 +93,7 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
         super.assignCreep(creepState, world);
 
         // check to see if creep needs energy and if so just find best energy now and reserve it
-        if (creepNeedsEnergy(creepState)) {
+        if (creepNeedsEnergy(creepState, world)) {
             findBestEnergyTask(creepState, null, world.resourceManager);
         }
     }

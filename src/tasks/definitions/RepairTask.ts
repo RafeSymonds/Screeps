@@ -68,14 +68,14 @@ export class RepairTask extends Task<RepairTaskData> {
         return this.priority() * 5 - creep.pos.getRangeTo(this.structure) + roleBias;
     }
 
-    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
         if (!this.structure) {
             creepState.memory.taskId = undefined;
 
             return null;
         }
 
-        if (creepNeedsEnergy(creepState)) {
+        if (creepNeedsEnergy(creepState, world)) {
             return findBestEnergyTask(creepState, null, resourceManager);
         }
 
@@ -95,7 +95,7 @@ export class RepairTask extends Task<RepairTaskData> {
     public override assignCreep(creepState: CreepState, world: World): void {
         super.assignCreep(creepState, world);
 
-        if (creepNeedsEnergy(creepState)) {
+        if (creepNeedsEnergy(creepState, world)) {
             findBestEnergyTask(creepState, null, world.resourceManager);
         }
     }

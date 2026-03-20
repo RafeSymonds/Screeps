@@ -62,9 +62,18 @@ export function creepStoreFullPercentage(creep: Creep) {
     return usedCapacity / totalCapacity;
 }
 
-export function creepNeedsEnergy(creepState: CreepState) {
+export function creepNeedsEnergy(creepState: CreepState, world?: import("world/World").World) {
     const usedCapacity = creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY);
     const freeCapacity = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY);
+
+    // Starvation override: if the room is empty, deliver what we have immediately
+    if (world && usedCapacity > 0) {
+        const roomHasEnergy = world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
+        if (!roomHasEnergy) {
+            creepState.memory.working = true;
+            return false;
+        }
+    }
 
     if (creepState.memory.working && usedCapacity === 0) {
         creepState.memory.working = false;

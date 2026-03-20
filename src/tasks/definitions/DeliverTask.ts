@@ -202,7 +202,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
         return -100 - dist + this.priority() * 5 - rolePenalty;
     }
 
-    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
         if (
             !this.target ||
             (this.target instanceof Structure && this.target.store.getFreeCapacity(RESOURCE_ENERGY) === 0)
@@ -211,7 +211,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
             return null;
         }
 
-        if (creepNeedsEnergy(creepState)) {
+        if (creepNeedsEnergy(creepState, world)) {
             return findBestEnergyTask(creepState, this.target, resourceManager);
         }
 
@@ -226,7 +226,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
         super.assignCreep(creepState, world);
 
         // Pre-reserve pickup energy immediately if needed
-        if (creepNeedsEnergy(creepState)) {
+        if (creepNeedsEnergy(creepState, world)) {
             findBestEnergyTask(creepState, this.target, world.resourceManager);
         }
 
@@ -256,7 +256,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
 
     public override requirements(): TaskRequirements {
         const energyPerTick = this.data.energyPerTick ?? 10;
-        const distance = this.data.distance ?? 8;
+        const distance = this.data.distance ?? 15;
         const roundTrip = distance * 2;
 
         return {

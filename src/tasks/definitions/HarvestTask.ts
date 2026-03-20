@@ -85,7 +85,7 @@ export class HarvestTask extends Task<HarvestTaskData> {
         return -100 - creep.pos.getRangeTo(this.source);
     }
 
-    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
         if (!this.source) {
             creepState.memory.taskId = undefined;
             return null;

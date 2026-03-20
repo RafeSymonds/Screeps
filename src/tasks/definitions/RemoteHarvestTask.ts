@@ -72,7 +72,7 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
         );
     }
 
-    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
         if (creepState.creep.room.name !== this.data.targetRoom || !this.source) {
             const pos = this.data.sourcePos;
             return new MoveAction(new RoomPosition(pos.x, pos.y, pos.roomName));

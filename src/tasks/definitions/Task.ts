@@ -85,7 +85,7 @@ export abstract class Task<T extends TaskData> {
 
     public abstract score(creep: Creep): number;
 
-    public abstract nextAction(creep: CreepState, resourceManager: ResourceManager): Action | null;
+    public abstract nextAction(creep: CreepState, resourceManager: ResourceManager, world: World): Action | null;
 
     public abstract validCreationSetup(): void;
 

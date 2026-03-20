@@ -53,7 +53,7 @@ export class ClaimTask extends Task<ClaimTaskData> {
         return 200 - Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 20;
     }
 
-    public override nextAction(creepState: CreepState, _resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
         const room = Game.rooms[this.data.targetRoom];
 
         // Not in the target room yet — move there

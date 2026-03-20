@@ -140,8 +140,10 @@ function haulerBody(room: Room, energy: number): BodyPartConstant[] {
 
 function workerBody(energy: number): BodyPartConstant[] {
     // Ensure workers are true builders (not 1CARRY "accidental miners").
-    if (energy < 400) return [];
+    if (energy < 250) return [];
 
+    // 200 energy per WORK-CARRY-MOVE unit (50+50+100)
+    // At 250 energy, we get 1 unit (200)
     const units = Math.floor(energy / 200);
     const body: BodyPartConstant[] = [];
     for (let i = 0; i < units; i++) body.push(WORK, CARRY, MOVE);
@@ -248,11 +250,10 @@ function attackerBody(energy: number): BodyPartConstant[] {
 function isMiner(cs: CreepState): boolean {
     if (!hasBodyPart(cs.creep, WORK)) return false;
 
-    // Miners: exactly 1 CARRY (for container/link deposits), rest is WORK+MOVE
-    // Workers: multiple CARRY parts in balanced WORK/CARRY/MOVE units
+    // Dedicated miners now have 0 CARRY.
     const carryParts = countBodyParts(cs.creep, CARRY);
 
-    return carryParts <= 1;
+    return carryParts === 0;
 }
 
 function isWorker(cs: CreepState): boolean {
@@ -261,7 +262,7 @@ function isWorker(cs: CreepState): boolean {
     // Workers have multiple CARRY parts (balanced body units)
     const carryParts = countBodyParts(cs.creep, CARRY);
 
-    return carryParts > 1;
+    return carryParts >= 1;
 }
 
 function isClaimer(cs: CreepState): boolean {
@@ -419,7 +420,6 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
             if (!isExpiringSoon(cs.creep, "worker")) {
                 supply.work += countBodyParts(cs.creep, WORK);
                 supply.workerCreeps += 1;
-                supply.carry += countBodyParts(cs.creep, CARRY);
             }
             if (idle) {
                 supply.idleWorkers += 1;
@@ -433,12 +433,17 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
             }
         } else {
             const carryParts = countBodyParts(cs.creep, CARRY);
-            if (carryParts > 0 && !isExpiringSoon(cs.creep, "hauler")) {
-                supply.carry += carryParts;
-                supply.haulerCreeps += 1;
-            }
-            if (carryParts > 0) {
-                if (idle) {
+            const isHauler = carryParts > 0 && !hasBodyPart(cs.creep, WORK);
+
+            if (isHauler) {
+                const expiring = isExpiringSoon(cs.creep, "hauler");
+                if (!expiring) {
+                    supply.carry += carryParts;
+                    supply.haulerCreeps += 1;
+                }
+
+                // Treat expiring haulers as "idle" to trigger earlier replacement spawning
+                if (idle || expiring) {
                     supply.idleHaulers += 1;
                 }
             }
@@ -938,16 +943,20 @@ function refreshBaselineSpawnRequests(
     }
 
     // Worker — only after miner+hauler exist and mining throughput is meaningful
-    const baseWorkerPriority = calculateBaselinePriority(
-        "worker",
-        supply.workerCreeps + supply.incomingWorkers,
-        supply.work,
-        demand.workerCreeps,
-        demand.work,
-        workImmediate,
-        stats.work.pressure,
-        supply.idleWorkers
-    );
+    const hasEconomy = supply.minerCreeps + supply.incomingMiners > 0 && supply.haulerCreeps + supply.incomingHaulers > 0;
+
+    const baseWorkerPriority = hasEconomy
+        ? calculateBaselinePriority(
+              "worker",
+              supply.workerCreeps + supply.incomingWorkers,
+              supply.work,
+              demand.workerCreeps,
+              demand.work,
+              workImmediate,
+              stats.work.pressure,
+              supply.idleWorkers
+          )
+        : 0;
 
     const workerPriority = baseWorkerPriority;
     const finalWorkerPriority =
@@ -962,7 +971,7 @@ function refreshBaselineSpawnRequests(
             desiredCreeps: Math.max(1, demand.workerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("worker", room.name),
-            minEnergy: 300
+            minEnergy: 250
         });
     } else {
         clearSpawnRequest(room, "worker", roleRequestKey("worker", room.name));

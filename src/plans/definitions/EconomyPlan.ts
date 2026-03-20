@@ -11,13 +11,25 @@ function positionSignature(pos: RoomPosition): string {
     return `${pos.roomName}-${pos.x}-${pos.y}`;
 }
 
-const HOTSPOT_MAX_BUFFER = 300;
+const HOTSPOT_MAX_BUFFER = 600;
 
 function hotspotBufferedEnergy(room: Room, pos: RoomPosition): number {
-    return room
+    const dropped = room
         .find(FIND_DROPPED_RESOURCES)
         .filter(resource => resource.resourceType === RESOURCE_ENERGY && resource.pos.getRangeTo(pos) <= 2)
         .reduce((sum, resource) => sum + resource.amount, 0);
+
+    const tombstones = room
+        .find(FIND_TOMBSTONES)
+        .filter(t => t.pos.getRangeTo(pos) <= 2)
+        .reduce((sum, t) => sum + t.store.getUsedCapacity(RESOURCE_ENERGY), 0);
+
+    const ruins = room
+        .find(FIND_RUINS)
+        .filter(r => r.pos.getRangeTo(pos) <= 2)
+        .reduce((sum, r) => sum + r.store.getUsedCapacity(RESOURCE_ENERGY), 0);
+
+    return dropped + tombstones + ruins;
 }
 
 function hasNearbyEnergySink(room: Room, pos: RoomPosition): boolean {
@@ -68,7 +80,7 @@ export class EconomyPlan extends Plan {
                         (s): s is StructureContainer =>
                             s.structureType === STRUCTURE_CONTAINER && containerIsSourceTied(s)
                     );
-                const origins = storage ? [storage, ...sourceContainers] : sourceContainers;
+                const origins = storage ? [storage, ...sourceContainers, ...sources] : [...sourceContainers, ...sources];
 
                 //
                 // Harvest
@@ -94,7 +106,7 @@ export class EconomyPlan extends Plan {
 
                 for (const s of room.find(FIND_MY_STRUCTURES)) {
                     if (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) {
-                        sinks.push(s);
+                        sinks.push(s as StructureSpawn | StructureExtension);
                     }
                 }
 
@@ -125,15 +137,18 @@ export class EconomyPlan extends Plan {
                     }
                 }
 
-                const energyPerSink = sinks.length > 0 ? energyGeneration / sinks.length : 10;
+                // Sinks don't all empty at once, but we need more throughput than a simple serial split.
+                // We request enough carry for about half the sinks to be refilled concurrently.
+                const energyPerSink = sinks.length > 0 ? energyGeneration / Math.max(1, sinks.length * 0.5) : 10;
 
                 for (const sink of sinks) {
-                    let distance = 8;
+                    let distance = 15; // default to 15 for safety
                     const sinkPos = sink instanceof RoomPosition ? sink : sink.pos;
                     if (origins.length > 0) {
                         const closest = sinkPos.findClosestByRange(origins);
                         if (closest) {
-                            distance = sinkPos.getRangeTo(closest);
+                            // Distance + 2 for pickup/drop time
+                            distance = Math.max(5, sinkPos.getRangeTo(closest) + 2);
                         }
                     }
                     taskManager.add(createDeliverTaskData(sink, distance, energyPerSink));

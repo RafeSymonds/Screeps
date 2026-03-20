@@ -63,7 +63,7 @@ export class BootstrapTask extends Task<BootstrapTaskData> {
         return 400 + roomBias + roleBias;
     }
 
-    public override nextAction(creepState: CreepState, _resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, _resourceManager: ResourceManager, world: World): Action | null {
         return new BootstrapAction(this.data.targetRoom, this.data.ownerRoom);
     }
 

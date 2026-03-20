@@ -68,7 +68,7 @@ export class ReserveTask extends Task<ReserveTaskData> {
         return 150 - Game.map.getRoomLinearDistance(creep.room.name, this.data.targetRoom) * 15;
     }
 
-    public override nextAction(creepState: CreepState, _resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
         const room = Game.rooms[this.data.targetRoom];
 
         if (creepState.creep.room.name !== this.data.targetRoom || !room?.controller) {

@@ -54,7 +54,7 @@ export class ScoutTask extends Task<ScoutTaskData> {
         return freshness * (this.data.priority ?? 1);
     }
 
-    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
         if (creepState.creep.room.name !== this.data.targetRoom) {
             return new MoveAction(new RoomPosition(25, 25, this.data.targetRoom));
         }

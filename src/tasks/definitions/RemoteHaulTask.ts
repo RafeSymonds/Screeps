@@ -78,7 +78,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
         );
     }
 
-    public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
+    public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
         if (
             creepState.creep.room.name === this.data.ownerRoom &&
             (creepStoreFull(creepState.creep) || !creepState.memory.working)
@@ -135,9 +135,12 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     requirements(): TaskRequirements {
+        // 10 energy/tick per source. Most remotes have 1-2 sources.
         const energyPerTick = 10;
         const roomDistance = Math.max(1, this.data.routeLength);
-        const distance = roomDistance * 50;
+
+        // A room is 50x50, but we usually cross it in ~30-40 ticks on roads/plains.
+        const distance = roomDistance * 35;
         const roundTrip = distance * 2;
 
         return {

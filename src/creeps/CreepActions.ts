@@ -33,7 +33,7 @@ export function performCreepActions(world: World) {
                     : undefined;
 
                 if (task) {
-                    const nextAction = task.nextAction(creepState, world.resourceManager);
+                    const nextAction = task.nextAction(creepState, world.resourceManager, world);
 
                     if (nextAction) {
                         nextAction.perform(creepState);
