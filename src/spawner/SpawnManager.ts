@@ -584,9 +584,13 @@ function effectiveCarryDemand(room: Room, supply: SupplyTotals, demand: DemandTo
     const sourceCount = room.find(FIND_SOURCES).length;
     const minCreeps = supply.mine > 0 ? sourceCount : 0;
     const carryPerHauler = desiredHaulerCarry(room) || 4;
-    const partsBasedCreeps = Math.ceil(parts / carryPerHauler);
+    
+    // If we have many tiny tasks (like extensions), don't request a full creep for each.
+    // Cap at 0.5 * parts since most haulers are at least 2 CARRY (2 parts).
+    // Also cap total haulers to 3 for local rooms - we don't need more than that for local delivery.
+    const partsBasedCreeps = Math.min(Math.ceil(parts / carryPerHauler), Math.ceil(parts * 0.5));
 
-    const creeps = Math.max(minCreeps, partsBasedCreeps, demand.haulerCreeps);
+    const creeps = Math.min(3, Math.max(minCreeps, partsBasedCreeps, demand.haulerCreeps));
 
     return { parts, creeps };
 }
@@ -797,6 +801,10 @@ function rolePriorityBoost(room: Room, role: SpawnRequestRole, supply: SupplyTot
         boost += 20;
     }
 
+    if (role === "worker" && supply.workerCreeps + supply.incomingWorkers === 0) {
+        boost += 30;
+    }
+
     if (
         support?.kind === "bootstrap" &&
         (role === "miner" || role === "hauler" || role === "worker")
@@ -830,7 +838,9 @@ function calculateBaselinePriority(
 
     // 1. Emergency: Nothing exists and nothing is coming
     if (supplyCreeps === 0) {
-        return role === "miner" ? SpawnRequestPriority.EMERGENCY : SpawnRequestPriority.EMERGENCY - 10;
+        if (role === "miner") return SpawnRequestPriority.EMERGENCY;
+        if (role === "hauler") return SpawnRequestPriority.EMERGENCY - 5;
+        if (role === "worker") return SpawnRequestPriority.EMERGENCY - 10;
     }
 
     // 2. Critical: Starvation (immediate pressure >= 1.0)
@@ -880,14 +890,14 @@ function refreshBaselineSpawnRequests(
     const criticalStorage = storage && storage.store.getUsedCapacity(RESOURCE_ENERGY) < 2000;
 
     if (hasMiners && (lowEnergy || criticalStorage)) {
-        haulerBonus += 30; // Boost towards CRITICAL/HIGH
+        haulerBonus += 15; // Boost towards CRITICAL/HIGH
     }
 
     // Construction Penalty: Reduce worker priority if energy is low and we don't have enough haulers.
     // This prevents workers from competing for energy that should go to the economy.
-    const lowHaulers = supply.haulerCreeps + supply.incomingHaulers < demand.haulerCreeps * 0.5;
+    const lowHaulers = supply.haulerCreeps + supply.incomingHaulers < haulerDemand.creeps * 0.5;
     if (lowEnergy && lowHaulers) {
-        workerPenalty -= 40;
+        workerPenalty -= 10;
     }
     // --------------------------------------------
 
