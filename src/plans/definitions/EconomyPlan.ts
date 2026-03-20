@@ -6,7 +6,49 @@ import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
 import { containerIsSourceTied } from "rooms/RoomUtils";
 import { createBuildTaskData } from "tasks/definitions/BuildTask";
 import { getAdjacentPosition } from "world/WorldUtils";
-import { drop } from "lodash";
+
+function positionSignature(pos: RoomPosition): string {
+    return `${pos.roomName}-${pos.x}-${pos.y}`;
+}
+
+const HOTSPOT_MAX_BUFFER = 300;
+
+function hotspotBufferedEnergy(room: Room, pos: RoomPosition): number {
+    return room
+        .find(FIND_DROPPED_RESOURCES)
+        .filter(resource => resource.resourceType === RESOURCE_ENERGY && resource.pos.getRangeTo(pos) <= 2)
+        .reduce((sum, resource) => sum + resource.amount, 0);
+}
+
+function hasNearbyEnergySink(room: Room, pos: RoomPosition): boolean {
+    const storage = room.storage;
+    if (storage && storage.pos.getRangeTo(pos) <= 3) {
+        return true;
+    }
+
+    const nearbyContainers = room
+        .find(FIND_STRUCTURES)
+        .filter((s): s is StructureContainer => s.structureType === STRUCTURE_CONTAINER && s.pos.getRangeTo(pos) <= 2);
+
+    return nearbyContainers.some(container => !containerIsSourceTied(container));
+}
+
+function getConstructionHotspot(room: Room, sites: ConstructionSite[]): RoomPosition | null {
+    if (sites.length === 0) {
+        return null;
+    }
+
+    const avgX = Math.round(sites.reduce((sum, site) => sum + site.pos.x, 0) / sites.length);
+    const avgY = Math.round(sites.reduce((sum, site) => sum + site.pos.y, 0) / sites.length);
+    const center = new RoomPosition(avgX, avgY, room.name);
+
+    const centeredSite = center.findClosestByRange(sites);
+    if (!centeredSite) {
+        return null;
+    }
+
+    return getAdjacentPosition(centeredSite.pos, { requireWalkable: true });
+}
 
 export class EconomyPlan extends Plan {
     public override run(world: World): void {
@@ -39,6 +81,16 @@ export class EconomyPlan extends Plan {
                 // Transfers (Sinks)
                 //
                 const sinks: (StructureSpawn | StructureExtension | StructureContainer | RoomPosition)[] = [];
+                const positionSinks = new Set<string>();
+
+                const addPositionSink = (pos: RoomPosition | null) => {
+                    if (!pos) return;
+                    if (hotspotBufferedEnergy(room, pos) >= HOTSPOT_MAX_BUFFER) return;
+                    const key = positionSignature(pos);
+                    if (positionSinks.has(key)) return;
+                    sinks.push(pos);
+                    positionSinks.add(key);
+                };
 
                 for (const s of room.find(FIND_MY_STRUCTURES)) {
                     if (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) {
@@ -56,9 +108,20 @@ export class EconomyPlan extends Plan {
 
                 const spawn = room.find(FIND_MY_SPAWNS)[0];
                 if (spawn) {
-                    const dropSpot = getAdjacentPosition(spawn.pos);
-                    if (dropSpot) {
-                        sinks.push(dropSpot);
+                    if (!hasNearbyEnergySink(room, spawn.pos)) {
+                        addPositionSink(getAdjacentPosition(spawn.pos, { requireWalkable: true }));
+                    }
+                }
+
+                if (room.controller && !hasNearbyEnergySink(room, room.controller.pos)) {
+                    addPositionSink(getAdjacentPosition(room.controller.pos, { requireWalkable: true }));
+                }
+
+                const constructionSites = room.find(FIND_CONSTRUCTION_SITES);
+                if (constructionSites.length > 0) {
+                    const hotspot = getConstructionHotspot(room, constructionSites);
+                    if (hotspot && !hasNearbyEnergySink(room, hotspot)) {
+                        addPositionSink(hotspot);
                     }
                 }
 
@@ -111,8 +174,6 @@ export class EconomyPlan extends Plan {
 
                     taskManager.add(createUpgradeTaskData(room.controller, desiredParts));
                 }
-
-                const constructionSites = room.find(FIND_CONSTRUCTION_SITES);
 
                 constructionSites.forEach(constructionSite => {
                     const taskData = createBuildTaskData(constructionSite);

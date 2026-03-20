@@ -21,6 +21,18 @@ export function hasCombatPart(creep: Creep): boolean {
     return countCombatParts(creep) > 0;
 }
 
+export function isDedicatedMinerCreep(creep: Creep): boolean {
+    return hasBodyPart(creep, WORK) && countBodyParts(creep, CARRY) <= 1 && !hasCombatPart(creep) && !hasBodyPart(creep, CLAIM);
+}
+
+export function isDedicatedHaulerCreep(creep: Creep): boolean {
+    return hasBodyPart(creep, CARRY) && !hasBodyPart(creep, WORK) && !hasCombatPart(creep) && !hasBodyPart(creep, CLAIM);
+}
+
+export function isWorkerCreep(creep: Creep): boolean {
+    return hasBodyPart(creep, WORK) && countBodyParts(creep, CARRY) > 1 && !hasCombatPart(creep) && !hasBodyPart(creep, CLAIM);
+}
+
 export function creepEnergyCarryCapacity(creep: Creep): number {
     return countBodyParts(creep, CARRY) * 50;
 }

@@ -5,11 +5,12 @@ import { Action } from "actions/Action";
 import { BuildAction } from "actions/BuildAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "../requirements/EnergyRequirement";
-import { hasBodyPart } from "creeps/CreepUtils";
+import { hasBodyPart, isDedicatedHaulerCreep, isDedicatedMinerCreep, isWorkerCreep } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
+import { scaledRoleBias } from "tasks/core/RoleAffinity";
 
 export function buildTaskName(constructionSite: ConstructionSite): string {
     return "build-" + constructionSite.pos.roomName + "-" + constructionSite.id;
@@ -56,7 +57,15 @@ export class BuildTask extends Task<BuildTaskData> {
             return -Infinity;
         }
 
-        return this.priority() * 5 - creep.pos.getRangeTo(this.constructionSite);
+        const baseRoleBias = isWorkerCreep(creep)
+            ? 60
+            : isDedicatedMinerCreep(creep)
+              ? -80
+              : isDedicatedHaulerCreep(creep)
+                ? -140
+                : 0;
+        const roleBias = scaledRoleBias(creep.memory.ownerRoom, baseRoleBias);
+        return this.priority() * 5 - creep.pos.getRangeTo(this.constructionSite) + roleBias;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {

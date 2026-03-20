@@ -4,7 +4,7 @@ import { Task } from "./Task";
 import { Action } from "actions/Action";
 import { HarvestAction } from "actions/HarvestAction";
 import { CreepState } from "creeps/CreepState";
-import { hasBodyPart } from "creeps/CreepUtils";
+import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { MoveAction } from "actions/MoveAction";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
@@ -53,7 +53,11 @@ export class RemoteHarvestTask extends Task<RemoteHarvestTaskData> {
     }
 
     public override canPerformTask(creepState: CreepState, _world: World): boolean {
-        return hasBodyPart(creepState.creep, WORK) && creepState.memory.ownerRoom === this.data.ownerRoom;
+        return (
+            hasBodyPart(creepState.creep, WORK) &&
+            countBodyParts(creepState.creep, CARRY) <= 1 &&
+            creepState.memory.ownerRoom === this.data.ownerRoom
+        );
     }
 
     protected override taskIsFull(): boolean {

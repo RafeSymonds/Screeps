@@ -1,11 +1,12 @@
 import { Action } from "actions/Action";
 import { BootstrapAction } from "actions/BootstrapAction";
-import { hasBodyPart } from "creeps/CreepUtils";
+import { hasBodyPart, isDedicatedHaulerCreep, isDedicatedMinerCreep, isWorkerCreep } from "creeps/CreepUtils";
 import { CreepState } from "creeps/CreepState";
 import { ResourceManager } from "rooms/ResourceManager";
 import { BootstrapTaskData, TaskSafetyPolicy } from "tasks/core/TaskData";
 import { TaskKind } from "tasks/core/TaskKind";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
+import { scaledRoleBias } from "tasks/core/RoleAffinity";
 import { World } from "world/World";
 import { Task } from "./Task";
 
@@ -51,7 +52,15 @@ export class BootstrapTask extends Task<BootstrapTaskData> {
 
     public override score(creep: Creep): number {
         const roomBias = creep.memory.ownerRoom === this.data.ownerRoom ? 80 : 0;
-        return 400 + roomBias;
+        const baseRoleBias = isWorkerCreep(creep)
+            ? 60
+            : isDedicatedMinerCreep(creep)
+              ? -100
+              : isDedicatedHaulerCreep(creep)
+                ? -140
+                : 0;
+        const roleBias = scaledRoleBias(creep.memory.ownerRoom, baseRoleBias);
+        return 400 + roomBias + roleBias;
     }
 
     public override nextAction(creepState: CreepState, _resourceManager: ResourceManager): Action | null {

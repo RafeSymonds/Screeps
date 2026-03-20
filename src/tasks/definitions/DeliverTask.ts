@@ -6,13 +6,12 @@ import { TransferAction } from "actions/TransferAction";
 import { DropAction } from "actions/DropAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "../requirements/EnergyRequirement";
-import { countBodyParts, creepEnergy, hasBodyPart } from "creeps/CreepUtils";
+import { creepEnergy, hasBodyPart, isDedicatedHaulerCreep, isWorkerCreep } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy, creepStoreFullPercentage } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
-import { words } from "lodash";
-import { constants } from "buffer";
+import { scaledRoleBias } from "tasks/core/RoleAffinity";
 
 /* ============================================================
    TYPES
@@ -172,11 +171,6 @@ export class DeliverTask extends Task<DeliverTaskData> {
             return false;
         }
 
-        // Dedicated haulers (no WORK) can always take deliver tasks — it's their job
-        if (!hasBodyPart(creepState.creep, WORK)) {
-            return true;
-        }
-
         return (
             creepStoreFullPercentage(creepState.creep) >= 0.5 ||
             world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name)
@@ -197,7 +191,11 @@ export class DeliverTask extends Task<DeliverTaskData> {
         if (!this.target) return -Infinity;
 
         const dist = creep.pos.getRangeTo(this.target);
-        return -100 - dist + this.priority() * 5;
+        const basePenalty = isDedicatedHaulerCreep(creep) ? 0 : isWorkerCreep(creep) ? 120 : 220;
+        const rolePenalty = scaledRoleBias(creep.memory.ownerRoom, basePenalty);
+
+        // Keep logistics mostly on haulers while allowing emergency fallback from workers.
+        return -100 - dist + this.priority() * 5 - rolePenalty;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {

@@ -5,11 +5,12 @@ import { Action } from "actions/Action";
 import { UpgradeAction } from "actions/UpgradeAction";
 import { CreepState } from "creeps/CreepState";
 import { findBestEnergyTask } from "../requirements/EnergyRequirement";
-import { hasBodyPart } from "creeps/CreepUtils";
+import { hasBodyPart, isDedicatedHaulerCreep, isDedicatedMinerCreep, isWorkerCreep } from "creeps/CreepUtils";
 import { ResourceManager } from "rooms/ResourceManager";
 import { creepNeedsEnergy } from "creeps/CreepController";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
+import { scaledRoleBias } from "tasks/core/RoleAffinity";
 
 export function upgradeTaskName(controller: StructureController): string {
     return "upgrade-" + controller.pos.roomName + "-" + controller.id;
@@ -54,7 +55,15 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
     }
 
     public override score(creep: Creep): number {
-        return -10;
+        const baseRoleBias = isWorkerCreep(creep)
+            ? 40
+            : isDedicatedMinerCreep(creep)
+              ? -70
+              : isDedicatedHaulerCreep(creep)
+                ? -120
+                : 0;
+        const roleBias = scaledRoleBias(creep.memory.ownerRoom, baseRoleBias);
+        return -10 + roleBias;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager): Action | null {
