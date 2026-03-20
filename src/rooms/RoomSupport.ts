@@ -1,9 +1,11 @@
 import { estimateSafeRouteLength } from "./InterRoomRouter";
+import { countBodyParts, hasBodyPart } from "creeps/CreepUtils";
 
 function creepsForOwnerRoom(roomName: string): Creep[] {
     return Object.values(Game.creeps).filter(creep => creep.memory.ownerRoom === roomName);
 }
 
+/** Match SpawnManager: dedicated miners have at most one CARRY (for container/link dump). */
 export function updateRoomSupportState(room: Room): RoomSupportRequest | undefined {
     if (!room.controller?.my) {
         room.memory.supportRequest = undefined;
@@ -13,13 +15,13 @@ export function updateRoomSupportState(room: Room): RoomSupportRequest | undefin
 
     const creeps = creepsForOwnerRoom(room.name);
     const miners = creeps.filter(
-        creep => creep.body.some(part => part.type === WORK) && !creep.body.some(part => part.type === CARRY)
+        creep => hasBodyPart(creep, WORK) && countBodyParts(creep, CARRY) <= 1
     );
     const haulers = creeps.filter(
-        creep => creep.body.some(part => part.type === CARRY) && !creep.body.some(part => part.type === WORK)
+        creep => hasBodyPart(creep, CARRY) && !hasBodyPart(creep, WORK)
     );
     const workers = creeps.filter(
-        creep => creep.body.some(part => part.type === WORK) && creep.body.some(part => part.type === CARRY)
+        creep => hasBodyPart(creep, WORK) && countBodyParts(creep, CARRY) > 1
     );
     const spawnCount = room.find(FIND_MY_SPAWNS).length;
     const constructionSites = room.find(FIND_CONSTRUCTION_SITES).length;

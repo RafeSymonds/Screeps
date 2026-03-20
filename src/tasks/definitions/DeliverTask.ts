@@ -12,6 +12,7 @@ import { creepNeedsEnergy, creepStoreFullPercentage } from "creeps/CreepControll
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
 import { scaledRoleBias } from "tasks/core/RoleAffinity";
+import { countDedicatedHaulersInRoom } from "world/WorldUtils";
 
 /* ============================================================
    TYPES
@@ -171,10 +172,23 @@ export class DeliverTask extends Task<DeliverTaskData> {
             return false;
         }
 
-        return (
+        const energyOk =
             creepStoreFullPercentage(creepState.creep) >= 0.5 ||
-            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name)
-        );
+            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
+
+        if (!energyOk) {
+            return false;
+        }
+
+        // Workers must not haul when dedicated haulers exist in the delivery room (saves CPU and role clarity).
+        if (isWorkerCreep(creepState.creep)) {
+            const haulersHere = countDedicatedHaulersInRoom(world, this.data.targetRoom, { includeSpawning: true });
+            if (haulersHere > 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     protected override taskIsFull(): boolean {
@@ -239,11 +253,8 @@ export class DeliverTask extends Task<DeliverTaskData> {
     }
 
     public override removeCreep(creepState: CreepState): void {
-        console.log("[DELIVER TASK] remote creep start with ", this.data.assignedCreeps.length, "creeps");
-
         super.removeCreep(creepState);
 
-        console.log("[DELIVER TASK] remote creep end with ", this.data.assignedCreeps.length, "creeps");
         const claim = this.reservedBy.get(creepState.creep.id);
         if (claim) {
             this.reservedEnergy = Math.max(0, this.reservedEnergy - claim);

@@ -1,3 +1,20 @@
+import { isDedicatedHaulerCreep } from "creeps/CreepUtils";
+import { World } from "world/World";
+
+/** Count dedicated haulers (CARRY-only) assigned to a room — used to keep logistics off workers. */
+export function countDedicatedHaulersInRoom(world: World, roomName: string, opts?: { includeSpawning?: boolean }): number {
+    const wr = world.rooms.get(roomName);
+    if (!wr) return 0;
+
+    let n = 0;
+    for (const cs of wr.myCreeps) {
+        if (!opts?.includeSpawning && cs.creep.spawning) continue;
+        if (isDedicatedHaulerCreep(cs.creep)) n++;
+    }
+
+    return n;
+}
+
 export function getAdjacentPosition(pos: RoomPosition, opts?: { requireWalkable?: boolean }): RoomPosition | null {
     const terrain = Game.map.getRoomTerrain(pos.roomName);
     const offsets = [

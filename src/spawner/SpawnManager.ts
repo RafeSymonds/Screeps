@@ -6,6 +6,8 @@ import { TaskRequirements, requirementCreeps, requirementParts } from "tasks/cor
 import { CreepState } from "creeps/CreepState";
 import { SpawnRequestPriority, clearSpawnRequest, getActiveSpawnRequests, upsertSpawnRequest } from "./SpawnRequests";
 import { TaskKind } from "tasks/core/TaskKind";
+import { UpgradeTaskData } from "tasks/core/TaskData";
+import { AnyTask } from "tasks/definitions/Task";
 
 /* ============================================================
    CONSTANTS
@@ -56,6 +58,48 @@ interface ResolvedSpawnRequest {
     priority: number;
     unmetCreeps: number;
     minEnergy?: number;
+    requestedBy: string;
+}
+
+/** At least one dedicated miner and one dedicated hauler (alive or spawning). */
+function miningPipelineReady(supply: SupplyTotals): boolean {
+    return (
+        supply.minerCreeps + supply.incomingMiners >= 1 &&
+        supply.haulerCreeps + supply.incomingHaulers >= 1
+    );
+}
+
+/** Enough WORK on miners before we add builders (keeps early energy on harvest+haul). */
+function miningThroughputReady(supply: SupplyTotals, demand: DemandTotals): boolean {
+    if (demand.mine <= 0) {
+        return supply.mine >= 3;
+    }
+    return supply.mine >= Math.min(demand.mine, 5);
+}
+
+function allowWorkerSpawns(supply: SupplyTotals, demand: DemandTotals): boolean {
+    return miningPipelineReady(supply) && miningThroughputReady(supply, demand);
+}
+
+function spawnIntentPreference(kind: SpawnIntentKind): number {
+    switch (kind) {
+        case SpawnIntentKind.MINER:
+            return 5;
+        case SpawnIntentKind.HAULER:
+            return 4;
+        case SpawnIntentKind.WORKER:
+            return 3;
+        case SpawnIntentKind.SCOUT:
+            return 2;
+        case SpawnIntentKind.DEFENDER:
+            return 6;
+        case SpawnIntentKind.CLAIMER:
+            return 2;
+        case SpawnIntentKind.ATTACKER:
+            return 6;
+        default:
+            return 0;
+    }
 }
 
 /* ============================================================
@@ -470,6 +514,59 @@ function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTota
     return demand;
 }
 
+/**
+ * Raw task demand sums WORK across every build site + large upgrade targets, which massively
+ * over-requests workers. Clamp for spawn pressure so we prioritize miners/haulers/remotes first.
+ */
+const SPAWN_WORK_CAP: Record<RoomGrowthStage, { maxWorkParts: number; maxWorkerCreeps: number }> = {
+    bootstrap: { maxWorkParts: 8, maxWorkerCreeps: 2 },
+    stabilizing: { maxWorkParts: 14, maxWorkerCreeps: 3 },
+    remote: { maxWorkParts: 26, maxWorkerCreeps: 6 },
+    surplus: { maxWorkParts: 52, maxWorkerCreeps: 16 }
+};
+
+function taskKindForSpawnClamp(task: unknown): TaskKind | undefined {
+    if (task && typeof (task as AnyTask).type === "function") {
+        return (task as AnyTask).type();
+    }
+    return (task as { data?: { kind?: TaskKind } })?.data?.kind;
+}
+
+function clampWorkerSpawnDemand(room: Room, supply: SupplyTotals, raw: DemandTotals, tasks: unknown[]): DemandTotals {
+    const stage = room.memory.growth?.stage ?? "bootstrap";
+    const cap = SPAWN_WORK_CAP[stage] ?? SPAWN_WORK_CAP.bootstrap;
+
+    let buildSites = 0;
+    let upgradeDesired = 0;
+    for (const t of tasks) {
+        const kind = taskKindForSpawnClamp(t);
+        if (kind === TaskKind.BUILD) {
+            buildSites += 1;
+        }
+        if (kind === TaskKind.UPGRADE) {
+            const d = (t as AnyTask).data as UpgradeTaskData | undefined;
+            upgradeDesired = Math.max(upgradeDesired, d?.desiredParts ?? 15);
+        }
+    }
+
+    const upgradeAllow = Math.min(upgradeDesired, stage === "surplus" ? 28 : stage === "remote" ? 18 : 12);
+    const siteScaled = 4 + Math.ceil(buildSites * 1.4);
+    let workCeiling = Math.min(cap.maxWorkParts, siteScaled + upgradeAllow);
+
+    let work = Math.min(raw.work, workCeiling);
+    let workerCreeps = Math.min(raw.workerCreeps, cap.maxWorkerCreeps);
+
+    if (supply.idleWorkers >= 2) {
+        work = Math.min(work, supply.work);
+        workerCreeps = 0;
+    } else if (supply.idleWorkers >= 1) {
+        work = Math.min(work, supply.work + 6);
+        workerCreeps = Math.min(workerCreeps, 1);
+    }
+
+    return { ...raw, work, workerCreeps };
+}
+
 /* ============================================================
    HAULING DEMAND (MINING-BASED, TASK-NUDGED)
    ============================================================ */
@@ -660,7 +757,8 @@ function explicitSpawnRequests(room: Room, supply: SupplyTotals): ResolvedSpawnR
             kind: spawnIntentFromRole(request.role),
             priority: request.priority,
             unmetCreeps,
-            minEnergy: request.minEnergy
+            minEnergy: request.minEnergy,
+            requestedBy: request.requestedBy
         }));
 }
 
@@ -668,9 +766,10 @@ function roleRequestKey(role: Exclude<SpawnRequestRole, "defender">, roomName: s
     return `baseline:${role}:${roomName}`;
 }
 
-function rolePriorityBoost(room: Room, role: SpawnRequestRole): number {
+function rolePriorityBoost(room: Room, role: SpawnRequestRole, supply: SupplyTotals): number {
     const onboarding = room.memory.onboarding;
     const support = room.memory.supportRequest;
+    const pipeline = miningPipelineReady(supply);
     let boost = 0;
 
     if (role === "miner" && onboarding?.needsMiner) {
@@ -681,11 +780,15 @@ function rolePriorityBoost(room: Room, role: SpawnRequestRole): number {
         boost += 35;
     }
 
-    if (role === "worker" && onboarding?.needsBuilder) {
+    // Do not inflate worker priority until miner+hauler pipeline exists (avoids builders first).
+    if (role === "worker" && onboarding?.needsBuilder && pipeline) {
         boost += 20;
     }
 
-    if (support?.kind === "bootstrap" && (role === "miner" || role === "hauler" || role === "worker")) {
+    if (
+        support?.kind === "bootstrap" &&
+        (role === "miner" || role === "hauler" || (role === "worker" && pipeline))
+    ) {
         boost += 25;
     }
 
@@ -693,7 +796,7 @@ function rolePriorityBoost(room: Room, role: SpawnRequestRole): number {
         boost += 20;
     }
 
-    if (support?.kind === "build" && role === "worker") {
+    if (support?.kind === "build" && role === "worker" && pipeline) {
         boost += 15;
     }
 
@@ -791,7 +894,7 @@ function refreshBaselineSpawnRequests(
     if (minerPriority > 0) {
         upsertSpawnRequest(room, {
             role: "miner",
-            priority: minerPriority + rolePriorityBoost(room, "miner"),
+            priority: minerPriority + rolePriorityBoost(room, "miner", supply),
             desiredCreeps: Math.max(1, demand.minerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("miner", room.name),
@@ -814,7 +917,7 @@ function refreshBaselineSpawnRequests(
     );
 
     const finalHaulerPriority =
-        haulerPriority > 0 ? haulerPriority + haulerBonus + rolePriorityBoost(room, "hauler") : 0;
+        haulerPriority > 0 ? haulerPriority + haulerBonus + rolePriorityBoost(room, "hauler", supply) : 0;
 
     if (finalHaulerPriority > 0) {
         upsertSpawnRequest(room, {
@@ -850,11 +953,7 @@ function refreshBaselineSpawnRequests(
         clearSpawnRequest(room, "scout", roleRequestKey("scout", room.name));
     }
 
-    // Worker
-    // Don't spawn workers until basic economy exists (miner + hauler)
-    const hasBasicEconomy =
-        supply.minerCreeps + supply.incomingMiners > 0 && supply.haulerCreeps + supply.incomingHaulers > 0;
-
+    // Worker — only after miner+hauler exist and mining throughput is meaningful
     const baseWorkerPriority = calculateBaselinePriority(
         "worker",
         supply.workerCreeps + supply.incomingWorkers,
@@ -866,9 +965,11 @@ function refreshBaselineSpawnRequests(
         supply.idleWorkers
     );
 
-    const workerPriority = hasBasicEconomy ? baseWorkerPriority : 0;
+    const workerPriority = allowWorkerSpawns(supply, demand) ? baseWorkerPriority : 0;
     const finalWorkerPriority =
-        workerPriority > 0 ? Math.max(1, workerPriority + workerPenalty + rolePriorityBoost(room, "worker")) : 0;
+        workerPriority > 0
+            ? Math.max(1, workerPriority + workerPenalty + rolePriorityBoost(room, "worker", supply))
+            : 0;
 
     if (finalWorkerPriority > 0) {
         upsertSpawnRequest(room, {
@@ -888,15 +989,30 @@ function refreshBaselineSpawnRequests(
    SPAWN DECISION
    ============================================================ */
 
-function selectSpawnIntent(room: Room, supply: SupplyTotals, availableEnergy: number): SpawnIntent | null {
+function selectSpawnIntent(
+    room: Room,
+    supply: SupplyTotals,
+    availableEnergy: number,
+    allowWorkers: boolean
+): SpawnIntent | null {
     const requests = explicitSpawnRequests(room, supply)
+        .filter(
+            r =>
+                allowWorkers ||
+                r.kind !== SpawnIntentKind.WORKER ||
+                !r.requestedBy.startsWith("baseline:")
+        )
         .filter(request => request.minEnergy === undefined || availableEnergy >= request.minEnergy)
         .sort((a, b) => {
             if (b.priority !== a.priority) {
                 return b.priority - a.priority;
             }
 
-            return b.unmetCreeps - a.unmetCreeps;
+            if (b.unmetCreeps !== a.unmetCreeps) {
+                return b.unmetCreeps - a.unmetCreeps;
+            }
+
+            return spawnIntentPreference(b.kind) - spawnIntentPreference(a.kind);
         });
 
     if (requests.length > 0) {
@@ -950,8 +1066,9 @@ export class SpawnManager {
 
         const supply = deriveSupply(worldRoom);
         const tasks = world.taskManager.getTasksForRoom(room);
-        const demand = deriveDemand(tasks);
-        const targetCarry = effectiveCarryDemand(supply, demand);
+        const rawDemand = deriveDemand(tasks);
+        const demand = clampWorkerSpawnDemand(room, supply, rawDemand, tasks);
+        const targetCarry = effectiveCarryDemand(supply, rawDemand);
         const stats = updateSpawnStats(room, supply, demand, targetCarry);
         refreshBaselineSpawnRequests(room, supply, demand, stats);
         const energy = room.energyAvailable;
@@ -959,7 +1076,8 @@ export class SpawnManager {
         for (const spawn of spawns) {
             if (spawn.spawning) continue;
 
-            const intent = selectSpawnIntent(room, supply, energy);
+            const allowWorkers = allowWorkerSpawns(supply, demand);
+            const intent = selectSpawnIntent(room, supply, energy, allowWorkers);
             if (!intent) continue;
 
             let body: BodyPartConstant[] | null = null;
