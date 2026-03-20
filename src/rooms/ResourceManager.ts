@@ -62,6 +62,11 @@ export class ResourceManager {
 
         const needed = creepState.creep.store.getCapacity(RESOURCE_ENERGY);
 
+        // Dedicated haulers should pick up anything if they are idle
+        if (creepState.creep.body.some(p => p.type === CARRY) && !creepState.creep.body.some(p => p.type === WORK)) {
+            return available > 0;
+        }
+
         return available >= needed * 0.5;
     }
 

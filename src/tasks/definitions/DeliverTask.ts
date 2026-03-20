@@ -172,23 +172,13 @@ export class DeliverTask extends Task<DeliverTaskData> {
         }
 
         const energy = creepEnergy(creepState.creep);
+        const hasSpace = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
         const roomHasEnergy = world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
 
-        // If empty, only perform if there is energy in the room to collect
-        if (energy <= 0) {
-            return roomHasEnergy;
-        }
-
-        // Dedicated haulers should deliver even if not full if the room is empty
-        const energyOk =
-            creepStoreFullPercentage(creepState.creep) >= 0.5 ||
-            roomHasEnergy === false;
-
-        if (!energyOk) {
-            return false;
-        }
-
-        return true;
+        // Can perform if:
+        // 1. We have energy to deliver
+        // 2. OR we have space and there is energy in the room to pick up
+        return energy > 0 || (hasSpace && roomHasEnergy);
     }
 
     protected override taskIsFull(): boolean {
