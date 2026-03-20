@@ -166,24 +166,24 @@ export class EconomyPlan extends Plan {
                     const pressurePenalty =
                         (spawnStats?.mine.pressure ?? 0) + (spawnStats?.carry.pressure ?? 0) + (spawnStats?.work.pressure ?? 0);
 
-                    // Base demand depends on RCL
-                    let desiredParts = rcl * 5;
+                    // Base demand depends on RCL, but we want to use all our energy
+                    let desiredParts = Math.max(10, rcl * 10);
 
                     // Throttling Logic:
-                    if (storageEnergy < 1000) {
+                    if (storageEnergy < 1000 && !room.storage) {
+                        // Very early game, no storage yet - just keep it alive
+                        desiredParts = 4;
+                    } else if (storageEnergy < 500 && room.storage) {
                         // Emergency level: just keep it alive
                         desiredParts = 1;
-                    } else if (storageEnergy < 10000 || pressurePenalty > 0.8) {
-                        // Struggling: minimal upgrading
+                    } else if (pressurePenalty > 1.2) {
+                        // Heavy pressure on miners/haulers: minimal upgrading
                         desiredParts = Math.max(1, Math.floor(desiredParts * 0.2));
-                    } else if (pressurePenalty > 0.4) {
+                    } else if (pressurePenalty > 0.8) {
                         // Moderate pressure: halved upgrading
                         desiredParts = Math.max(1, Math.floor(desiredParts * 0.5));
-                    } else if (growth?.expansionReady) {
-                        // Expansion ready: conserve energy for the new room
-                        desiredParts = Math.max(1, Math.floor(desiredParts * 0.3));
-                    } else if (storageEnergy > 200000) {
-                        // Surplus: boost upgrading
+                    } else if (storageEnergy > 5000) {
+                        // If we have a little buffer, go full speed
                         desiredParts *= 2;
                     }
 

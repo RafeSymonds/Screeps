@@ -14,15 +14,17 @@ import { AnyTask } from "tasks/definitions/Task";
    ============================================================ */
 
 // Mining
-const ENERGY_PER_WORK_PER_TICK = 2;
+const ENERGY_PER_WORK_PER_TICK = 2.2; // slight buffer
 
 // Hauling
 const CARRY_CAPACITY = 50;
-const HAUL_TICKS_PER_TRIP = 50; // avg; remotes already encoded in mining tasks
+const HAUL_TICKS_PER_TRIP_BASE = 60; // default for walking to extensions
+const HAUL_TICKS_PER_TRIP_INFRA = 30; // storage/containers nearby
 
 // Hauler sizing
 const MIN_HAULER_CARRY = 1;
 const MAX_HAULER_CARRY = 16;
+
 
 // Weighting
 const TASK_CARRY_WEIGHT = 0.35; // tasks influence hauling, but never dominate
@@ -507,10 +509,10 @@ function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTota
  * over-requests workers. Clamp for spawn pressure so we prioritize miners/haulers/remotes first.
  */
 const SPAWN_WORK_CAP: Record<RoomGrowthStage, { maxWorkParts: number; maxWorkerCreeps: number }> = {
-    bootstrap: { maxWorkParts: 8, maxWorkerCreeps: 2 },
-    stabilizing: { maxWorkParts: 14, maxWorkerCreeps: 3 },
-    remote: { maxWorkParts: 26, maxWorkerCreeps: 6 },
-    surplus: { maxWorkParts: 52, maxWorkerCreeps: 16 }
+    bootstrap: { maxWorkParts: 14, maxWorkerCreeps: 3 },
+    stabilizing: { maxWorkParts: 26, maxWorkerCreeps: 6 },
+    remote: { maxWorkParts: 52, maxWorkerCreeps: 12 },
+    surplus: { maxWorkParts: 100, maxWorkerCreeps: 25 }
 };
 
 function taskKindForSpawnClamp(task: unknown): TaskKind | undefined {
@@ -533,23 +535,21 @@ function clampWorkerSpawnDemand(room: Room, supply: SupplyTotals, raw: DemandTot
         }
         if (kind === TaskKind.UPGRADE) {
             const d = (t as AnyTask).data as UpgradeTaskData | undefined;
-            upgradeDesired = Math.max(upgradeDesired, d?.desiredParts ?? 15);
+            upgradeDesired = Math.max(upgradeDesired, d?.desiredParts ?? 20);
         }
     }
 
-    const upgradeAllow = Math.min(upgradeDesired, stage === "surplus" ? 28 : stage === "remote" ? 18 : 12);
-    const siteScaled = 4 + Math.ceil(buildSites * 1.4);
+    const upgradeAllow = Math.min(upgradeDesired, stage === "surplus" ? 100 : stage === "remote" ? 50 : 25);
+    const siteScaled = 6 + Math.ceil(buildSites * 2);
     let workCeiling = Math.min(cap.maxWorkParts, siteScaled + upgradeAllow);
 
     let work = Math.min(raw.work, workCeiling);
     let workerCreeps = Math.min(raw.workerCreeps, cap.maxWorkerCreeps);
 
+    // Only clamp if we have truly idle workers (not working)
     if (supply.idleWorkers >= 2) {
         work = Math.min(work, supply.work);
         workerCreeps = 0;
-    } else if (supply.idleWorkers >= 1) {
-        work = Math.min(work, supply.work + 6);
-        workerCreeps = Math.min(workerCreeps, 1);
     }
 
     return { ...raw, work, workerCreeps };
@@ -559,17 +559,34 @@ function clampWorkerSpawnDemand(room: Room, supply: SupplyTotals, raw: DemandTot
    HAULING DEMAND (MINING-BASED, TASK-NUDGED)
    ============================================================ */
 
-function haulingFromMining(supplyMine: number): number {
+function haulingFromMining(room: Room, supplyMine: number): number {
     const energyPerTick = supplyMine * ENERGY_PER_WORK_PER_TICK;
-    const energyPerTrip = energyPerTick * HAUL_TICKS_PER_TRIP;
+
+    const hasInfra =
+        (room.storage !== undefined && room.storage.my) ||
+        room.find(FIND_STRUCTURES).some(s => s.structureType === STRUCTURE_CONTAINER);
+
+    const tripTime = hasInfra ? HAUL_TICKS_PER_TRIP_INFRA : HAUL_TICKS_PER_TRIP_BASE;
+    const energyPerTrip = energyPerTick * tripTime;
     return Math.ceil(energyPerTrip / CARRY_CAPACITY);
 }
 
-function effectiveCarryDemand(supply: SupplyTotals, demand: DemandTotals): number {
-    const miningBased = haulingFromMining(Math.max(supply.mine, demand.mine));
-    const taskBased = demand.carryHint;
+function effectiveCarryDemand(room: Room, supply: SupplyTotals, demand: DemandTotals): { parts: number; creeps: number } {
+    const miningParts = haulingFromMining(room, Math.max(supply.mine, demand.mine));
+    const taskParts = demand.carryHint;
 
-    return Math.ceil(miningBased * (1 - TASK_CARRY_WEIGHT) + taskBased * TASK_CARRY_WEIGHT);
+    const parts = Math.ceil(miningParts * (1 - TASK_CARRY_WEIGHT) + taskParts * TASK_CARRY_WEIGHT);
+
+    // Dynamic creep count: ensure at least 1 hauler per source if mining exists,
+    // otherwise based on max hauler size.
+    const sourceCount = room.find(FIND_SOURCES).length;
+    const minCreeps = supply.mine > 0 ? sourceCount : 0;
+    const carryPerHauler = desiredHaulerCarry(room) || 4;
+    const partsBasedCreeps = Math.ceil(parts / carryPerHauler);
+
+    const creeps = Math.max(minCreeps, partsBasedCreeps, demand.haulerCreeps);
+
+    return { parts, creeps };
 }
 
 function pressureScore(
@@ -582,7 +599,9 @@ function pressureScore(
 ): number {
     const partPressure = demandParts <= 0 ? 0 : Math.max(0, demandParts - supplyParts) / demandParts;
     const creepPressure = demandCreeps <= 0 ? 0 : Math.max(0, demandCreeps - supplyCreeps) / demandCreeps;
-    const instant = Math.max(partPressure, creepPressure);
+
+    // Sum pressures so both part shortage and creep shortage contribute to the urgency.
+    const instant = Math.min(1.5, partPressure + creepPressure);
 
     return previousPressure * (1 - alpha) + instant * alpha;
 }
@@ -596,7 +615,7 @@ function immediatePressure(
     const partPressure = demandParts <= 0 ? 0 : Math.max(0, demandParts - supplyParts) / demandParts;
     const creepPressure = demandCreeps <= 0 ? 0 : Math.max(0, demandCreeps - supplyCreeps) / demandCreeps;
 
-    return Math.max(partPressure, creepPressure);
+    return Math.min(1.5, partPressure + creepPressure);
 }
 
 function statsSnapshot(
@@ -618,7 +637,12 @@ function statsSnapshot(
     };
 }
 
-function updateSpawnStats(room: Room, supply: SupplyTotals, demand: DemandTotals, targetCarry: number): RoomSpawnStats {
+function updateSpawnStats(
+    room: Room,
+    supply: SupplyTotals,
+    demand: DemandTotals,
+    haulerDemand: { parts: number; creeps: number }
+): RoomSpawnStats {
     const previous = room.memory.spawnStats;
 
     const stats: RoomSpawnStats = {
@@ -636,8 +660,8 @@ function updateSpawnStats(room: Room, supply: SupplyTotals, demand: DemandTotals
             previous?.carry,
             supply.carry,
             supply.haulerCreeps,
-            targetCarry,
-            demand.haulerCreeps,
+            haulerDemand.parts,
+            haulerDemand.creeps,
             supply.idleHaulers,
             PRESSURE_ALPHA
         ),
@@ -830,14 +854,14 @@ function refreshBaselineSpawnRequests(
     room: Room,
     supply: SupplyTotals,
     demand: DemandTotals,
+    haulerDemand: { parts: number; creeps: number },
     stats: RoomSpawnStats
 ): void {
-    const targetCarry = stats.carry.demandParts;
-
     const minerImmediate = immediatePressure(supply.mine, supply.minerCreeps, demand.mine, demand.minerCreeps);
-    const carryImmediate = immediatePressure(supply.carry, supply.haulerCreeps, targetCarry, demand.haulerCreeps);
+    const carryImmediate = immediatePressure(supply.carry, supply.haulerCreeps, haulerDemand.parts, haulerDemand.creeps);
     const workImmediate = immediatePressure(supply.work, supply.workerCreeps, demand.work, demand.workerCreeps);
     const scoutImmediate = immediatePressure(supply.scout, supply.scout, demand.scout, demand.scout);
+
 
     // --- Unified Labor Scaling (EE-QUEUE-02) ---
     let haulerBonus = 0;
@@ -895,8 +919,8 @@ function refreshBaselineSpawnRequests(
         "hauler",
         supply.haulerCreeps + supply.incomingHaulers,
         supply.carry,
-        demand.haulerCreeps,
-        targetCarry,
+        haulerDemand.parts,
+        haulerDemand.creeps,
         carryImmediate,
         stats.carry.pressure,
         supply.idleHaulers
@@ -909,7 +933,7 @@ function refreshBaselineSpawnRequests(
         upsertSpawnRequest(room, {
             role: "hauler",
             priority: finalHaulerPriority,
-            desiredCreeps: Math.max(1, demand.haulerCreeps),
+            desiredCreeps: Math.max(1, haulerDemand.creeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("hauler", room.name),
             minEnergy: hasMiners ? 100 : 150 // Don't "steal" energy from the first miner
@@ -1050,9 +1074,9 @@ export class SpawnManager {
         const tasks = world.taskManager.getTasksForRoom(room);
         const rawDemand = deriveDemand(tasks);
         const demand = clampWorkerSpawnDemand(room, supply, rawDemand, tasks);
-        const targetCarry = effectiveCarryDemand(supply, rawDemand);
-        const stats = updateSpawnStats(room, supply, demand, targetCarry);
-        refreshBaselineSpawnRequests(room, supply, demand, stats);
+        const haulerDemand = effectiveCarryDemand(room, supply, rawDemand);
+        const stats = updateSpawnStats(room, supply, demand, haulerDemand);
+        refreshBaselineSpawnRequests(room, supply, demand, haulerDemand, stats);
         const energy = room.energyAvailable;
 
         for (const spawn of spawns) {
