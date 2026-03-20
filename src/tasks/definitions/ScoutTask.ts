@@ -44,7 +44,7 @@ export class ScoutTask extends Task<ScoutTaskData> {
     }
 
     protected override taskIsFull(): boolean {
-        return false;
+        return this.data.assignedCreeps.length >= 1;
     }
 
     public override score(_creep: Creep): number {
@@ -67,7 +67,10 @@ export class ScoutTask extends Task<ScoutTaskData> {
 
     public override requirements(): TaskRequirements {
         return {
-            vision: true
+            vision: true,
+            move: {
+                creeps: 1
+            }
         };
     }
 }

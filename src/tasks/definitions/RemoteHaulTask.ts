@@ -134,7 +134,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
         world.resourceManager.reserveRemoteEnergy(this.data.targetRoom, free);
     }
 
-    requirements(): TaskRequirements {
+    public override requirements(): TaskRequirements {
         // 10 energy/tick per source. Most remotes have 1-2 sources.
         const energyPerTick = 10;
         const roomDistance = Math.max(1, this.data.routeLength);
@@ -145,7 +145,8 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
 
         return {
             carry: {
-                parts: Math.ceil((energyPerTick * roundTrip) / 50)
+                parts: Math.ceil((energyPerTick * roundTrip) / 50),
+                creeps: 1
             }
         };
     }

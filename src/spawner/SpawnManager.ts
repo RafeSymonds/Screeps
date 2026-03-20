@@ -498,7 +498,9 @@ function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTota
         demand.combat += requirementParts(r.combat);
         demand.defenderCreeps += requirementCreeps(r.combat);
 
-        if (r.vision) demand.scout += 1;
+        if (r.vision) {
+            demand.scout = 1;
+        }
     }
 
     return demand;

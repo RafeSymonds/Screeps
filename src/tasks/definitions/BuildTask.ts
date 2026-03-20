@@ -41,11 +41,16 @@ export class BuildTask extends Task<BuildTaskData> {
     }
 
     public canPerformTask(creepState: CreepState, world: World): boolean {
-        return (
-            hasBodyPart(creepState.creep, WORK) &&
-            hasBodyPart(creepState.creep, CARRY) &&
-            world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name)
-        );
+        if (!hasBodyPart(creepState.creep, WORK) || !hasBodyPart(creepState.creep, CARRY)) {
+            return false;
+        }
+
+        const hasEnergy = creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0;
+        if (hasEnergy) {
+            return true;
+        }
+
+        return world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
     }
 
     protected override taskIsFull(): boolean {

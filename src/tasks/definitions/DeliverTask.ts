@@ -261,7 +261,8 @@ export class DeliverTask extends Task<DeliverTaskData> {
 
         return {
             carry: {
-                parts: Math.ceil((energyPerTick * roundTrip) / 50)
+                parts: Math.ceil((energyPerTick * roundTrip) / 50),
+                creeps: 1
             }
         };
     }

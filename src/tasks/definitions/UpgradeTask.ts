@@ -42,12 +42,17 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
     }
 
     public canPerformTask(creepState: CreepState, world: World): boolean {
-        return (
-            hasBodyPart(creepState.creep, WORK) &&
-            hasBodyPart(creepState.creep, CARRY) &&
-            (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0 ||
-                world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name))
-        );
+        if (!hasBodyPart(creepState.creep, WORK) || !hasBodyPart(creepState.creep, CARRY)) {
+            return false;
+        }
+
+        const hasEnergy = creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) > 0;
+        if (hasEnergy) {
+            return true;
+        }
+
+        // If we have no energy, we can only take the task if the room has some to give
+        return world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
     }
 
     protected taskIsFull(): boolean {
