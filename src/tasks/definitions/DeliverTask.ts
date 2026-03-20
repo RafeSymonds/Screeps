@@ -12,7 +12,6 @@ import { creepNeedsEnergy, creepStoreFullPercentage } from "creeps/CreepControll
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
 import { scaledRoleBias } from "tasks/core/RoleAffinity";
-import { countDedicatedHaulersInRoom } from "world/WorldUtils";
 
 /* ============================================================
    TYPES
@@ -178,14 +177,6 @@ export class DeliverTask extends Task<DeliverTaskData> {
 
         if (!energyOk) {
             return false;
-        }
-
-        // Workers must not haul when dedicated haulers exist in the delivery room (saves CPU and role clarity).
-        if (isWorkerCreep(creepState.creep)) {
-            const haulersHere = countDedicatedHaulersInRoom(world, this.data.targetRoom, { includeSpawning: true });
-            if (haulersHere > 0) {
-                return false;
-            }
         }
 
         return true;

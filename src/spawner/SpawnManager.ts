@@ -1076,8 +1076,7 @@ export class SpawnManager {
         for (const spawn of spawns) {
             if (spawn.spawning) continue;
 
-            const allowWorkers = allowWorkerSpawns(supply, demand);
-            const intent = selectSpawnIntent(room, supply, energy, allowWorkers);
+            const intent = selectSpawnIntent(room, supply, energy);
             if (!intent) continue;
 
             let body: BodyPartConstant[] | null = null;
