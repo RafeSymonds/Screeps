@@ -91,7 +91,7 @@ function scoutBody(): BodyPartConstant[] {
 }
 
 function minerBody(energy: number, room?: Room): BodyPartConstant[] {
-    if (energy < 200) return [];
+    if (energy < 150) return [];
 
     // At low capacity, cap miner cost to leave energy for a bootstrap hauler
     const cap = room?.energyCapacityAvailable ?? 300;
@@ -127,6 +127,7 @@ function desiredHaulerCarry(room: Room, routeLength?: number): number {
 }
 
 function haulerBody(room: Room, energy: number): BodyPartConstant[] {
+    if (energy < 100) return [];
     const target = desiredHaulerCarry(room);
     const maxFromEnergy = Math.floor(energy / 100);
 
@@ -878,7 +879,7 @@ function refreshBaselineSpawnRequests(
             desiredCreeps: Math.max(1, demand.minerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("miner", room.name),
-            minEnergy: 400
+            minEnergy: 150
         });
     } else {
         clearSpawnRequest(room, "miner", roleRequestKey("miner", room.name));
@@ -896,6 +897,7 @@ function refreshBaselineSpawnRequests(
         supply.idleHaulers
     );
 
+    const hasMiners = supply.minerCreeps + supply.incomingMiners > 0;
     const finalHaulerPriority =
         haulerPriority > 0 ? haulerPriority + haulerBonus + rolePriorityBoost(room, "hauler", supply) : 0;
 
@@ -906,17 +908,20 @@ function refreshBaselineSpawnRequests(
             desiredCreeps: Math.max(1, demand.haulerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("hauler", room.name),
-            minEnergy: 100
+            minEnergy: hasMiners ? 100 : 150 // Don't "steal" energy from the first miner
         });
     } else {
         clearSpawnRequest(room, "hauler", roleRequestKey("hauler", room.name));
     }
 
-    // Scout
+    // Scout — only after at least one miner and one hauler are established
+    const hasBaselineProduction =
+        supply.minerCreeps + supply.incomingMiners > 0 && supply.haulerCreeps + supply.incomingHaulers > 0;
+
     const scoutPriority =
-        demand.scout > 0 && supply.scout + supply.incomingScouts === 0
+        hasBaselineProduction && demand.scout > 0 && supply.scout + supply.incomingScouts === 0
             ? SpawnRequestPriority.NORMAL + 30
-            : scoutImmediate > 0 && shouldSpawnForPressure(stats.scout)
+            : hasBaselineProduction && scoutImmediate > 0 && shouldSpawnForPressure(stats.scout)
               ? SpawnRequestPriority.LOW + 20 + stats.scout.pressure * 100
               : 0;
 
@@ -958,7 +963,7 @@ function refreshBaselineSpawnRequests(
             desiredCreeps: Math.max(1, demand.workerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("worker", room.name),
-            minEnergy: 400
+            minEnergy: 300
         });
     } else {
         clearSpawnRequest(room, "worker", roleRequestKey("worker", room.name));
