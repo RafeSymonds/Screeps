@@ -2,7 +2,6 @@ import { assert } from "chai";
 import { createDeliverTaskData, DeliverTask } from "../../src/tasks/definitions/DeliverTask";
 import { CreepState } from "../../src/creeps/CreepState";
 import { createRoom, resetScreeps } from "../helpers/screeps-fixture";
-import { WorldRoom } from "../../src/world/WorldRoom";
 
 function makeCreep(
     room: Room,

@@ -61,26 +61,6 @@ interface ResolvedSpawnRequest {
     requestedBy: string;
 }
 
-/** At least one dedicated miner and one dedicated hauler (alive or spawning). */
-function miningPipelineReady(supply: SupplyTotals): boolean {
-    return (
-        supply.minerCreeps + supply.incomingMiners >= 1 &&
-        supply.haulerCreeps + supply.incomingHaulers >= 1
-    );
-}
-
-/** Enough WORK on miners before we add builders (keeps early energy on harvest+haul). */
-function miningThroughputReady(supply: SupplyTotals, demand: DemandTotals): boolean {
-    if (demand.mine <= 0) {
-        return supply.mine >= 3;
-    }
-    return supply.mine >= Math.min(demand.mine, 5);
-}
-
-function allowWorkerSpawns(supply: SupplyTotals, demand: DemandTotals): boolean {
-    return miningPipelineReady(supply) && miningThroughputReady(supply, demand);
-}
-
 function spawnIntentPreference(kind: SpawnIntentKind): number {
     switch (kind) {
         case SpawnIntentKind.MINER:
@@ -159,7 +139,10 @@ function haulerBody(room: Room, energy: number): BodyPartConstant[] {
 }
 
 function workerBody(energy: number): BodyPartConstant[] {
-    const units = Math.max(1, Math.floor(energy / 200));
+    // Ensure workers are true builders (not 1CARRY "accidental miners").
+    if (energy < 400) return [];
+
+    const units = Math.floor(energy / 200);
     const body: BodyPartConstant[] = [];
     for (let i = 0; i < units; i++) body.push(WORK, CARRY, MOVE);
     return body;
@@ -896,7 +879,7 @@ function refreshBaselineSpawnRequests(
             desiredCreeps: Math.max(1, demand.minerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("miner", room.name),
-            minEnergy: 200
+            minEnergy: 400
         });
     } else {
         clearSpawnRequest(room, "miner", roleRequestKey("miner", room.name));
@@ -976,7 +959,7 @@ function refreshBaselineSpawnRequests(
             desiredCreeps: Math.max(1, demand.workerCreeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("worker", room.name),
-            minEnergy: 200
+            minEnergy: 400
         });
     } else {
         clearSpawnRequest(room, "worker", roleRequestKey("worker", room.name));
