@@ -769,7 +769,6 @@ function roleRequestKey(role: Exclude<SpawnRequestRole, "defender">, roomName: s
 function rolePriorityBoost(room: Room, role: SpawnRequestRole, supply: SupplyTotals): number {
     const onboarding = room.memory.onboarding;
     const support = room.memory.supportRequest;
-    const pipeline = miningPipelineReady(supply);
     let boost = 0;
 
     if (role === "miner" && onboarding?.needsMiner) {
@@ -780,14 +779,13 @@ function rolePriorityBoost(room: Room, role: SpawnRequestRole, supply: SupplyTot
         boost += 35;
     }
 
-    // Do not inflate worker priority until miner+hauler pipeline exists (avoids builders first).
-    if (role === "worker" && onboarding?.needsBuilder && pipeline) {
+    if (role === "worker" && onboarding?.needsBuilder) {
         boost += 20;
     }
 
     if (
         support?.kind === "bootstrap" &&
-        (role === "miner" || role === "hauler" || (role === "worker" && pipeline))
+        (role === "miner" || role === "hauler" || role === "worker")
     ) {
         boost += 25;
     }
@@ -796,7 +794,7 @@ function rolePriorityBoost(room: Room, role: SpawnRequestRole, supply: SupplyTot
         boost += 20;
     }
 
-    if (support?.kind === "build" && role === "worker" && pipeline) {
+    if (support?.kind === "build" && role === "worker") {
         boost += 15;
     }
 
@@ -965,7 +963,7 @@ function refreshBaselineSpawnRequests(
         supply.idleWorkers
     );
 
-    const workerPriority = allowWorkerSpawns(supply, demand) ? baseWorkerPriority : 0;
+    const workerPriority = baseWorkerPriority;
     const finalWorkerPriority =
         workerPriority > 0
             ? Math.max(1, workerPriority + workerPenalty + rolePriorityBoost(room, "worker", supply))
@@ -989,19 +987,8 @@ function refreshBaselineSpawnRequests(
    SPAWN DECISION
    ============================================================ */
 
-function selectSpawnIntent(
-    room: Room,
-    supply: SupplyTotals,
-    availableEnergy: number,
-    allowWorkers: boolean
-): SpawnIntent | null {
+function selectSpawnIntent(room: Room, supply: SupplyTotals, availableEnergy: number): SpawnIntent | null {
     const requests = explicitSpawnRequests(room, supply)
-        .filter(
-            r =>
-                allowWorkers ||
-                r.kind !== SpawnIntentKind.WORKER ||
-                !r.requestedBy.startsWith("baseline:")
-        )
         .filter(request => request.minEnergy === undefined || availableEnergy >= request.minEnergy)
         .sort((a, b) => {
             if (b.priority !== a.priority) {
