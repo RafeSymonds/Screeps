@@ -198,8 +198,11 @@ export class DeliverTask extends Task<DeliverTaskData> {
         const basePenalty = isDedicatedHaulerCreep(creep) ? 0 : isWorkerCreep(creep) ? 120 : 220;
         const rolePenalty = scaledRoleBias(creep.memory.ownerRoom, basePenalty);
 
+        const energy = creepEnergy(creep);
+        const energyBonus = energy > 0 ? 50 : 0; // Favor creeps that already have energy
+
         // Keep logistics mostly on haulers while allowing emergency fallback from workers.
-        return -100 - dist + this.priority() * 5 - rolePenalty;
+        return -100 - dist + this.priority() * 20 + energyBonus - rolePenalty;
     }
 
     public override nextAction(creepState: CreepState, resourceManager: ResourceManager, world: World): Action | null {
@@ -250,6 +253,21 @@ export class DeliverTask extends Task<DeliverTaskData> {
             this.reservedEnergy = Math.max(0, this.reservedEnergy - claim);
             this.reservedBy.delete(creepState.creep.id);
         }
+    }
+
+    public override removeDeadCreep(deadName: string) {
+        const entry = this.data.assignedCreeps.find(([, name]) => name === deadName);
+        if (entry) {
+            const [id] = entry;
+            const idTyped = id as Id<Creep>;
+            const claim = this.reservedBy.get(idTyped);
+            if (claim) {
+                this.reservedEnergy = Math.max(0, this.reservedEnergy - claim);
+                this.reservedBy.delete(idTyped);
+            }
+        }
+
+        super.removeDeadCreep(deadName);
     }
 
     public override validCreationSetup(): void {}

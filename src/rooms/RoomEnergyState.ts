@@ -184,8 +184,13 @@ export class RoomEnergyState {
 
             const gain = Math.min(remaining, creep.store.getFreeCapacity(RESOURCE_ENERGY));
 
-            const dist = creep.pos.getRangeTo(target.pos);
-            const score = gain - dist * 2;
+            const distFromCreep = creep.pos.getRangeTo(target.pos);
+            const distToTarget = destination ? target.pos.getRangeTo(destination) : 0;
+
+            // Score based on gain, but penalize distance from creep AND distance from target.
+            // This prevents "elastic band" hauling where a creep goes far away to get 50 energy
+            // only to come all the way back to where it started.
+            const score = gain - distFromCreep * 3 - distToTarget * 2;
 
             if (score > bestScore) {
                 bestScore = score;

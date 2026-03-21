@@ -104,6 +104,7 @@ export class EconomyPlan extends Plan {
                     positionSinks.add(key);
                 };
 
+                // 1. Structure Sinks (HIGHEST PRIORITY)
                 for (const s of room.find(FIND_MY_STRUCTURES)) {
                     if (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) {
                         sinks.push(s as StructureSpawn | StructureExtension);
@@ -118,6 +119,7 @@ export class EconomyPlan extends Plan {
                     }
                 }
 
+                // 2. Position Sinks (LOWER PRIORITY)
                 const spawn = room.find(FIND_MY_SPAWNS)[0];
                 if (spawn) {
                     if (!hasNearbyEnergySink(room, spawn.pos)) {
