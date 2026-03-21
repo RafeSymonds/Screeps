@@ -146,17 +146,26 @@ export class RoomEnergyState {
             return false;
         }
 
-        if (to instanceof RoomPosition && from.pos.getRangeTo(to) <= 2) {
+        const fromPos = from instanceof RoomPosition ? from : from.pos;
+        const toPos = to instanceof RoomPosition ? to : to.pos;
+
+        // Don't pick up from exactly where we are dropping, UNLESS it's a dropped resource.
+        // If it's on the floor, we want to grab it regardless of proximity to the sink.
+        if (!(from instanceof Resource) && fromPos.getRangeTo(toPos) <= 1) {
             return false;
         }
 
         if (from instanceof StructureStorage) return true;
         if (!(from instanceof StructureContainer)) return true;
 
-        if (this.needyContainers.has(from.id)) return false;
+        // If it's a source container, it's always a valid source.
+        if (this.sourceContainers.has(from.id)) return true;
 
-        if (to instanceof StructureContainer && this.needyContainers.has(to.id) && this.needyContainers.has(from.id)) {
-            return false;
+        // If it's a needy container, it's NOT a valid source for another container.
+        if (this.needyContainers.has(from.id)) {
+            if (to instanceof StructureContainer && this.needyContainers.has(to.id)) {
+                return false;
+            }
         }
 
         return true;
@@ -187,10 +196,10 @@ export class RoomEnergyState {
             const distFromCreep = creep.pos.getRangeTo(target.pos);
             const distToTarget = destination ? target.pos.getRangeTo(destination) : 0;
 
-            // Score based on gain, but penalize distance from creep AND distance from target.
-            // This prevents "elastic band" hauling where a creep goes far away to get 50 energy
-            // only to come all the way back to where it started.
-            const score = gain - distFromCreep * 3 - distToTarget * 2;
+            // Score based on gain, with lighter penalties for distance.
+            // Bonus for dropped resources to encourage floor pickups (keeps the room clean).
+            const floorBonus = target instanceof Resource ? 50 : 0;
+            const score = gain + floorBonus - distFromCreep * 2 - distToTarget;
 
             if (score > bestScore) {
                 bestScore = score;

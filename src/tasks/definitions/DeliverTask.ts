@@ -176,8 +176,8 @@ export class DeliverTask extends Task<DeliverTaskData> {
         const roomHasEnergy = world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
 
         // Can perform if:
-        // 1. We have energy to deliver
-        // 2. OR we have space and there is energy in the room to pick up
+        // 1. We have energy to deliver (even a partial load)
+        // 2. OR we have space AND there is energy in the room to pick up
         return energy > 0 || (hasSpace && roomHasEnergy);
     }
 
@@ -214,8 +214,27 @@ export class DeliverTask extends Task<DeliverTaskData> {
             return null;
         }
 
-        if (creepNeedsEnergy(creepState, world)) {
-            return findBestEnergyTask(creepState, this.target, resourceManager);
+        const needsEnergy = creepNeedsEnergy(creepState, world);
+        const energy = creepEnergy(creepState.creep);
+
+        // If we have some energy and the target is a spawn/extension, just deliver it!
+        // This prevents haulers from walking away from an empty spawn to get 5 more energy.
+        const isCriticalSink =
+            this.target instanceof Structure &&
+            (this.target.structureType === STRUCTURE_SPAWN || this.target.structureType === STRUCTURE_EXTENSION);
+
+        if (needsEnergy && isCriticalSink && energy >= 25) {
+            // Deliver what we have
+        } else if (needsEnergy) {
+            const energyAction = findBestEnergyTask(creepState, this.target, resourceManager);
+
+            if (!energyAction) {
+                // Unassign so they can find other work or sit idle for spawn logic
+                creepState.memory.taskId = undefined;
+                return null;
+            }
+
+            return energyAction;
         }
 
         if (this.target instanceof Structure) {
@@ -238,7 +257,10 @@ export class DeliverTask extends Task<DeliverTaskData> {
         const remaining = this.target.store.getFreeCapacity(RESOURCE_ENERGY) - this.reservedEnergy;
         if (remaining <= 0) return;
 
-        const claim = Math.min(creepEnergy(creepState.creep), remaining);
+        // Reserve based on capacity, because empty haulers WILL fill up and deliver that much.
+        // This prevents infinite empty haulers from being assigned to the same spawn.
+        const capacity = creepState.creep.store.getCapacity(RESOURCE_ENERGY);
+        const claim = Math.min(capacity, remaining);
         if (claim <= 0) return;
 
         this.reservedBy.set(creepState.creep.id, claim);

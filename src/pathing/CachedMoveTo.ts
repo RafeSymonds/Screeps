@@ -22,33 +22,32 @@ export function cachedMoveTo(creepState: CreepState, target: RoomPosition, range
         path = searchAndCachePath(pos, target, range);
     }
 
-    if (!path || path.length === 0) return;
-
-    // Find closest point on path to current position
-    let bestIdx = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < Math.min(path.length, 5); i++) {
-        const dist = pos.getRangeTo(path[i]);
-        if (dist < bestDist) {
-            bestDist = dist;
-            bestIdx = i;
-        }
-    }
-
     // If we're on the path or adjacent to it, follow it
-    if (bestDist <= 1) {
-        const nextIdx = bestDist === 0 ? bestIdx + 1 : bestIdx;
-        if (nextIdx < path.length) {
-            const next = path[nextIdx];
-            const dir = pos.getDirectionTo(next);
-            creep.move(dir);
-            creepState.moved = true;
-            return;
+    if (path && path.length > 0) {
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i < Math.min(path.length, 5); i++) {
+            const dist = pos.getRangeTo(path[i]);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        }
+
+        if (bestDist <= 1) {
+            const nextIdx = bestDist === 0 ? bestIdx + 1 : bestIdx;
+            if (nextIdx < path.length) {
+                const next = path[nextIdx];
+                const dir = pos.getDirectionTo(next);
+                creep.move(dir);
+                creepState.moved = true;
+                return;
+            }
         }
     }
 
     // Fallback: direct pathfind to first path point or target
-    const fallbackTarget = path[0] && pos.getRangeTo(path[0]) > 1 ? path[0] : target;
+    const fallbackTarget = path && path[0] && pos.getRangeTo(path[0]) > 1 ? path[0] : target;
     creep.moveTo(fallbackTarget, { reusePath: 5 });
     creepState.moved = true;
 }

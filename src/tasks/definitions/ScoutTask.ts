@@ -32,7 +32,11 @@ export class ScoutTask extends Task<ScoutTaskData> {
     }
 
     public override isStillValid(): boolean {
-        return true;
+        const intel = Memory.rooms[this.data.targetRoom]?.intel;
+        if (!intel) return true;
+
+        const freshness = Game.time - intel.lastScouted;
+        return freshness > 5000; // Only valid if intel is actually stale
     }
 
     public override canPerformTask(creepState: CreepState, _world: World): boolean {
@@ -60,6 +64,9 @@ export class ScoutTask extends Task<ScoutTaskData> {
         }
 
         recordRoom(creepState.creep.room);
+        
+        // Force unassign and clear taskId
+        creepState.memory.taskId = undefined;
         return null;
     }
 

@@ -125,7 +125,6 @@ export function createSource(id: string, roomName: string, x: number, y: number)
 
 export function createRoom(spec: RoomSpec): Room {
     const roomMemory = ((global as any).Memory.rooms[spec.name] ??= {
-        numHarvestSpots: 0,
         assistRadius: 2,
         remoteRadius: 2
     });

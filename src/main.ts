@@ -82,7 +82,6 @@ declare global {
 
         // Base-specific (only meaningful for owned rooms)
         anchorSpawnId?: Id<StructureSpawn>;
-        numHarvestSpots: number;
 
         assistRadius: number;
 

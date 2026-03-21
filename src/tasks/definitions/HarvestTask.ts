@@ -107,11 +107,7 @@ export class HarvestTask extends Task<HarvestTaskData> {
         return new HarvestAction(this.source);
     }
 
-    public override validCreationSetup(): void {
-        if (this.source) {
-            this.source.room.memory.numHarvestSpots += this.data.maxSpots;
-        }
-    }
+    public override validCreationSetup(): void {}
 
     public override requirements(): TaskRequirements {
         return {

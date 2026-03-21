@@ -17,18 +17,19 @@ export class ResourceManager {
         /* ================================
            3️⃣ Rebuild from living creeps
            ================================ */
-        for (const room of worldRooms) {
-            const roomState = this.roomStates.get(room.room.name)!;
-
-            for (const cs of room.myCreeps) {
+        for (const worldRoom of worldRooms) {
+            for (const cs of worldRoom.myCreeps) {
                 const creep = cs.creep;
+                const currentRoomState = this.roomStates.get(creep.room.name);
+
+                if (!currentRoomState) continue;
 
                 /* -------- Target-level pickup reservations -------- */
                 const targetId = cs.memory.energyTargetId;
                 if (targetId) {
                     const amt = creep.store.getFreeCapacity(RESOURCE_ENERGY);
                     if (amt > 0) {
-                        roomState.reserveTarget(targetId, creep, amt);
+                        currentRoomState.reserveTarget(targetId, creep, amt);
                     }
                 }
 
@@ -38,10 +39,11 @@ export class ResourceManager {
 
                 if (!reserved || !targetRoom) continue;
 
-                const targetMem = Memory.rooms[targetRoom];
-                if (!targetMem?.remoteMining) continue;
-
-                roomState.reserveRemoteEnergy(reserved);
+                // Remote reservations are always in the target room
+                const targetRoomState = this.roomStates.get(targetRoom);
+                if (targetRoomState) {
+                    targetRoomState.reserveRemoteEnergy(reserved);
+                }
             }
         }
     }
@@ -61,6 +63,12 @@ export class ResourceManager {
         const available = roomState.getAvailableEnergy();
 
         const needed = creepState.creep.store.getCapacity(RESOURCE_ENERGY);
+
+        // If the creep already has a significant amount of energy, we consider it "enough"
+        // to start a delivery run, especially for haulers.
+        if (creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY) >= 50) {
+            return true;
+        }
 
         // Dedicated haulers should pick up anything if they are idle
         if (creepState.creep.body.some(p => p.type === CARRY) && !creepState.creep.body.some(p => p.type === WORK)) {

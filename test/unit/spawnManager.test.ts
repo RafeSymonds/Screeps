@@ -49,7 +49,9 @@ describe("SpawnManager", () => {
                                         creeps: 1
                                     }
                                 };
-                            }
+                            },
+                            routeLength() { return 1; },
+                            type() { return "HARVEST"; }
                         }
                     ];
                 }
@@ -117,7 +119,9 @@ describe("SpawnManager", () => {
                         {
                             requirements() {
                                 return { vision: true };
-                            }
+                            },
+                            routeLength() { return 1; },
+                            type() { return "SCOUT"; }
                         }
                     ];
                 }
@@ -185,7 +189,9 @@ describe("SpawnManager", () => {
                                     work: { parts: 3, creeps: 1 },
                                     carry: { parts: 4, creeps: 1 }
                                 };
-                            }
+                            },
+                            routeLength() { return 1; },
+                            type() { return "HARVEST"; }
                         }
                     ];
                 }

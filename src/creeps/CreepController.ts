@@ -66,12 +66,21 @@ export function creepNeedsEnergy(creepState: CreepState, world?: import("world/W
     const usedCapacity = creepState.creep.store.getUsedCapacity(RESOURCE_ENERGY);
     const freeCapacity = creepState.creep.store.getFreeCapacity(RESOURCE_ENERGY);
 
-    // Starvation override: if the room is empty, deliver what we have immediately
-    if (world && usedCapacity > 0) {
-        const roomHasEnergy = world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
-        if (!roomHasEnergy) {
-            creepState.memory.working = true;
-            return false;
+    // If we're already carrying some energy, don't flip back to "needs energy" mode
+    // until we are completely empty. This prevents "ping-pong" behavior near the spawn.
+    if (usedCapacity > 0) {
+        if (creepState.memory.working) {
+            return false; // Stay in working mode until empty
+        }
+
+        // If we have some energy but were in collection mode, check if we should switch early.
+        // This happens if the room is dry and we've managed to grab at least something.
+        if (world) {
+            const roomHasEnergy = world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
+            if (!roomHasEnergy && usedCapacity >= 25) {
+                creepState.memory.working = true;
+                return false;
+            }
         }
     }
 
@@ -94,11 +103,19 @@ export function tryPreemptCreep(_creepState: CreepState, _taskManager: TaskManag
 
 export function moveTo(creepState: CreepState, target: RoomPosition | { pos: RoomPosition }) {
     const destination = "pos" in target ? target.pos : target;
-    const waypoint =
-        creepState.creep.room.name === destination.roomName
-            ? destination
-            : nextRoomWaypoint(creepState.creep.room.name, destination);
-
-    const waypointPos = "pos" in waypoint ? ((waypoint as any).pos as RoomPosition) : waypoint;
-    cachedMoveTo(creepState, waypointPos);
+    
+    if (creepState.creep.room.name !== destination.roomName) {
+        const waypoint = nextRoomWaypoint(creepState.creep.room.name, destination);
+        
+        // If waypoint is in another room, use direct moveTo to cross the boundary
+        if (waypoint.roomName !== creepState.creep.room.name) {
+            creepState.creep.moveTo(waypoint, { reusePath: 10 });
+            creepState.moved = true;
+            return;
+        }
+        
+        cachedMoveTo(creepState, waypoint);
+    } else {
+        cachedMoveTo(creepState, destination);
+    }
 }

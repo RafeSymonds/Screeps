@@ -21,7 +21,9 @@ function forceMove(creep: Creep): void {
 }
 
 export function moveAtTickEnd(creepState: CreepState) {
-    if (!creepState.moved) {
+    // Only force move if we are truly idle (no taskId and no energyTargetId)
+    // AND we haven't already moved this tick.
+    if (!creepState.moved && !creepState.memory.taskId && !creepState.memory.energyTargetId) {
         forceMove(creepState.creep);
     }
 }

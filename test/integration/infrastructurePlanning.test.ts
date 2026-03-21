@@ -53,7 +53,6 @@ describe("infrastructure planning", () => {
                 sourceCount: 1,
                 lastEvaluated: 1
             },
-            numHarvestSpots: 0,
             assistRadius: 2,
             remoteRadius: 2
         };

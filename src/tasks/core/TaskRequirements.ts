@@ -27,9 +27,13 @@ export function requirementParts(spec?: RequirementSpec): number {
 }
 
 export function requirementCreeps(spec?: RequirementSpec): number {
-    if (spec === undefined || typeof spec === "number") {
+    if (spec === undefined) {
         return 0;
     }
 
-    return spec.creeps ?? 0;
+    if (typeof spec === "number") {
+        return spec > 0 ? 1 : 0;
+    }
+
+    return spec.creeps ?? (spec.parts && spec.parts > 0 ? 1 : 0);
 }

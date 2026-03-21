@@ -1,4 +1,4 @@
-import { Cardinal, NeighborMap } from "./RoomTopology";
+import { Cardinal, NeighborMap, isNeightborEmpty } from "./RoomTopology";
 import { countKeeperLairs, hasInvaderCore } from "./RoomUtils";
 
 const EXIT_TO_CARDINAL: Record<ExitConstant, Cardinal> = {
@@ -12,14 +12,18 @@ export function recordRoom(room: Room) {
     const mem = room.memory;
 
     // Topology: once
-    if (!mem.topology) {
+    if (!mem.topology || isNeightborEmpty(mem.topology.neighbors)) {
         mem.topology = recordTopology(room.name);
     }
 
-    if (!mem.remoteMining) {
+    // Remote Mining Data: record sources if we have vision
+    if (!mem.remoteMining || mem.remoteMining.sources.length === 0) {
         const sources = room.find(FIND_SOURCES).map((source): [Id<Source>, RoomPosition] => [source.id, source.pos]);
-
-        mem.remoteMining = { lastHarvestTick: -1, sources, ownerRoom: undefined };
+        mem.remoteMining = { 
+            lastHarvestTick: mem.remoteMining?.lastHarvestTick ?? -1, 
+            sources, 
+            ownerRoom: mem.remoteMining?.ownerRoom 
+        };
     }
 
     // Track hostile military presence

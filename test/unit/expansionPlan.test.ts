@@ -34,7 +34,6 @@ describe("ExpansionPlan", () => {
         };
 
         (global as any).Memory.rooms["W1N0"] = {
-            numHarvestSpots: 0,
             assistRadius: 2,
             remoteRadius: 2,
             remoteMining: {

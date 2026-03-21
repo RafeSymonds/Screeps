@@ -16,9 +16,7 @@ export function roomsWithin(roomName: string, maxDepth: number): Set<string> {
             exits = buildNeighborMap(current);
 
             const existingRoomMemory = Memory.rooms[current] || getDefaultRoomMemory();
-
             existingRoomMemory.topology = { neighbors: exits };
-
             Memory.rooms[current] = existingRoomMemory;
         }
 

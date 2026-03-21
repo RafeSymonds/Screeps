@@ -7,9 +7,14 @@ export class ScoutingPlan extends Plan {
         const taskManager = world.taskManager;
 
         for (const [, room] of world.rooms) {
-            // Don't scout until we have miners and haulers running
+            // Scout once we have basic miners running OR we are at RCL 2+
             const stats = room.room.memory.spawnStats;
-            if (!stats || (stats.mine.supplyCreeps === 0 && stats.carry.supplyCreeps === 0)) continue;
+            const rcl = room.room.controller?.level || 0;
+
+            if (!stats) continue;
+            
+            const hasBasicEconomy = stats.mine.supplyCreeps > 0 || stats.carry.supplyCreeps > 0;
+            if (!hasBasicEconomy && rcl < 2) continue;
 
             const growth = room.room.memory.growth;
             let radius = Math.max(room.room.memory.remoteRadius || 1, 2);

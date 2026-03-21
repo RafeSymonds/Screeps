@@ -51,6 +51,14 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
             return true;
         }
 
+        const roomEnergy = world.resourceManager.getRoomEnergy(creepState.creep.room.name);
+
+        // Don't take the task if the room is dry (less than 100 energy)
+        // This prevents workers from hogging the last bit of energy that should go to spawns.
+        if (roomEnergy < 100) {
+            return false;
+        }
+
         // If we have no energy, we can only take the task if the room has some to give
         return world.resourceManager.roomHasEnoughEnergy(creepState, creepState.creep.room.name);
     }
@@ -78,7 +86,14 @@ export class UpgradeTask extends Task<UpgradeTaskData> {
         }
 
         if (creepNeedsEnergy(creepState, world)) {
-            return findBestEnergyTask(creepState, null, resourceManager);
+            const energyAction = findBestEnergyTask(creepState, null, resourceManager);
+
+            if (!energyAction) {
+                creepState.memory.taskId = undefined;
+                return null;
+            }
+
+            return energyAction;
         }
 
         return new UpgradeAction(this.controller);

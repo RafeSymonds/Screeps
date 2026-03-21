@@ -19,7 +19,6 @@ describe("updateRoomGrowth", () => {
                 ownerRoom: undefined
             },
             intel: { lastScouted: 1, hasEnemyBase: false, hasInvaderCore: false, keeperLairs: 0 },
-            numHarvestSpots: 0,
             assistRadius: 2,
             remoteRadius: 2
         };

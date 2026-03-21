@@ -12,8 +12,8 @@ import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
 import { remoteAssignmentForRoom } from "rooms/RemoteStrategy";
 
-export function remoteHaulTaskName(sourceId: Id<Source>, sourcePos: RoomPosition): string {
-    return "RemoteHaul-" + sourcePos.roomName + "-" + sourceId;
+export function remoteHaulTaskName(sourceId: Id<Source>, sourcePos: RoomPosition, ownerRoom: string): string {
+    return "RemoteHaul-" + ownerRoom + "-" + sourcePos.roomName + "-" + sourceId;
 }
 
 export function createRemoteHaulTaskData(
@@ -23,7 +23,7 @@ export function createRemoteHaulTaskData(
     routeLength: number
 ): RemoteHaulTaskData {
     return {
-        id: remoteHaulTaskName(sourceId, sourcePos),
+        id: remoteHaulTaskName(sourceId, sourcePos, ownerRoom),
         kind: TaskKind.REMOTE_HAUL,
         targetRoom: sourcePos.roomName,
         assignedCreeps: [],
@@ -51,23 +51,41 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     }
 
     public override canPerformTask(creepState: CreepState, world: World): boolean {
+        const roomMemory = Memory.rooms[this.data.targetRoom];
+        const recentlyHarvested = roomMemory?.remoteMining
+            ? (Game.time - roomMemory.remoteMining.lastHarvestTick < HARVEST_TIMEOUT)
+            : false;
+
         return (
             hasBodyPart(creepState.creep, CARRY) &&
             !hasBodyPart(creepState.creep, WORK) &&
             creepState.memory.ownerRoom === this.data.ownerRoom &&
-            world.resourceManager.roomHasEnoughEnergy(creepState, this.data.targetRoom) &&
+            (world.resourceManager.roomHasEnoughEnergy(creepState, this.data.targetRoom) || recentlyHarvested) &&
             creepStoreFullPercentage(creepState.creep) < 0.25
         );
     }
 
     protected override taskIsFull(): boolean {
+        // Always allow assignment if no one is assigned yet, even if we haven't seen a harvest
+        // This ensures the first hauler gets assigned and sent to the room.
+        if (this.data.assignedCreeps.length === 0) {
+            return false;
+        }
+
         const roomMemory = Memory.rooms[this.data.targetRoom];
 
         if (!roomMemory || !roomMemory.remoteMining) {
             return true;
         }
 
-        return Game.time - roomMemory.remoteMining.lastHarvestTick > HARVEST_TIMEOUT;
+        const lastHarvest = roomMemory.remoteMining.lastHarvestTick;
+
+        // If it's a new room (-1), don't consider it full until a hauler is actually assigned
+        if (lastHarvest === -1) {
+            return false;
+        }
+
+        return Game.time - lastHarvest > HARVEST_TIMEOUT;
     }
 
     public override score(creep: Creep): number {

@@ -12,7 +12,6 @@ describe("assignCreeps", () => {
         const room = createRoom({ name: "W0N0", my: true, level: 3, energyCapacityAvailable: 300 });
         (global as any).Memory.rooms["W1N0"] = {
             intel: { lastScouted: 1, hasEnemyBase: true, hasInvaderCore: false, keeperLairs: 0 },
-            numHarvestSpots: 0,
             assistRadius: 2,
             remoteRadius: 2
         };

@@ -942,13 +942,14 @@ function refreshBaselineSpawnRequests(
         haulerPriority > 0 ? haulerPriority + haulerBonus + rolePriorityBoost(room, "hauler", supply) : 0;
 
     if (finalHaulerPriority > 0) {
+        const needsEmergencyHauler = supply.haulerCreeps + supply.incomingHaulers === 0 && supply.minerCreeps > 0;
         upsertSpawnRequest(room, {
             role: "hauler",
-            priority: finalHaulerPriority,
+            priority: finalHaulerPriority + (needsEmergencyHauler ? 30 : 0),
             desiredCreeps: Math.max(1, haulerDemand.creeps),
             expiresAt: Game.time + 2,
             requestedBy: roleRequestKey("hauler", room.name),
-            minEnergy: hasMiners ? 100 : 150 // Don't "steal" energy from the first miner
+            minEnergy: needsEmergencyHauler ? 0 : 100
         });
     } else {
         clearSpawnRequest(room, "hauler", roleRequestKey("hauler", room.name));

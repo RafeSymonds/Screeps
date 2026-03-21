@@ -1,6 +1,7 @@
 import { Plan } from "./Plan";
 import { remoteAssignmentForRoom } from "rooms/RemoteStrategy";
 import { World } from "world/World";
+import { createBuildTaskData } from "tasks/definitions/BuildTask";
 
 const MAX_NEW_SITES_PER_RUN = 6;
 
@@ -283,6 +284,11 @@ export class InfrastructurePlan extends Plan {
 
                 if (visibleRemote) {
                     planRemoteInfrastructure(room, visibleRemote, created);
+
+                    // Ensure remote construction sites have tasks
+                    visibleRemote.find(FIND_CONSTRUCTION_SITES).forEach(site => {
+                        world.taskManager.add(createBuildTaskData(site));
+                    });
                 }
             }
         }
