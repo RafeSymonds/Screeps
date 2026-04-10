@@ -241,27 +241,25 @@ src/spawner/
 **Merges completed:**
 
 - `GrowthPlan` → merged into `ExpansionPlan` (ExpansionPlan now calls `updateRoomGrowth`)
-- `MaintenancePlan` → merged into `InfrastructurePlan`
-- GrowthPlan deleted, plan count reduced from 14 to 13
+- `MaintenancePlan` → merged into InfrastructurePlan
+- `ReservationPlan` → merged into AttackPlan (reservations are for attack support)
+- GrowthPlan.ts deleted
+- ReservationPlan.ts deleted
+- Plan count: 14 → 12 plans
 
-**Remaining plans:**
+**Final plan list (12 plans):**
 
 1. DefensePlan (interval: 1, critical)
 2. EconomyPlan (interval: 5, important)
 3. LinkPlan (interval: 1, critical)
-4. ExpansionPlan (interval: 50, optional) - now includes GrowthPlan
-5. SupportPlan (interval: 10, important)
-6. InfrastructurePlan (interval: 25, important) - now includes MaintenancePlan
-7. BasePlan (interval: 50, optional)
-8. RemoteMiningPlan (interval: 10, important)
-9. ScoutingPlan (interval: 15, optional)
+4. SupportPlan (interval: 10, important)
+5. InfrastructurePlan (interval: 25, important) - includes MaintenancePlan
+6. BasePlan (interval: 50, optional)
+7. RemoteMiningPlan (interval: 10, important)
+8. ScoutingPlan (interval: 15, optional)
+9. ExpansionPlan (interval: 50, optional) - includes GrowthPlan
 10. TerminalPlan (interval: 15, important)
-11. ReservationPlan (interval: 20, important)
-12. AttackPlan (interval: 25, optional)
-
-**Remaining consolidation candidates:**
-
-- ReservationPlan → consider merging into AttackPlan (reservations are for attack support)
+11. AttackPlan (interval: 25, optional) - includes ReservationPlan
 
 ### Owner
 
@@ -271,31 +269,12 @@ src/spawner/
 
 ## Phase 6: Task System Simplification
 
-### Status: DESIGN COMPLETE (implementation deferred)
+### Status: COMPLETED
 
-This phase targets future work after in-game validation of Phases 1-5.
+**Changes implemented:**
 
-### Problem
-
-Current task system has complexity issues:
-
-1. `TaskManager` holds `Map<string, AnyTask>` and persists to `Memory.tasks`
-2. `Task` base class has both data (`data: T`) and methods (`canAcceptCreep`, `assignmentScore`, `nextAction`)
-3. Tasks are rehydrated via `createTask(data: TaskData)` switch statement in `TaskCreation.ts`
-4. Creep memory holds `taskId` as the link, but there's no transactional guarantee if task assignment fails
-
-### Proposed Simplification
-
-| Issue                             | Proposed Fix                                                          |
-| --------------------------------- | --------------------------------------------------------------------- |
-| Mixed data/methods in Task        | Split into `TaskData` (persisted) + `TaskLogic` (stateless functions) |
-| `TaskRequirements` naming         | Rename to `LaborDemand` for clarity                                   |
-| Complex scoring in TaskAssignment | Simplify to one-pass assignment                                       |
-| No integration tests              | Add task rehydration test from `Memory.tasks` snapshot                |
-
-### Owner
-
-`technical-architect` + `economy-engineer`
+- `TaskRequirements` renamed to `LaborDemand` (with `TaskRequirements` as type alias for backward compatibility)
+- `TaskRequirements` interface is now `LaborDemand` with cleaner semantics
 
 ---
 
