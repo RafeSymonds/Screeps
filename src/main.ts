@@ -13,6 +13,7 @@ import { SpawnManager } from "spawner/SpawnManager";
 import { performTowerDefense } from "combat/TowerDefense";
 import { clearStalePaths } from "pathing/PathCache";
 import { trackCpuUsage } from "cpu/CpuBudget";
+import { logEconomyStatus } from "economy/EconomyLogger";
 import { BasePlanData } from "basePlaner/AnchorSelection";
 import { runMigrations } from "memory/migrations";
 
@@ -221,6 +222,8 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     const spawnManager = new SpawnManager();
     spawnManager.run(world);
+
+    logEconomyStatus(world);
 
     assignCreeps(world);
     performTowerDefense(world);
