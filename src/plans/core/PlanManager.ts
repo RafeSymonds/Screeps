@@ -4,7 +4,6 @@ import { ReservationPlan } from "plans/definitions/ReservationPlan";
 import { DefensePlan } from "plans/definitions/DefensePlan";
 import { EconomyPlan } from "plans/definitions/EconomyPlan";
 import { ExpansionPlan } from "plans/definitions/ExpansionPlan";
-import { GrowthPlan } from "plans/definitions/GrowthPlan";
 import { InfrastructurePlan } from "plans/definitions/InfrastructurePlan";
 import { LinkPlan } from "plans/definitions/LinkPlan";
 import { RemoteMiningPlan } from "plans/definitions/RemoteMiningPlan";
@@ -23,7 +22,6 @@ export function runPlans(world: World) {
         { key: "defense", interval: 1, priority: "critical", plan: new DefensePlan() },
         { key: "economy", interval: 5, priority: "important", plan: new EconomyPlan() },
         { key: "link", interval: 1, priority: "critical", plan: new LinkPlan() },
-        { key: "growth", interval: 25, priority: "important", plan: new GrowthPlan() },
         { key: "support", interval: 10, priority: "important", plan: new SupportPlan() },
         { key: "maintenance", interval: 10, priority: "important", plan: new MaintenancePlan() },
         { key: "infrastructure", interval: 25, priority: "important", plan: new InfrastructurePlan() },

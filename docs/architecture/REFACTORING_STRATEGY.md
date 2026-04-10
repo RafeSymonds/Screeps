@@ -236,59 +236,32 @@ src/spawner/
 
 ## Phase 5: Plan Consolidation
 
-### Problem
+### Status: COMPLETED
 
-15 plans with inconsistent patterns:
+**Merges completed:**
 
-- Some create tasks only
-- Some write to room memory only
-- Some do both
-- No standardized output type
+- `GrowthPlan` → merged into `ExpansionPlan` (ExpansionPlan now calls `updateRoomGrowth`)
+- `MaintenancePlan` → merged into `InfrastructurePlan`
+- GrowthPlan deleted, plan count reduced from 14 to 13
 
-### Current Plan List (from `PlanManager.ts`)
+**Remaining plans:**
 
 1. DefensePlan (interval: 1, critical)
 2. EconomyPlan (interval: 5, important)
 3. LinkPlan (interval: 1, critical)
-4. GrowthPlan (interval: 25, important)
+4. ExpansionPlan (interval: 50, optional) - now includes GrowthPlan
 5. SupportPlan (interval: 10, important)
-6. MaintenancePlan (interval: 10, important)
-7. InfrastructurePlan (interval: 25, important)
-8. BasePlan (interval: 50, optional)
-9. RemoteMiningPlan (interval: 10, important)
-10. ScoutingPlan (interval: 15, optional)
-11. ExpansionPlan (interval: 50, optional)
-12. TerminalPlan (interval: 15, important)
-13. ReservationPlan (interval: 20, important)
-14. AttackPlan (interval: 25, optional)
+6. InfrastructurePlan (interval: 25, important) - now includes MaintenancePlan
+7. BasePlan (interval: 50, optional)
+8. RemoteMiningPlan (interval: 10, important)
+9. ScoutingPlan (interval: 15, optional)
+10. TerminalPlan (interval: 15, important)
+11. ReservationPlan (interval: 20, important)
+12. AttackPlan (interval: 25, optional)
 
-### Proposed Consolidation
+**Remaining consolidation candidates:**
 
-| Before                     | After                               | Rationale                                                                                 |
-| -------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| GrowthPlan + ExpansionPlan | ExpansionPlan (merged)              | Both deal with room expansion; GrowthPlan sets targets for ExpansionPlan                  |
-| MaintenancePlan            | Absorbed into InfrastructurePlan    | Maintenance is a subset of infrastructure; 10-tick interval doesn't justify separate pass |
-| LinkPlan                   | Absorbed into EconomyPlan           | Link energy transfer is a type of economy task                                            |
-| ReservationPlan            | Absorbed into AttackPlan or removed | Reservations are for attack support; belongs in military planning                         |
-| TerminalPlan               | Standalone (keep)                   | Market operations are distinct enough                                                     |
-
-### Proposed Plan Interface
-
-```typescript
-export interface PlanOutput {
-    tasks?: TaskData[]; // New or updated tasks
-    roomMemory?: Partial<RoomMemory>; // Room memory writes
-    spawnRequests?: RoomSpawnRequest[]; // Explicit spawn requests
-}
-
-export abstract class Plan {
-    abstract run(world: World): PlanOutput;
-    abstract get interval(): number;
-    abstract get priority(): PlanPriority;
-}
-```
-
-All plans return `PlanOutput`; `PlanManager` applies writes to `TaskManager` and `RoomMemory`.
+- ReservationPlan → consider merging into AttackPlan (reservations are for attack support)
 
 ### Owner
 
@@ -297,6 +270,10 @@ All plans return `PlanOutput`; `PlanManager` applies writes to `TaskManager` and
 ---
 
 ## Phase 6: Task System Simplification
+
+### Status: DESIGN COMPLETE (implementation deferred)
+
+This phase targets future work after in-game validation of Phases 1-5.
 
 ### Problem
 
@@ -307,20 +284,14 @@ Current task system has complexity issues:
 3. Tasks are rehydrated via `createTask(data: TaskData)` switch statement in `TaskCreation.ts`
 4. Creep memory holds `taskId` as the link, but there's no transactional guarantee if task assignment fails
 
-### Actions
+### Proposed Simplification
 
-1. Evaluate whether `Task` can be split into:
-    - `TaskData`: pure persisted state (what goes into `Memory.tasks`)
-    - `TaskLogic`: purely functional `nextAction()` and `requirements()` implementations
-
-2. Consider renaming `TaskRequirements` to something more descriptive (e.g., `LaborDemand`)
-
-3. Simplify `TaskAssignment` to iterate tasks and assign creeps in one pass without complex scoring
-
-4. Add integration test that rehydrates tasks from a serialized `Memory.tasks` snapshot and verifies:
-    - All tasks rehydrate without errors
-    - `nextAction()` returns non-null for active tasks
-    - `requirements()` returns valid labor demands
+| Issue                             | Proposed Fix                                                          |
+| --------------------------------- | --------------------------------------------------------------------- |
+| Mixed data/methods in Task        | Split into `TaskData` (persisted) + `TaskLogic` (stateless functions) |
+| `TaskRequirements` naming         | Rename to `LaborDemand` for clarity                                   |
+| Complex scoring in TaskAssignment | Simplify to one-pass assignment                                       |
+| No integration tests              | Add task rehydration test from `Memory.tasks` snapshot                |
 
 ### Owner
 
