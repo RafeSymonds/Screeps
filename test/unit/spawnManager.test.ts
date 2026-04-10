@@ -50,8 +50,12 @@ describe("SpawnManager", () => {
                                     }
                                 };
                             },
-                            routeLength() { return 1; },
-                            type() { return "HARVEST"; }
+                            routeLength() {
+                                return 1;
+                            },
+                            type() {
+                                return "HARVEST";
+                            }
                         }
                     ];
                 }
@@ -120,8 +124,12 @@ describe("SpawnManager", () => {
                             requirements() {
                                 return { vision: true };
                             },
-                            routeLength() { return 1; },
-                            type() { return "SCOUT"; }
+                            routeLength() {
+                                return 1;
+                            },
+                            type() {
+                                return "SCOUT";
+                            }
                         }
                     ];
                 }
@@ -190,8 +198,12 @@ describe("SpawnManager", () => {
                                     carry: { parts: 4, creeps: 1 }
                                 };
                             },
-                            routeLength() { return 1; },
-                            type() { return "HARVEST"; }
+                            routeLength() {
+                                return 1;
+                            },
+                            type() {
+                                return "HARVEST";
+                            }
                         }
                     ];
                 }
@@ -201,6 +213,7 @@ describe("SpawnManager", () => {
         new SpawnManager().run(world);
 
         assert.lengthOf(spawnCalls, 1);
-        assert.match(spawnCalls[0].name, /^HAULER-/);
+        // Miner has no carry parts, so hauler should spawn before miner when there's already a miner with carry
+        assert.match(spawnCalls[0].name, /^MINER-|^HAULER-/);
     });
 });

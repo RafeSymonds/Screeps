@@ -94,14 +94,24 @@ function scoutBody(): BodyPartConstant[] {
 function minerBody(energy: number, room?: Room): BodyPartConstant[] {
     if (energy < 150) return [];
 
-    // At low capacity, cap miner cost to leave energy for a bootstrap hauler
     const cap = room?.energyCapacityAvailable ?? 300;
     const budget = cap < 550 ? Math.min(energy, cap - 100) : energy;
 
-    // Dedicated miners should not have a carry.
-    const maxWork = Math.floor((budget - 50) / 100); // 50 MOVE + N*100 WORK
+    const maxWork = Math.floor((budget - 50) / 100);
     const work = Math.max(1, maxWork);
-    return [MOVE, ...(Array(work).fill(WORK) as BodyPartConstant[])];
+    const workParts: BodyPartConstant[] = [];
+    for (let i = 0; i < work; i++) {
+        workParts.push(WORK);
+    }
+
+    const rcl = room?.controller?.level ?? 0;
+    const hasLinks = rcl >= 5 && room?.find(FIND_MY_STRUCTURES).some(s => s.structureType === STRUCTURE_LINK);
+
+    if (rcl >= 3 || hasLinks) {
+        return [MOVE, CARRY, ...workParts];
+    }
+
+    return [MOVE, ...workParts];
 }
 
 function desiredHaulerCarry(room: Room, routeLength?: number): number {

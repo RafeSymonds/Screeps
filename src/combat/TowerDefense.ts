@@ -5,7 +5,7 @@ import { ThrottleTier, computeThrottleTier } from "cpu/CpuBudget";
 const TOWER_REPAIR_RESERVE = 700;
 const TOWER_REPAIR_TARGET = 10000;
 const TOWER_FORTIFICATION_RESERVE = 500;
-const TOWER_MIN_ENERGY = 500;
+const TOWER_MIN_ENERGY = 0;
 
 function rampartHpTarget(rcl: number): number {
     switch (rcl) {
@@ -99,9 +99,7 @@ export function performTowerDefense(world: World): void {
                 fortificationTarget &&
                 tower.store.getUsedCapacity(RESOURCE_ENERGY) >= TOWER_FORTIFICATION_RESERVE
             ) {
-                if (tower.store.getUsedCapacity(RESOURCE_ENERGY) >= TOWER_MIN_ENERGY + TOWER_FORTIFICATION_RESERVE) {
-                    tower.repair(fortificationTarget);
-                }
+                tower.repair(fortificationTarget);
             }
         }
     }

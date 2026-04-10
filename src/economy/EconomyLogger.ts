@@ -127,9 +127,8 @@ export function roomExpansionReadiness(
     if (storageEnergy < MIN_STORAGE_ENERGY) {
         return { ready: false, reason: `Storage ${storageEnergy} < ${MIN_STORAGE_ENERGY}` };
     }
-
     const pressure = (stats?.mine.pressure ?? 0) + (stats?.carry.pressure ?? 0) + (stats?.work.pressure ?? 0);
-    if (pressure > MIN_HEALTHY_PRESSURE) {
+    if (pressure > MIN_HEALTHY_PRESSURE && stats !== undefined) {
         return { ready: false, reason: `Pressure ${pressure.toFixed(2)} > ${MIN_HEALTHY_PRESSURE}` };
     }
 

@@ -11,7 +11,7 @@ function positionSignature(pos: RoomPosition): string {
     return `${pos.roomName}-${pos.x}-${pos.y}`;
 }
 
-const HOTSPOT_MAX_BUFFER = 600;
+const HOTSPOT_MAX_BUFFER = 400;
 
 function hotspotBufferedEnergy(room: Room, pos: RoomPosition): number {
     const dropped = room
