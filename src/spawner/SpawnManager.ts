@@ -38,6 +38,7 @@ const PRESSURE_SPAWN_THRESHOLD = 0.2;
 export enum SpawnIntentKind {
     SCOUT,
     MINER,
+    MINERAL_HARVESTER,
     HAULER,
     WORKER,
     DEFENDER,
@@ -48,6 +49,7 @@ export enum SpawnIntentKind {
 type SpawnIntent =
     | { kind: SpawnIntentKind.SCOUT }
     | { kind: SpawnIntentKind.MINER }
+    | { kind: SpawnIntentKind.MINERAL_HARVESTER }
     | { kind: SpawnIntentKind.HAULER }
     | { kind: SpawnIntentKind.WORKER }
     | { kind: SpawnIntentKind.DEFENDER }
@@ -65,6 +67,8 @@ interface ResolvedSpawnRequest {
 function spawnIntentPreference(kind: SpawnIntentKind): number {
     switch (kind) {
         case SpawnIntentKind.MINER:
+            return 5;
+        case SpawnIntentKind.MINERAL_HARVESTER:
             return 5;
         case SpawnIntentKind.HAULER:
             return 4;
@@ -158,6 +162,28 @@ function workerBody(energy: number): BodyPartConstant[] {
     const units = Math.floor(energy / 200);
     const body: BodyPartConstant[] = [];
     for (let i = 0; i < units; i++) body.push(WORK, CARRY, MOVE);
+    return body;
+}
+
+function mineralHarvesterBody(energy: number): BodyPartConstant[] {
+    if (energy < 200) return [];
+
+    const units = Math.floor(energy / 200);
+    const body: BodyPartConstant[] = [];
+    for (let i = 0; i < units; i++) {
+        body.push(WORK, CARRY, MOVE);
+    }
+    return body;
+}
+
+function fastFillerBody(energy: number): BodyPartConstant[] {
+    if (energy < 150) return [];
+
+    const units = Math.floor(energy / 150);
+    const body: BodyPartConstant[] = [];
+    for (let i = 0; i < units; i++) {
+        body.push(CARRY, MOVE);
+    }
     return body;
 }
 
@@ -1063,6 +1089,9 @@ function incrementIncomingSupply(supply: SupplyTotals, kind: SpawnIntentKind): v
         case SpawnIntentKind.MINER:
             supply.incomingMiners += 1;
             break;
+        case SpawnIntentKind.MINERAL_HARVESTER:
+            supply.incomingMiners += 1;
+            break;
         case SpawnIntentKind.HAULER:
             supply.incomingHaulers += 1;
             break;
@@ -1120,6 +1149,9 @@ export class SpawnManager {
                     break;
                 case SpawnIntentKind.MINER:
                     body = minerBody(energy, room);
+                    break;
+                case SpawnIntentKind.MINERAL_HARVESTER:
+                    body = mineralHarvesterBody(energy);
                     break;
                 case SpawnIntentKind.HAULER:
                     body = haulerBody(room, energy);

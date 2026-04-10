@@ -108,8 +108,17 @@ export class RepairTask extends Task<RepairTaskData> {
     private priority(): number {
         if (!this.structure) return 0;
 
-        const hpRatio = this.structure.hits / this.structure.hitsMax;
+        const s = this.structure;
 
+        if (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) {
+            const hpRatio = s.hits / s.hitsMax;
+            if (hpRatio < 0.3) return 10;
+            if (hpRatio < 0.5) return 7;
+            if (hpRatio < 0.7) return 4;
+            return 0;
+        }
+
+        const hpRatio = s.hits / s.hitsMax;
         if (hpRatio < 0.2) return 10;
         if (hpRatio < 0.5) return 5;
         if (hpRatio < 0.8) return 2;
