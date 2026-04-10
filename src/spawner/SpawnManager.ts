@@ -40,6 +40,7 @@ export enum SpawnIntentKind {
     MINER,
     MINERAL_HARVESTER,
     HAULER,
+    FAST_FILLER,
     WORKER,
     DEFENDER,
     CLAIMER,
@@ -51,6 +52,7 @@ type SpawnIntent =
     | { kind: SpawnIntentKind.MINER }
     | { kind: SpawnIntentKind.MINERAL_HARVESTER }
     | { kind: SpawnIntentKind.HAULER }
+    | { kind: SpawnIntentKind.FAST_FILLER }
     | { kind: SpawnIntentKind.WORKER }
     | { kind: SpawnIntentKind.DEFENDER }
     | { kind: SpawnIntentKind.CLAIMER }
@@ -72,6 +74,8 @@ function spawnIntentPreference(kind: SpawnIntentKind): number {
             return 5;
         case SpawnIntentKind.HAULER:
             return 4;
+        case SpawnIntentKind.FAST_FILLER:
+            return 4.5;
         case SpawnIntentKind.WORKER:
             return 3;
         case SpawnIntentKind.SCOUT:
@@ -1095,6 +1099,9 @@ function incrementIncomingSupply(supply: SupplyTotals, kind: SpawnIntentKind): v
         case SpawnIntentKind.HAULER:
             supply.incomingHaulers += 1;
             break;
+        case SpawnIntentKind.FAST_FILLER:
+            supply.incomingWorkers += 1;
+            break;
         case SpawnIntentKind.WORKER:
             supply.incomingWorkers += 1;
             break;
@@ -1155,6 +1162,9 @@ export class SpawnManager {
                     break;
                 case SpawnIntentKind.HAULER:
                     body = haulerBody(room, energy);
+                    break;
+                case SpawnIntentKind.FAST_FILLER:
+                    body = fastFillerBody(energy);
                     break;
                 case SpawnIntentKind.WORKER:
                     body = workerBody(energy);
