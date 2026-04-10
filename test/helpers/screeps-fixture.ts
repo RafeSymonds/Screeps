@@ -76,6 +76,12 @@ export function resetScreeps(): void {
 
 export function setExits(nextExits: ExitMap): void {
     exits = nextExits;
+    try {
+        const { clearRouteCache } = require("../../src/rooms/InterRoomRouter");
+        clearRouteCache();
+    } catch (e) {
+        // InterRoomRouter might not be available in all test contexts
+    }
 }
 
 export function setGameTime(time: number): void {
@@ -145,7 +151,8 @@ export function createRoom(spec: RoomSpec): Room {
             spec.storageEnergy !== undefined
                 ? {
                       store: {
-                          getUsedCapacity: () => spec.storageEnergy
+                          getUsedCapacity: (resourceType?: ResourceConstant) =>
+                              resourceType === RESOURCE_ENERGY ? spec.storageEnergy : 0
                       }
                   }
                 : undefined,

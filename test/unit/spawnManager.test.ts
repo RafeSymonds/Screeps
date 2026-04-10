@@ -1,6 +1,5 @@
 import { assert } from "chai";
 import { SpawnManager } from "../../src/spawner/SpawnManager";
-import { SpawnRequestPriority } from "../../src/spawner/SpawnRequests";
 import { CreepState } from "../../src/creeps/CreepState";
 import { createRoom, resetScreeps } from "../helpers/screeps-fixture";
 
@@ -73,7 +72,7 @@ describe("SpawnManager", () => {
         assert.equal(spawnCalls[0].opts.memory.ownerRoom, "W0N0");
     });
 
-    it("spawns a scout when only vision demand exists", () => {
+    it("spawns a scout when only vision demand exists and baseline production exists", () => {
         const spawnCalls: any[] = [];
         const spawn = {
             id: "spawn1",
@@ -92,11 +91,26 @@ describe("SpawnManager", () => {
             spawns: [spawn]
         });
 
-        const worker = {
-            id: "worker1",
-            name: "worker1",
-            body: [{ type: CARRY }, { type: MOVE }], // Remove WORK to avoid triggering hauler demand via "miner" classification
+        const miner = {
+            id: "miner1",
+            name: "miner1",
+            body: [{ type: WORK }, { type: MOVE }],
             memory: { ownerRoom: "W0N0", taskId: "task", taskTicks: 0, working: true },
+            store: {
+                getUsedCapacity: () => 0,
+                getFreeCapacity: () => 0,
+                getCapacity: () => 0
+            },
+            pos: new RoomPosition(25, 25, "W0N0"),
+            room,
+            spawning: false
+        } as unknown as Creep;
+
+        const hauler = {
+            id: "hauler1",
+            name: "hauler1",
+            body: [{ type: CARRY }, { type: MOVE }],
+            memory: { ownerRoom: "W0N0", taskId: "task2", taskTicks: 0, working: true },
             store: {
                 getUsedCapacity: () => 0,
                 getFreeCapacity: () => 50,
@@ -113,7 +127,7 @@ describe("SpawnManager", () => {
                     room.name,
                     {
                         room,
-                        myCreeps: [new CreepState(worker, worker.memory)]
+                        myCreeps: [new CreepState(miner, miner.memory), new CreepState(hauler, hauler.memory)]
                     }
                 ]
             ]),
@@ -213,7 +227,6 @@ describe("SpawnManager", () => {
         new SpawnManager().run(world);
 
         assert.lengthOf(spawnCalls, 1);
-        // Miner has no carry parts, so hauler should spawn before miner when there's already a miner with carry
         assert.match(spawnCalls[0].name, /^MINER-|^HAULER-/);
     });
 });

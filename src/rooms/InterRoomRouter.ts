@@ -4,6 +4,10 @@ import { buildNeighborMap } from "./RoomTopology";
 
 const routeCache = new Map<string, string[] | null>();
 
+export function clearRouteCache(): void {
+    routeCache.clear();
+}
+
 function routeKey(start: string, goal: string): string {
     return start + "->" + goal;
 }
