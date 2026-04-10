@@ -92,10 +92,20 @@ class TestRoomPosition {
         return Math.max(Math.abs(this.x - pos.x), Math.abs(this.y - pos.y));
     }
 
-    findClosestByRange(targets: any[]): any | null {
+    findClosestByRange(targets: any[] | number): any | null {
+        const game = globalAny.Game;
+        const room = game.rooms[this.roomName];
+
+        let items: any[];
+        if (typeof targets === "number") {
+            items = (room as any)?.find(targets) ?? [];
+        } else {
+            items = targets;
+        }
+
         let best: any = null;
         let bestRange = Infinity;
-        for (const t of targets) {
+        for (const t of items) {
             const pos = t.pos ?? t;
             const r = Math.max(Math.abs(this.x - pos.x), Math.abs(this.y - pos.y));
             if (r < bestRange) {
@@ -124,8 +134,7 @@ class TestRoomPosition {
 
         if (_type === globalAny.LOOK_CONSTRUCTION_SITES) {
             return Object.values(game?.constructionSites ?? {}).filter(
-                (site: any) =>
-                    site.pos.x === this.x && site.pos.y === this.y && site.pos.roomName === this.roomName
+                (site: any) => site.pos.x === this.x && site.pos.y === this.y && site.pos.roomName === this.roomName
             );
         }
 
@@ -147,7 +156,10 @@ class TestRoomPosition {
 
 globalAny.RoomPosition = TestRoomPosition;
 globalAny.PathFinder = {
-    search(origin: { x: number; y: number; roomName: string }, goal: { pos: { x: number; y: number; roomName: string } }) {
+    search(
+        origin: { x: number; y: number; roomName: string },
+        goal: { pos: { x: number; y: number; roomName: string } }
+    ) {
         const path = [new TestRoomPosition(origin.x, origin.y, origin.roomName)];
 
         if (origin.roomName !== goal.pos.roomName) {

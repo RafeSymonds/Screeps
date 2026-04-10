@@ -3,7 +3,7 @@ import { remoteAssignmentForRoom } from "rooms/RemoteStrategy";
 import { World } from "world/World";
 import { createBuildTaskData } from "tasks/definitions/BuildTask";
 
-const MAX_NEW_SITES_PER_RUN = 6;
+const MAX_NEW_SITES_PER_RUN = 15;
 
 type SitePriority = "extension" | "container" | "link" | "road" | "extractor";
 
