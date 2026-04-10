@@ -1,8 +1,12 @@
 import { SpawnRequestPriority, clearSpawnRequest, planSpawnRequest } from "spawner/SpawnRequests";
 import { createAttackTaskData } from "tasks/definitions/AttackTask";
+import { createReserveTaskData } from "tasks/definitions/ReserveTask";
 import { World } from "world/World";
 import { Plan } from "./Plan";
 import { estimateSafeRouteLength } from "rooms/InterRoomRouter";
+import { getMyUsername } from "utils/GameUtils";
+
+const RESERVATION_THRESHOLD = 2500;
 
 export class AttackPlan extends Plan {
     public override run(world: World): void {
@@ -10,34 +14,86 @@ export class AttackPlan extends Plan {
             const room = worldRoom.room;
             if (!room.controller?.my) continue;
 
-            const growth = room.memory.growth;
-            const storage = room.storage;
-            const energy = storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
-            const isSurplus = growth?.stage === "surplus" && energy > 80000;
-            const isHealthy = energy > 20000;
+            this.runReservations(room, world);
+            this.runAttacks(room, world);
+        }
+    }
 
-            const target = this.findAttackTarget(room, isSurplus, isHealthy);
-            if (!target) {
-                clearSpawnRequest(room, "attacker", `plan:attack:${room.name}`);
-                room.memory.attackTarget = undefined;
-                continue;
-            }
+    private runReservations(ownerRoom: Room, world: World): void {
+        if ((ownerRoom.controller?.level ?? 0) < 4) return;
 
-            room.memory.attackTarget = target.roomName;
+        for (const [remoteRoomName, roomMemory] of Object.entries(Memory.rooms)) {
+            const strategy = roomMemory.remoteStrategy;
+            if (!strategy || strategy.state !== "active" || !strategy.ownerRoom) continue;
+            if (strategy.ownerRoom !== ownerRoom.name) continue;
+
+            if (!this.needsReservation(remoteRoomName)) continue;
+
+            const taskId = `Reserve-${remoteRoomName}`;
+            if (world.taskManager.tasks.has(taskId)) continue;
+
+            world.taskManager.add(createReserveTaskData(remoteRoomName, ownerRoom.name));
 
             planSpawnRequest(
-                room,
-                "attack",
-                room.name,
-                "attacker",
-                target.priority,
-                target.squadSize,
+                ownerRoom,
+                "reserve",
+                remoteRoomName,
+                "reserver",
+                SpawnRequestPriority.NORMAL + 20,
+                1,
                 30,
-                isSurplus ? 800 : 400
+                650
             );
-
-            world.taskManager.add(createAttackTaskData(target.roomName, room.name, target.squadSize));
         }
+    }
+
+    private needsReservation(roomName: string): boolean {
+        const room = Game.rooms[roomName];
+
+        if (!room) return true;
+
+        const controller = room.controller;
+        if (!controller) return false;
+
+        if (controller.owner) return false;
+
+        if (!controller.reservation) return true;
+
+        if (controller.reservation.username === getMyUsername()) {
+            return controller.reservation.ticksToEnd < RESERVATION_THRESHOLD;
+        }
+
+        return true;
+    }
+
+    private runAttacks(room: Room, world: World): void {
+        const growth = room.memory.growth;
+        const storage = room.storage;
+        const energy = storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
+        const isSurplus = growth?.stage === "surplus" && energy > 80000;
+        const isHealthy = energy > 20000;
+
+        const target = this.findAttackTarget(room, isSurplus, isHealthy);
+        if (!target) {
+            clearSpawnRequest(room, "attacker", `plan:attack:${room.name}`);
+            room.memory.attackTarget = undefined;
+            return;
+        }
+
+        room.memory.attackTarget = target.roomName;
+
+        planSpawnRequest(
+            room,
+            "attack",
+            room.name,
+            "attacker",
+            target.priority,
+            target.squadSize,
+            30,
+            isSurplus ? 800 : 400
+        );
+
+        world.taskManager.add(createAttackTaskData(target.roomName, room.name, target.squadSize));
     }
 
     private findAttackTarget(
@@ -58,16 +114,13 @@ export class AttackPlan extends Plan {
 
             if (!hasCore && !hasBase) continue;
 
-            // Skip source keeper rooms
             if (intel.keeperLairs > 0) continue;
 
             const routeLength = estimateSafeRouteLength(room.name, roomName);
             if (routeLength === null || routeLength > 3) continue;
 
-            // Proactive clearing of cores in remote radius
             const inRemoteRadius = routeLength <= (room.memory.remoteRadius ?? 2);
 
-            // If not surplus, only attack cores in remote radius if healthy
             if (!isSurplus) {
                 if (!hasCore || !inRemoteRadius || !isHealthy) continue;
             }
@@ -75,15 +128,13 @@ export class AttackPlan extends Plan {
             const threatParts = intel.hostileMilitaryParts ?? 0;
             const freshness = Game.time - intel.lastScouted;
 
-            // Skip if intel is too stale
             if (freshness > 5000) continue;
 
-            // Score: prefer close, low-threat targets
             let score = 100 - routeLength * 30 - threatParts * 5 - freshness * 0.01;
             let priority = SpawnRequestPriority.NORMAL + 10;
 
             if (hasCore && inRemoteRadius) {
-                score += 200; // High priority for cores blocking remotes
+                score += 200;
                 priority = SpawnRequestPriority.HIGH - 10;
             }
 
