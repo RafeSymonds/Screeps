@@ -11,7 +11,8 @@ export enum TaskKind {
     ATTACK,
     RESERVE,
     BOOTSTRAP,
-    REPAIR
+    REPAIR,
+    MINERAL_HARVEST
 }
 
 export function isRemote(taskKind: TaskKind): boolean {

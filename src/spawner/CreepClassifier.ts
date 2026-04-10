@@ -34,6 +34,8 @@ function replacementLeadTime(role: SpawnRequestRole, creep: Creep): number {
     switch (role) {
         case "miner":
             return spawnTime + 20 + bias;
+        case "mineralHarvester":
+            return spawnTime + 20 + bias;
         case "hauler":
             return spawnTime + 30 + bias + remoteBias;
         case "worker":

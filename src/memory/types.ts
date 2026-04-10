@@ -1,5 +1,13 @@
 // Standalone types that don't need global augmentation
-export type SpawnRequestRole = "scout" | "miner" | "hauler" | "worker" | "defender" | "attacker" | "reserver";
+export type SpawnRequestRole =
+    | "scout"
+    | "miner"
+    | "mineralHarvester"
+    | "hauler"
+    | "worker"
+    | "defender"
+    | "attacker"
+    | "reserver";
 export type RemoteRoomState = "scouting" | "candidate" | "active" | "saturated" | "unsafe" | "paused" | "reserved";
 export type RoomGrowthStage = "bootstrap" | "stabilizing" | "remote" | "surplus";
 export type RoomSupportKind = "bootstrap" | "economy" | "build" | "defense";

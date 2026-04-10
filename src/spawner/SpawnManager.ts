@@ -335,6 +335,8 @@ function replacementLeadTime(role: SpawnRequestRole, creep: Creep): number {
     switch (role) {
         case "miner":
             return spawnTime + 20 + taskRoomBias;
+        case "mineralHarvester":
+            return spawnTime + 20 + taskRoomBias;
         case "hauler":
             return spawnTime + 30 + taskRoomBias + remoteBias;
         case "worker":
@@ -774,6 +776,8 @@ function spawnIntentFromRole(role: SpawnRequestRole): SpawnIntentKind {
             return SpawnIntentKind.SCOUT;
         case "miner":
             return SpawnIntentKind.MINER;
+        case "mineralHarvester":
+            return SpawnIntentKind.MINERAL_HARVESTER;
         case "hauler":
             return SpawnIntentKind.HAULER;
         case "worker":
@@ -792,6 +796,8 @@ function currentCreepsForRole(role: SpawnRequestRole, supply: SupplyTotals): num
         case "scout":
             return supply.scout + supply.incomingScouts;
         case "miner":
+            return supply.minerCreeps + supply.incomingMiners;
+        case "mineralHarvester":
             return supply.minerCreeps + supply.incomingMiners;
         case "hauler":
             return supply.haulerCreeps + supply.incomingHaulers;

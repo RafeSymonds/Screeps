@@ -15,8 +15,9 @@ import { AttackTask } from "tasks/definitions/AttackTask";
 import { ReserveTask } from "tasks/definitions/ReserveTask";
 import { BootstrapTask } from "../definitions/BootstrapTask";
 import { RepairTask } from "../definitions/RepairTask";
+import { MineralHarvestTask } from "tasks/definitions/MineralHarvestTask";
 
-function constructTask(data: TaskData): AnyTask {
+function constructTask(data: TaskData): AnyTask | undefined {
     switch (data.kind) {
         case TaskKind.BUILD:
             return new BuildTask(data);
@@ -26,6 +27,9 @@ function constructTask(data: TaskData): AnyTask {
 
         case TaskKind.HARVEST:
             return new HarvestTask(data);
+
+        case TaskKind.MINERAL_HARVEST:
+            return new MineralHarvestTask(data);
 
         case TaskKind.REMOTE_HARVEST:
             return new RemoteHarvestTask(data);
@@ -62,7 +66,7 @@ function constructTask(data: TaskData): AnyTask {
 export function createTask(data: TaskData): AnyTask | null {
     const task = constructTask(data);
 
-    if (task.isStillValid()) {
+    if (task && task.isStillValid()) {
         return task;
     }
 

@@ -30,6 +30,12 @@ export type HarvestTaskData = BaseTask & {
     maxSpots: number;
 };
 
+export type MineralHarvestTaskData = BaseTask & {
+    kind: TaskKind.MINERAL_HARVEST;
+    targetId: Id<Mineral>;
+    extractorId?: Id<StructureExtractor>;
+};
+
 export type RemoteHarvestTaskData = BaseTask & {
     kind: TaskKind.REMOTE_HARVEST;
     targetId: Id<Source>;
@@ -100,6 +106,7 @@ export type TaskData =
     | BuildTaskData
     | UpgradeTaskData
     | HarvestTaskData
+    | MineralHarvestTaskData
     | RemoteHarvestTaskData
     | RemoteHaulTaskData
     | DeliverTaskData

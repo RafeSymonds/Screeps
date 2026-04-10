@@ -66,7 +66,15 @@ declare global {
         };
     }
 
-    type SpawnRequestRole = "scout" | "miner" | "hauler" | "worker" | "defender" | "attacker" | "reserver";
+    type SpawnRequestRole =
+        | "scout"
+        | "miner"
+        | "mineralHarvester"
+        | "hauler"
+        | "worker"
+        | "defender"
+        | "attacker"
+        | "reserver";
 
     interface RoomSpawnRequest {
         role: SpawnRequestRole;
