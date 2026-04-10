@@ -14,15 +14,9 @@ export function updateRoomSupportState(room: Room): RoomSupportRequest | undefin
     }
 
     const creeps = creepsForOwnerRoom(room.name);
-    const miners = creeps.filter(
-        creep => hasBodyPart(creep, WORK) && countBodyParts(creep, CARRY) <= 1
-    );
-    const haulers = creeps.filter(
-        creep => hasBodyPart(creep, CARRY) && !hasBodyPart(creep, WORK)
-    );
-    const workers = creeps.filter(
-        creep => hasBodyPart(creep, WORK) && countBodyParts(creep, CARRY) > 1
-    );
+    const miners = creeps.filter(creep => hasBodyPart(creep, WORK) && countBodyParts(creep, CARRY) <= 1);
+    const haulers = creeps.filter(creep => hasBodyPart(creep, CARRY) && !hasBodyPart(creep, WORK));
+    const workers = creeps.filter(creep => hasBodyPart(creep, WORK) && countBodyParts(creep, CARRY) > 1);
     const spawnCount = room.find(FIND_MY_SPAWNS).length;
     const constructionSites = room.find(FIND_CONSTRUCTION_SITES).length;
     const hostiles = room.find(FIND_HOSTILE_CREEPS).length;

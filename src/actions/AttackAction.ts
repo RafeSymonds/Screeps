@@ -130,11 +130,11 @@ export class AttackAction extends Action {
         const closestStructure = creep.pos.findClosestByRange(hostileStructures);
         if (closestStructure) {
             if (creep.pos.isNearTo(closestStructure)) {
-                if (countBodyParts(creep, ATTACK) > 0) {
-                    creep.attack(closestStructure as any);
+                if (countBodyParts(creep, ATTACK) > 0 && creep.pos.isNearTo(closestStructure)) {
+                    creep.attack(closestStructure);
                 }
                 if (countBodyParts(creep, RANGED_ATTACK) > 0) {
-                    creep.rangedAttack(closestStructure as any);
+                    creep.rangedAttack(closestStructure);
                 }
             } else {
                 moveTo(creepState, closestStructure);

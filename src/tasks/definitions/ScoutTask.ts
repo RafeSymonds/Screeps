@@ -64,7 +64,7 @@ export class ScoutTask extends Task<ScoutTaskData> {
         }
 
         recordRoom(creepState.creep.room);
-        
+
         // Force unassign and clear taskId
         creepState.memory.taskId = undefined;
         return null;

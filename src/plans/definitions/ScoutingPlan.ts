@@ -12,7 +12,7 @@ export class ScoutingPlan extends Plan {
             const rcl = room.room.controller?.level || 0;
 
             if (!stats) continue;
-            
+
             const hasBasicEconomy = stats.mine.supplyCreeps > 0 || stats.carry.supplyCreeps > 0;
             if (!hasBasicEconomy && rcl < 2) continue;
 

@@ -8,7 +8,12 @@ const MIN_SOURCES_FOR_EXPANSION = 2;
 const MIN_BUCKET_FOR_EXPANSION = 5000;
 const CPU_HEADROOM_PER_ROOM = 10;
 
-function roomExpansionCandidateScore(ownerRoom: Room, targetRoomName: string, ownedNames: Set<string>, ignoreStaleIntel = false): number {
+function roomExpansionCandidateScore(
+    ownerRoom: Room,
+    targetRoomName: string,
+    ownedNames: Set<string>,
+    ignoreStaleIntel = false
+): number {
     const targetMemory = Memory.rooms[targetRoomName];
 
     if (!targetMemory?.remoteMining) return -Infinity;
@@ -92,7 +97,7 @@ function findBestTargets(room: Room, ownedNames: Set<string>): { claim?: string;
         if (scoutScore > bestScoutScore) {
             const targetMemory = Memory.rooms[roomName];
             const isStale = !targetMemory.intel || Game.time - targetMemory.intel.lastScouted > 2500;
-            
+
             if (isStale && scoutScore > bestScoutScore) {
                 bestScoutScore = scoutScore;
                 bestScoutRoom = roomName;
@@ -155,18 +160,18 @@ export function updateRoomGrowth(room: Room): RoomGrowthState {
     }
 
     const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
-    
+
     // Economy Bonus: encourage expansion when we have massive energy reserves
     const economyBonus = storageEnergy > 100000 ? 20 : 0;
-    
+
     const expansionScore = rcl * 20 + capacity / 40 + storageEnergy / 2000 - pressurePenalty * 30 + economyBonus;
 
     const ownedNames = new Set(ownedRooms().map(r => r.name));
 
     const expansionReady =
-        stage === "surplus" && 
-        expansionScore >= 120 && 
-        storageEnergy >= 50000 && 
+        stage === "surplus" &&
+        expansionScore >= 120 &&
+        storageEnergy >= 50000 &&
         isEconomyStable(room, pressurePenalty) &&
         hasCpuForExpansion();
 

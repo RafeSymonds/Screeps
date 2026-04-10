@@ -14,21 +14,14 @@ import { performTowerDefense } from "combat/TowerDefense";
 import { clearStalePaths } from "pathing/PathCache";
 import { trackCpuUsage } from "cpu/CpuBudget";
 import { BasePlanData } from "basePlaner/AnchorSelection";
+import { runMigrations } from "memory/migrations";
 
 declare global {
-    /*
-    Example types, expand on these or remove them and add your own.
-    Note: Values, properties defined here do no fully *exist* by this type definiton alone.
-          You must also give them an implemention if you would like to use them. (ex. actually setting a `role` property in a Creeps memory)
-
-    Types added in this `global` block are in an ambient, global context. This is needed because `main.ts` is a module file (uses import or export).
-    Interfaces matching on name from @types/screeps will be merged. This is how you can extend the 'built-in' interfaces from @types/screeps.
-  */
-    // Memory extension samples
     interface Memory {
         tasks: TaskData[];
         planRuns?: Record<string, number>;
         cpuAvg?: number;
+        version?: number;
     }
 
     interface CreepMemory {
@@ -51,63 +44,13 @@ declare global {
         lastScouted: number;
         owner?: string;
         reservedBy?: string;
-
-        /* Persistent threats */
         hasEnemyBase: boolean;
         hasInvaderCore: boolean;
-
-        /* Environmental hazards */
         keeperLairs: number;
-
-        /* Room features */
         hasController: boolean;
         sourceCount: number;
-
-        /* Hostile tracking */
         lastHostileSeen?: number;
         hostileMilitaryParts?: number;
-    }
-
-    interface RoomMemory {
-        topology?: RoomTopology;
-        intel?: RoomIntel;
-        defense?: RoomDefenseState;
-        remoteMining?: RemoteMiningData;
-        spawnRequests?: RoomSpawnRequest[];
-        spawnStats?: RoomSpawnStats;
-        remoteStrategy?: RemoteRoomStrategy;
-        growth?: RoomGrowthState;
-        supportRequest?: RoomSupportRequest;
-        onboarding?: RoomOnboardingState;
-
-        // Base-specific (only meaningful for owned rooms)
-        anchorSpawnId?: Id<StructureSpawn>;
-
-        assistRadius: number;
-
-        remoteRadius: number;
-
-        basePlan?: BasePlanData;
-        attackTarget?: string;
-    }
-
-    interface SpawnRoleSnapshot {
-        supplyParts: number;
-        supplyCreeps: number;
-        demandParts: number;
-        demandCreeps: number;
-        idleCreeps: number;
-        pressure: number;
-    }
-
-    interface RoomSpawnStats {
-        lastUpdated: number;
-        mine: SpawnRoleSnapshot;
-        carry: SpawnRoleSnapshot;
-        work: SpawnRoleSnapshot;
-        scout: SpawnRoleSnapshot;
-        combat: SpawnRoleSnapshot;
-        attack: SpawnRoleSnapshot;
     }
 
     interface RoomDefenseState {
@@ -182,21 +125,55 @@ declare global {
         needsBuilder: boolean;
         lastEvaluated: number;
     }
-}
 
-// Syntax for adding proprties to `global` (ex "global.log")
-declare namespace NodeJS {
-    interface Global {
+    interface SpawnRoleSnapshot {
+        supplyParts: number;
+        supplyCreeps: number;
+        demandParts: number;
+        demandCreeps: number;
+        idleCreeps: number;
+        pressure: number;
+    }
+
+    interface RoomSpawnStats {
+        lastUpdated: number;
+        mine: SpawnRoleSnapshot;
+        carry: SpawnRoleSnapshot;
+        work: SpawnRoleSnapshot;
+        scout: SpawnRoleSnapshot;
+        combat: SpawnRoleSnapshot;
+        attack: SpawnRoleSnapshot;
+    }
+
+    interface RoomMemory {
+        topology?: RoomTopology;
+        intel?: RoomIntel;
+        defense?: RoomDefenseState;
+        remoteMining?: RemoteMiningData;
+        spawnRequests?: RoomSpawnRequest[];
+        spawnStats?: RoomSpawnStats;
+        remoteStrategy?: RemoteRoomStrategy;
+        growth?: RoomGrowthState;
+        supportRequest?: RoomSupportRequest;
+        onboarding?: RoomOnboardingState;
+        anchorSpawnId?: Id<StructureSpawn>;
+        assistRadius: number;
+        remoteRadius: number;
+        basePlan?: BasePlanData;
+        attackTarget?: string;
+    }
+
+    interface NodeJS {
         log: any;
     }
 }
 
-// When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
-// This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {
     const startCpu = Game.cpu.getUsed();
 
     clearStalePaths();
+
+    runMigrations();
 
     if (!Memory.tasks) {
         Memory.tasks = [];
@@ -214,10 +191,8 @@ export const loop = ErrorMapper.wrapLoop(() => {
 
     const taskManager = new TaskManager();
 
-    // TODO: deal with dead creeps somewhere in here
     for (const name in Memory.creeps) {
         if (!(name in Game.creeps)) {
-            // creep is dead
             const creepMemory = Memory.creeps[name];
 
             if (creepMemory.taskId) {

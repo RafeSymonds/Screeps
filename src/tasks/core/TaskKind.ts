@@ -14,8 +14,6 @@ export enum TaskKind {
     REPAIR
 }
 
-export namespace TaskKind {
-    export function isRemote(taskKind: TaskKind): boolean {
-        return taskKind === TaskKind.REMOTE_HARVEST || taskKind === TaskKind.REMOTE_HAUL;
-    }
+export function isRemote(taskKind: TaskKind): boolean {
+    return taskKind === TaskKind.REMOTE_HARVEST || taskKind === TaskKind.REMOTE_HAUL;
 }

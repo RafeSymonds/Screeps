@@ -12,17 +12,17 @@ export function recordRoom(room: Room) {
     const mem = room.memory;
 
     // Topology: once
-    if (!mem.topology || isNeightborEmpty(mem.topology.neighbors)) {
+    if (mem.topology === undefined || isNeightborEmpty(mem.topology.neighbors)) {
         mem.topology = recordTopology(room.name);
     }
 
     // Remote Mining Data: record sources if we have vision
     if (!mem.remoteMining || mem.remoteMining.sources.length === 0) {
         const sources = room.find(FIND_SOURCES).map((source): [Id<Source>, RoomPosition] => [source.id, source.pos]);
-        mem.remoteMining = { 
-            lastHarvestTick: mem.remoteMining?.lastHarvestTick ?? -1, 
-            sources, 
-            ownerRoom: mem.remoteMining?.ownerRoom 
+        mem.remoteMining = {
+            lastHarvestTick: mem.remoteMining?.lastHarvestTick ?? -1,
+            sources,
+            ownerRoom: mem.remoteMining?.ownerRoom
         };
     }
 

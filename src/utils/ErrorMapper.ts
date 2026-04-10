@@ -1,4 +1,4 @@
-import { SourceMapConsumer } from "source-map";
+import { RawSourceMap, SourceMapConsumer } from "source-map";
 import _ from "lodash";
 
 export class ErrorMapper {
@@ -7,7 +7,9 @@ export class ErrorMapper {
 
     public static get consumer(): SourceMapConsumer {
         if (this._consumer == null) {
-            this._consumer = new SourceMapConsumer(require("main.js.map"));
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const sourceMap = require("main.js.map") as RawSourceMap;
+            this._consumer = new SourceMapConsumer(sourceMap);
         }
 
         return this._consumer;
@@ -70,20 +72,16 @@ export class ErrorMapper {
     }
 
     public static wrapLoop(loop: () => void): () => void {
-        return () => {
+        return (): void => {
             try {
                 loop();
             } catch (e) {
-                if (e instanceof Error) {
-                    if ("sim" in Game.rooms) {
-                        const message = `Source maps don't work in the simulator - displaying original error`;
-                        console.log(`<span style='color:red'>${message}<br>${_.escape(e.stack)}</span>`);
-                    } else {
-                        console.log(`<span style='color:red'>${_.escape(this.sourceMappedStackTrace(e))}</span>`);
-                    }
+                const error = e as Error;
+                if ("sim" in Game.rooms) {
+                    const message = `Source maps don't work in the simulator - displaying original error`;
+                    console.log(`<span style='color:red'>${message}<br>${_.escape(error.stack)}</span>`);
                 } else {
-                    // can't handle it
-                    throw e;
+                    console.log(`<span style='color:red'>${_.escape(this.sourceMappedStackTrace(error))}</span>`);
                 }
             }
         };

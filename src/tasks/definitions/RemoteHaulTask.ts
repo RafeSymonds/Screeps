@@ -53,7 +53,7 @@ export class RemoteHaulTask extends Task<RemoteHaulTaskData> {
     public override canPerformTask(creepState: CreepState, world: World): boolean {
         const roomMemory = Memory.rooms[this.data.targetRoom];
         const recentlyHarvested = roomMemory?.remoteMining
-            ? (Game.time - roomMemory.remoteMining.lastHarvestTick < HARVEST_TIMEOUT)
+            ? Game.time - roomMemory.remoteMining.lastHarvestTick < HARVEST_TIMEOUT
             : false;
 
         return (

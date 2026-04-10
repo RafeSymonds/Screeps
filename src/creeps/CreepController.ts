@@ -103,17 +103,17 @@ export function tryPreemptCreep(_creepState: CreepState, _taskManager: TaskManag
 
 export function moveTo(creepState: CreepState, target: RoomPosition | { pos: RoomPosition }) {
     const destination = "pos" in target ? target.pos : target;
-    
+
     if (creepState.creep.room.name !== destination.roomName) {
         const waypoint = nextRoomWaypoint(creepState.creep.room.name, destination);
-        
+
         // If waypoint is in another room, use direct moveTo to cross the boundary
         if (waypoint.roomName !== creepState.creep.room.name) {
             creepState.creep.moveTo(waypoint, { reusePath: 10 });
             creepState.moved = true;
             return;
         }
-        
+
         cachedMoveTo(creepState, waypoint);
     } else {
         cachedMoveTo(creepState, destination);

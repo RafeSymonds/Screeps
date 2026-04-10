@@ -80,7 +80,9 @@ export class EconomyPlan extends Plan {
                         (s): s is StructureContainer =>
                             s.structureType === STRUCTURE_CONTAINER && containerIsSourceTied(s)
                     );
-                const origins = storage ? [storage, ...sourceContainers, ...sources] : [...sourceContainers, ...sources];
+                const origins = storage
+                    ? [storage, ...sourceContainers, ...sources]
+                    : [...sourceContainers, ...sources];
 
                 //
                 // Harvest
@@ -107,7 +109,7 @@ export class EconomyPlan extends Plan {
                 // 1. Structure Sinks (HIGHEST PRIORITY)
                 for (const s of room.find(FIND_MY_STRUCTURES)) {
                     if (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) {
-                        sinks.push(s as StructureSpawn | StructureExtension);
+                        sinks.push(s);
                     }
                 }
 
@@ -164,9 +166,11 @@ export class EconomyPlan extends Plan {
                     const rcl = room.controller.level;
                     const growth = room.memory.growth;
                     const spawnStats = room.memory.spawnStats;
-                    
+
                     const pressurePenalty =
-                        (spawnStats?.mine.pressure ?? 0) + (spawnStats?.carry.pressure ?? 0) + (spawnStats?.work.pressure ?? 0);
+                        (spawnStats?.mine.pressure ?? 0) +
+                        (spawnStats?.carry.pressure ?? 0) +
+                        (spawnStats?.work.pressure ?? 0);
 
                     // Base demand depends on RCL, but we want to use all our energy
                     let desiredParts = Math.max(10, rcl * 10);

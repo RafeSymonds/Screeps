@@ -281,7 +281,7 @@ export class DeliverTask extends Task<DeliverTaskData> {
         const entry = this.data.assignedCreeps.find(([, name]) => name === deadName);
         if (entry) {
             const [id] = entry;
-            const idTyped = id as Id<Creep>;
+            const idTyped = id;
             const claim = this.reservedBy.get(idTyped);
             if (claim) {
                 this.reservedEnergy = Math.max(0, this.reservedEnergy - claim);

@@ -4,7 +4,7 @@ import { CreepState } from "creeps/CreepState";
 import { ResourceManager } from "rooms/ResourceManager";
 import { TaskRequirements } from "tasks/core/TaskRequirements";
 import { World } from "world/World";
-import { TaskKind } from "tasks/core/TaskKind";
+import { TaskKind, isRemote } from "tasks/core/TaskKind";
 import { IntelStatus, intelStatus } from "rooms/RoomIntel";
 import { activeSupportRequest } from "rooms/RoomSupport";
 import { estimateSafeRouteLength } from "rooms/InterRoomRouter";
@@ -74,7 +74,7 @@ export abstract class Task<T extends TaskData> {
             score += supportRequest.priority;
         }
 
-        if (TaskKind.isRemote(this.type())) {
+        if (isRemote(this.type())) {
             score -= routeLength * 25;
         } else {
             score -= routeLength * 10;

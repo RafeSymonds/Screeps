@@ -25,7 +25,6 @@ const HAUL_TICKS_PER_TRIP_INFRA = 30; // storage/containers nearby
 const MIN_HAULER_CARRY = 1;
 const MAX_HAULER_CARRY = 16;
 
-
 // Weighting
 const TASK_CARRY_WEIGHT = 0.35; // tasks influence hauling, but never dominate
 const PRESSURE_ALPHA = 0.35;
@@ -102,7 +101,7 @@ function minerBody(energy: number, room?: Room): BodyPartConstant[] {
     // Dedicated miners should not have a carry.
     const maxWork = Math.floor((budget - 50) / 100); // 50 MOVE + N*100 WORK
     const work = Math.max(1, maxWork);
-    return [MOVE, ...Array(work).fill(WORK)];
+    return [MOVE, ...(Array(work).fill(WORK) as BodyPartConstant[])];
 }
 
 function desiredHaulerCarry(room: Room, routeLength?: number): number {
@@ -517,7 +516,6 @@ const SPAWN_WORK_CAP: Record<RoomGrowthStage, { maxWorkParts: number; maxWorkerC
     surplus: { maxWorkParts: 100, maxWorkerCreeps: 25 }
 };
 
-
 function taskKindForSpawnClamp(task: unknown): TaskKind | undefined {
     if (task && typeof (task as AnyTask).type === "function") {
         return (task as AnyTask).type();
@@ -544,7 +542,7 @@ function clampWorkerSpawnDemand(room: Room, supply: SupplyTotals, raw: DemandTot
 
     const upgradeAllow = Math.min(upgradeDesired, stage === "surplus" ? 100 : stage === "remote" ? 50 : 25);
     const taskMinCreeps = Math.min(cap.maxWorkerCreeps, workTasks);
-    
+
     let work = Math.min(raw.work, cap.maxWorkParts);
     let workerCreeps = Math.max(taskMinCreeps, Math.min(raw.workerCreeps, cap.maxWorkerCreeps));
 
@@ -573,7 +571,11 @@ function haulingFromMining(room: Room, supplyMine: number): number {
     return Math.ceil(energyPerTrip / CARRY_CAPACITY);
 }
 
-function effectiveCarryDemand(room: Room, supply: SupplyTotals, demand: DemandTotals): { parts: number; creeps: number } {
+function effectiveCarryDemand(
+    room: Room,
+    supply: SupplyTotals,
+    demand: DemandTotals
+): { parts: number; creeps: number } {
     const miningParts = haulingFromMining(room, Math.max(supply.mine, demand.mine));
     const taskParts = demand.carryHint;
 
@@ -584,7 +586,7 @@ function effectiveCarryDemand(room: Room, supply: SupplyTotals, demand: DemandTo
     const sourceCount = room.find(FIND_SOURCES).length;
     const minCreeps = supply.mine > 0 ? sourceCount : 0;
     const carryPerHauler = desiredHaulerCarry(room) || 4;
-    
+
     // If we have many tiny tasks (like extensions), don't request a full creep for each.
     // Cap at 0.5 * parts since most haulers are at least 2 CARRY (2 parts).
     // Also cap total haulers to 3 for local rooms - we don't need more than that for local delivery.
@@ -805,10 +807,7 @@ function rolePriorityBoost(room: Room, role: SpawnRequestRole, supply: SupplyTot
         boost += 30;
     }
 
-    if (
-        support?.kind === "bootstrap" &&
-        (role === "miner" || role === "hauler" || role === "worker")
-    ) {
+    if (support?.kind === "bootstrap" && (role === "miner" || role === "hauler" || role === "worker")) {
         boost += 25;
     }
 
@@ -870,10 +869,14 @@ function refreshBaselineSpawnRequests(
     stats: RoomSpawnStats
 ): void {
     const minerImmediate = immediatePressure(supply.mine, supply.minerCreeps, demand.mine, demand.minerCreeps);
-    const carryImmediate = immediatePressure(supply.carry, supply.haulerCreeps, haulerDemand.parts, haulerDemand.creeps);
+    const carryImmediate = immediatePressure(
+        supply.carry,
+        supply.haulerCreeps,
+        haulerDemand.parts,
+        haulerDemand.creeps
+    );
     const workImmediate = immediatePressure(supply.work, supply.workerCreeps, demand.work, demand.workerCreeps);
     const scoutImmediate = immediatePressure(supply.scout, supply.scout, demand.scout, demand.scout);
-
 
     // --- Unified Labor Scaling (EE-QUEUE-02) ---
     let haulerBonus = 0;
@@ -980,7 +983,8 @@ function refreshBaselineSpawnRequests(
     }
 
     // Worker — only after miner+hauler exist and mining throughput is meaningful
-    const hasEconomy = supply.minerCreeps + supply.incomingMiners > 0 && supply.haulerCreeps + supply.incomingHaulers > 0;
+    const hasEconomy =
+        supply.minerCreeps + supply.incomingMiners > 0 && supply.haulerCreeps + supply.incomingHaulers > 0;
 
     const baseWorkerPriority = hasEconomy
         ? calculateBaselinePriority(
