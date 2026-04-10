@@ -6,6 +6,42 @@ const ENERGY_BALANCE_THRESHOLD = 50000;
 const ENERGY_SEND_AMOUNT = 10000;
 const TERMINAL_COOLDOWN_BUFFER = 5;
 const MINERAL_SELL_THRESHOLD = 5000;
+const MINERAL_PRICE_FLOOR = 0.1;
+
+interface RoomEconomyState {
+    room: Room;
+    storageEnergy: number;
+    terminalEnergy: number;
+    rcl: number;
+    surplus: boolean;
+    deficit: boolean;
+    isYoung: boolean;
+    sendPriority: number;
+}
+
+function calculateRoomEconomyState(room: Room): RoomEconomyState {
+    const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
+    const terminalEnergy = room.terminal?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
+    const rcl = room.controller?.level ?? 1;
+    const onboarding = room.memory.onboarding;
+    const isYoung = onboarding?.stage !== "established";
+    const surplus = storageEnergy > ENERGY_BALANCE_THRESHOLD * 2 && terminalEnergy > ENERGY_SEND_AMOUNT;
+    const deficit =
+        storageEnergy < ENERGY_BALANCE_THRESHOLD / 2 || (isYoung && storageEnergy < ENERGY_BALANCE_THRESHOLD);
+
+    const spawnActivity = room.find(FIND_MY_SPAWNS).length > 0;
+    const constructionSites = room.find(FIND_CONSTRUCTION_SITES).length;
+    const spawnPressure = room.memory.spawnStats?.mine.pressure ?? 0;
+
+    let sendPriority = 0;
+    if (surplus) {
+        sendPriority = storageEnergy / 10000;
+        if (rcl >= 7) sendPriority += 2;
+        if (spawnPressure < 0.3) sendPriority += 1;
+    }
+
+    return { room, storageEnergy, terminalEnergy, rcl, surplus, deficit, isYoung, sendPriority };
+}
 
 /**
  * Manages terminal-based economy:
@@ -21,45 +57,36 @@ export class TerminalPlan extends Plan {
     }
 
     private balanceEnergy(rooms: Room[]): void {
-        const surplus: Room[] = [];
-        const deficit: Room[] = [];
+        const states = rooms
+            .filter(r => r.terminal && r.terminal.cooldown <= TERMINAL_COOLDOWN_BUFFER)
+            .map(calculateRoomEconomyState);
 
-        for (const room of rooms) {
-            if (!room.terminal || room.terminal.cooldown > TERMINAL_COOLDOWN_BUFFER) {
-                continue;
-            }
+        const surplus = states.filter(s => s.surplus).sort((a, b) => b.sendPriority - a.sendPriority);
 
-            const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
-            const terminalEnergy = room.terminal.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
-            const onboarding = room.memory.onboarding;
+        const deficit = states
+            .filter(s => s.deficit)
+            .sort((a, b) => {
+                if (a.isYoung && !b.isYoung) return -1;
+                if (!a.isYoung && b.isYoung) return 1;
+                return a.storageEnergy - b.storageEnergy;
+            });
 
-            if (storageEnergy > ENERGY_BALANCE_THRESHOLD * 2 && terminalEnergy > ENERGY_SEND_AMOUNT) {
-                surplus.push(room);
-            } else if (storageEnergy < ENERGY_BALANCE_THRESHOLD / 2) {
-                deficit.push(room);
-            } else if (onboarding && onboarding.stage !== "established" && storageEnergy < ENERGY_BALANCE_THRESHOLD) {
-                // Young rooms get priority deficit status
-                deficit.unshift(room);
-            }
-        }
-
-        // Send energy from surplus to deficit rooms
         for (const sender of surplus) {
-            if (!sender.terminal || sender.terminal.cooldown > 0) {
+            if (!sender.room.terminal || sender.room.terminal.cooldown > 0) {
                 continue;
             }
 
             for (const receiver of deficit) {
-                if (!receiver.terminal) {
+                if (!receiver.room.terminal) {
                     continue;
                 }
 
-                const cost = Game.market.calcTransactionCost(ENERGY_SEND_AMOUNT, sender.name, receiver.name);
-                const available = sender.terminal.store.getUsedCapacity(RESOURCE_ENERGY);
+                const cost = Game.market.calcTransactionCost(ENERGY_SEND_AMOUNT, sender.room.name, receiver.room.name);
+                const available = sender.room.terminal.store.getUsedCapacity(RESOURCE_ENERGY);
 
                 if (available >= ENERGY_SEND_AMOUNT + cost) {
-                    sender.terminal.send(RESOURCE_ENERGY, ENERGY_SEND_AMOUNT, receiver.name);
-                    break; // One send per terminal per tick
+                    sender.room.terminal.send(RESOURCE_ENERGY, ENERGY_SEND_AMOUNT, receiver.room.name);
+                    break;
                 }
             }
         }
@@ -71,7 +98,9 @@ export class TerminalPlan extends Plan {
                 continue;
             }
 
-            // Check all mineral types in terminal
+            const storageEnergy = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
+            const rcl = room.controller?.level ?? 1;
+
             for (const resourceType of Object.keys(room.terminal.store) as ResourceConstant[]) {
                 if (resourceType === RESOURCE_ENERGY) {
                     continue;
@@ -83,7 +112,6 @@ export class TerminalPlan extends Plan {
                     continue;
                 }
 
-                // Find a buy order for this resource
                 const orders = Game.market.getAllOrders({
                     type: ORDER_BUY,
                     resourceType
@@ -93,18 +121,18 @@ export class TerminalPlan extends Plan {
                     continue;
                 }
 
-                // Pick the best-priced order
                 const bestOrder = orders.sort((a, b) => b.price - a.price)[0];
 
-                if (bestOrder.price <= 0) {
+                if (bestOrder.price < MINERAL_PRICE_FLOOR) {
                     continue;
                 }
 
-                const sellAmount = Math.min(amount - 1000, bestOrder.remainingAmount, 1000);
+                const minReserve = rcl >= 7 ? 5000 : 2000;
+                const sellAmount = Math.min(amount - minReserve, bestOrder.remainingAmount, 1000);
 
                 if (sellAmount > 0) {
                     Game.market.deal(bestOrder.id, sellAmount, room.name);
-                    break; // One deal per terminal per tick
+                    break;
                 }
             }
         }
