@@ -3,6 +3,7 @@ import { World } from "world/World";
 import { createHarvestTaskData } from "tasks/definitions/HarvestTask";
 import { createDeliverTaskData } from "tasks/definitions/DeliverTask";
 import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
+import { createMineralHarvestTaskData } from "tasks/definitions/MineralHarvestTask";
 import { containerIsSourceTied } from "rooms/RoomUtils";
 import { createBuildTaskData } from "tasks/definitions/BuildTask";
 import { getAdjacentPosition } from "world/WorldUtils";
@@ -100,6 +101,21 @@ export class EconomyPlan extends Plan {
             //
             for (const source of sources) {
                 taskManager.add(createHarvestTaskData(source));
+            }
+
+            //
+            // Mineral Harvest (RCL 6+)
+            //
+            const mineralRcl = room.controller?.level ?? 0;
+            if (mineralRcl >= 6) {
+                const extractor = room.find(FIND_MY_STRUCTURES).find(s => s.structureType === STRUCTURE_EXTRACTOR);
+                const minerals = room.find(FIND_MINERALS);
+                if (extractor && minerals.length > 0) {
+                    const mineral = minerals[0];
+                    if (mineral.mineralAmount > 0) {
+                        taskManager.add(createMineralHarvestTaskData(mineral, extractor));
+                    }
+                }
             }
 
             //

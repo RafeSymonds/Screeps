@@ -73,18 +73,22 @@ export class MineralHarvestTask extends Task<MineralHarvestTaskData> {
 
         if (hasBodyPart(creepState.creep, CARRY) && creepState.creep.store.getFreeCapacity() === 0) {
             const mineralType = this.mineral.mineralType;
-            const targets = (creepState.creep.pos.findInRange(FIND_MY_STRUCTURES, 3) as Structure[]).filter(s => {
-                const type = s.structureType as string;
+            const allStructures: Structure[] = creepState.creep.pos.findInRange(FIND_MY_STRUCTURES, 3);
+            const targets = allStructures.filter(s => {
+                const st = s.structureType;
                 if (
-                    type !== STRUCTURE_SPAWN &&
-                    type !== STRUCTURE_EXTENSION &&
-                    type !== STRUCTURE_STORAGE &&
-                    type !== STRUCTURE_CONTAINER
+                    st !== STRUCTURE_SPAWN &&
+                    st !== STRUCTURE_EXTENSION &&
+                    st !== STRUCTURE_STORAGE &&
+                    st !== STRUCTURE_CONTAINER
                 ) {
                     return false;
                 }
-                const store = (s as any).store;
-                return store && store.getFreeCapacity(mineralType) > 0;
+                const storeStructure = s as StructureSpawn | StructureExtension | StructureStorage | StructureContainer;
+                const store = storeStructure.store;
+                if (!store) return false;
+                const freeCapacity = store.getFreeCapacity(mineralType);
+                return freeCapacity !== null && freeCapacity > 0;
             });
 
             if (targets.length > 0) {

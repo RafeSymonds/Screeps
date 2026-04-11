@@ -339,6 +339,8 @@ function replacementLeadTime(role: SpawnRequestRole, creep: Creep): number {
             return spawnTime + 20 + taskRoomBias;
         case "hauler":
             return spawnTime + 30 + taskRoomBias + remoteBias;
+        case "fastFiller":
+            return spawnTime + 25 + taskRoomBias;
         case "worker":
             return spawnTime + 20 + taskRoomBias;
         case "scout":
@@ -370,6 +372,7 @@ interface SupplyTotals {
     idleMiners: number;
     carry: number; // total CARRY
     haulerCreeps: number;
+    fastFillerCreeps: number;
     idleHaulers: number;
     work: number; // WORK on workers
     workerCreeps: number;
@@ -384,6 +387,7 @@ interface SupplyTotals {
     idleAttackers: number;
     incomingMiners: number;
     incomingHaulers: number;
+    incomingFastFillers: number;
     incomingWorkers: number;
     incomingScouts: number;
     incomingDefenders: number;
@@ -397,6 +401,7 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
         idleMiners: 0,
         carry: 0,
         haulerCreeps: 0,
+        fastFillerCreeps: 0,
         idleHaulers: 0,
         work: 0,
         workerCreeps: 0,
@@ -411,6 +416,7 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
         idleAttackers: 0,
         incomingMiners: 0,
         incomingHaulers: 0,
+        incomingFastFillers: 0,
         incomingWorkers: 0,
         incomingScouts: 0,
         incomingDefenders: 0,
@@ -485,7 +491,6 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
                     supply.haulerCreeps += 1;
                 }
 
-                // Treat expiring haulers as "idle" to trigger earlier replacement spawning
                 if (idle || expiring) {
                     supply.idleHaulers += 1;
                 }
@@ -780,6 +785,8 @@ function spawnIntentFromRole(role: SpawnRequestRole): SpawnIntentKind {
             return SpawnIntentKind.MINERAL_HARVESTER;
         case "hauler":
             return SpawnIntentKind.HAULER;
+        case "fastFiller":
+            return SpawnIntentKind.FAST_FILLER;
         case "worker":
             return SpawnIntentKind.WORKER;
         case "defender":
@@ -800,6 +807,8 @@ function currentCreepsForRole(role: SpawnRequestRole, supply: SupplyTotals): num
         case "mineralHarvester":
             return supply.minerCreeps + supply.incomingMiners;
         case "hauler":
+            return supply.haulerCreeps + supply.incomingHaulers;
+        case "fastFiller":
             return supply.haulerCreeps + supply.incomingHaulers;
         case "worker":
             return supply.workerCreeps + supply.incomingWorkers;
@@ -1063,6 +1072,52 @@ function refreshBaselineSpawnRequests(
     } else {
         clearSpawnRequest(room, "worker", roleRequestKey("worker", room.name));
     }
+
+    // Mineral Harvester - RCL 6+ with extractor and mineral
+    const rcl = room.controller?.level ?? 0;
+    if (rcl >= 6) {
+        const extractor = room.find(FIND_MY_STRUCTURES).find(s => s.structureType === STRUCTURE_EXTRACTOR);
+        const mineral = room.find(FIND_MINERALS)[0];
+        if (extractor && mineral && mineral.mineralAmount > 0) {
+            upsertSpawnRequest(room, {
+                role: "mineralHarvester",
+                priority: SpawnRequestPriority.NORMAL + 10,
+                desiredCreeps: 1,
+                expiresAt: Game.time + 2,
+                requestedBy: roleRequestKey("mineralHarvester", room.name),
+                minEnergy: 200
+            });
+        } else {
+            clearSpawnRequest(room, "mineralHarvester", roleRequestKey("mineralHarvester", room.name));
+        }
+    } else {
+        clearSpawnRequest(room, "mineralHarvester", roleRequestKey("mineralHarvester", room.name));
+    }
+
+    // Fast Filler - fills spawns/extensions from storage when they need energy
+    const spawns = room.find(FIND_MY_SPAWNS);
+    const extensions = room.find(FIND_MY_STRUCTURES).filter(s => s.structureType === STRUCTURE_EXTENSION);
+    const spawnExtensionNeedEnergy = energyAvailable < energyCapacity && (spawns.length > 0 || extensions.length > 0);
+    const hasStorage = storage !== undefined;
+    const storageHasEnergy = storage && storage.store.getUsedCapacity(RESOURCE_ENERGY) > 0;
+
+    if (hasStorage && storageHasEnergy && spawnExtensionNeedEnergy) {
+        const currentFastFillers = supply.fastFillerCreeps + supply.incomingFastFillers;
+        if (currentFastFillers < 1) {
+            upsertSpawnRequest(room, {
+                role: "fastFiller",
+                priority: SpawnRequestPriority.HIGH,
+                desiredCreeps: 1,
+                expiresAt: Game.time + 2,
+                requestedBy: roleRequestKey("fastFiller", room.name),
+                minEnergy: 150
+            });
+        } else {
+            clearSpawnRequest(room, "fastFiller", roleRequestKey("fastFiller", room.name));
+        }
+    } else {
+        clearSpawnRequest(room, "fastFiller", roleRequestKey("fastFiller", room.name));
+    }
 }
 
 /* ============================================================
@@ -1106,7 +1161,7 @@ function incrementIncomingSupply(supply: SupplyTotals, kind: SpawnIntentKind): v
             supply.incomingHaulers += 1;
             break;
         case SpawnIntentKind.FAST_FILLER:
-            supply.incomingWorkers += 1;
+            supply.incomingFastFillers += 1;
             break;
         case SpawnIntentKind.WORKER:
             supply.incomingWorkers += 1;
