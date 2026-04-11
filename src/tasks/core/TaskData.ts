@@ -102,6 +102,11 @@ export type RepairTaskData = BaseTask & {
     targetId: Id<Structure>;
 };
 
+export type PickupTaskData = BaseTask & {
+    kind: TaskKind.PICKUP;
+    targetId: Id<Resource>;
+};
+
 export type TaskData =
     | BuildTaskData
     | UpgradeTaskData
@@ -116,7 +121,8 @@ export type TaskData =
     | AttackTaskData
     | ReserveTaskData
     | BootstrapTaskData
-    | RepairTaskData;
+    | RepairTaskData
+    | PickupTaskData;
 
 export interface RoomTaskData {
     name: string;

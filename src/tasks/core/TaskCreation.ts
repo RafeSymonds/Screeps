@@ -16,6 +16,7 @@ import { ReserveTask } from "tasks/definitions/ReserveTask";
 import { BootstrapTask } from "../definitions/BootstrapTask";
 import { RepairTask } from "../definitions/RepairTask";
 import { MineralHarvestTask } from "tasks/definitions/MineralHarvestTask";
+import { PickupTask } from "tasks/definitions/PickupTask";
 
 function constructTask(data: TaskData): AnyTask | undefined {
     switch (data.kind) {
@@ -60,6 +61,9 @@ function constructTask(data: TaskData): AnyTask | undefined {
 
         case TaskKind.REPAIR:
             return new RepairTask(data);
+
+        case TaskKind.PICKUP:
+            return new PickupTask(data);
     }
 }
 

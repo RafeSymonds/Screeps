@@ -4,6 +4,7 @@ import { createHarvestTaskData } from "tasks/definitions/HarvestTask";
 import { createDeliverTaskData } from "tasks/definitions/DeliverTask";
 import { createUpgradeTaskData } from "tasks/definitions/UpgradeTask";
 import { createMineralHarvestTaskData } from "tasks/definitions/MineralHarvestTask";
+import { createPickupTaskData } from "tasks/definitions/PickupTask";
 import { containerIsSourceTied } from "rooms/RoomUtils";
 import { createBuildTaskData } from "tasks/definitions/BuildTask";
 import { getAdjacentPosition } from "world/WorldUtils";
@@ -116,6 +117,16 @@ export class EconomyPlan extends Plan {
                         taskManager.add(createMineralHarvestTaskData(mineral, extractor));
                     }
                 }
+            }
+
+            //
+            // Pickup (dropped resources)
+            //
+            const droppedEnergy = room.find(FIND_DROPPED_RESOURCES, {
+                filter: r => r.resourceType === RESOURCE_ENERGY && r.amount >= 50
+            });
+            for (const resource of droppedEnergy) {
+                taskManager.add(createPickupTaskData(resource));
             }
 
             //
