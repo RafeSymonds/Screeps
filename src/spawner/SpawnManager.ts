@@ -40,6 +40,7 @@ export enum SpawnIntentKind {
     MINER,
     MINERAL_HARVESTER,
     HAULER,
+    HUB_HAULER,
     FAST_FILLER,
     MAINTAINER,
     WORKER,
@@ -53,6 +54,7 @@ type SpawnIntent =
     | { kind: SpawnIntentKind.MINER }
     | { kind: SpawnIntentKind.MINERAL_HARVESTER }
     | { kind: SpawnIntentKind.HAULER }
+    | { kind: SpawnIntentKind.HUB_HAULER }
     | { kind: SpawnIntentKind.FAST_FILLER }
     | { kind: SpawnIntentKind.MAINTAINER }
     | { kind: SpawnIntentKind.WORKER }
@@ -76,6 +78,8 @@ function spawnIntentPreference(kind: SpawnIntentKind): number {
             return 5;
         case SpawnIntentKind.HAULER:
             return 4;
+        case SpawnIntentKind.HUB_HAULER:
+            return 5;
         case SpawnIntentKind.FAST_FILLER:
             return 4.5;
         case SpawnIntentKind.MAINTAINER:
@@ -155,6 +159,17 @@ function haulerBody(room: Room, energy: number): BodyPartConstant[] {
     const maxFromEnergy = Math.floor(energy / 100);
 
     const carry = Math.max(MIN_HAULER_CARRY, Math.min(target, maxFromEnergy, MAX_HAULER_CARRY));
+
+    const body: BodyPartConstant[] = [];
+    for (let i = 0; i < carry; i++) body.push(CARRY, MOVE);
+    return body;
+}
+
+function hubHaulerBody(energy: number): BodyPartConstant[] {
+    if (energy < 100) return [];
+
+    const maxFromEnergy = Math.floor(energy / 100);
+    const carry = Math.min(maxFromEnergy, 12);
 
     const body: BodyPartConstant[] = [];
     for (let i = 0; i < carry; i++) body.push(CARRY, MOVE);
@@ -363,6 +378,8 @@ function replacementLeadTime(role: SpawnRequestRole, creep: Creep): number {
             return spawnTime + 20 + taskRoomBias;
         case "hauler":
             return spawnTime + 30 + taskRoomBias + remoteBias;
+        case "hubHauler":
+            return spawnTime + 30 + taskRoomBias;
         case "fastFiller":
             return spawnTime + 25 + taskRoomBias;
         case "maintainer":
@@ -398,6 +415,7 @@ interface SupplyTotals {
     idleMiners: number;
     carry: number; // total CARRY
     haulerCreeps: number;
+    hubHaulerCreeps: number;
     fastFillerCreeps: number;
     idleHaulers: number;
     work: number; // WORK on workers
@@ -414,6 +432,7 @@ interface SupplyTotals {
     idleAttackers: number;
     incomingMiners: number;
     incomingHaulers: number;
+    incomingHubHaulers: number;
     incomingFastFillers: number;
     incomingMaintainers: number;
     incomingWorkers: number;
@@ -429,6 +448,7 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
         idleMiners: 0,
         carry: 0,
         haulerCreeps: 0,
+        hubHaulerCreeps: 0,
         fastFillerCreeps: 0,
         idleHaulers: 0,
         work: 0,
@@ -445,6 +465,7 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
         idleAttackers: 0,
         incomingMiners: 0,
         incomingHaulers: 0,
+        incomingHubHaulers: 0,
         incomingFastFillers: 0,
         incomingMaintainers: 0,
         incomingWorkers: 0,
@@ -823,6 +844,8 @@ function spawnIntentFromRole(role: SpawnRequestRole): SpawnIntentKind {
             return SpawnIntentKind.MINERAL_HARVESTER;
         case "hauler":
             return SpawnIntentKind.HAULER;
+        case "hubHauler":
+            return SpawnIntentKind.HUB_HAULER;
         case "fastFiller":
             return SpawnIntentKind.FAST_FILLER;
         case "maintainer":
@@ -848,6 +871,8 @@ function currentCreepsForRole(role: SpawnRequestRole, supply: SupplyTotals): num
             return supply.minerCreeps + supply.incomingMiners;
         case "hauler":
             return supply.haulerCreeps + supply.incomingHaulers;
+        case "hubHauler":
+            return supply.hubHaulerCreeps + supply.incomingHubHaulers;
         case "fastFiller":
             return supply.haulerCreeps + supply.incomingHaulers;
         case "maintainer":
@@ -1201,6 +1226,40 @@ function refreshBaselineSpawnRequests(
     } else {
         clearSpawnRequest(room, "maintainer", roleRequestKey("maintainer", room.name));
     }
+
+    // Hub Hauler - moves resources between storage and terminal at RCL 6+
+    const rclForHub = room.controller?.level ?? 0;
+    if (rclForHub >= 6) {
+        const terminal = room.terminal;
+        const storage = room.storage;
+        if (terminal && storage) {
+            const storageEnergy = storage.store.getUsedCapacity(RESOURCE_ENERGY);
+            const terminalEnergy = terminal.store.getUsedCapacity(RESOURCE_ENERGY);
+            const needsHubHauler = storageEnergy > 100000 || terminalEnergy > 50000;
+
+            if (needsHubHauler) {
+                const currentHubHaulers = supply.hubHaulerCreeps + supply.incomingHubHaulers;
+                if (currentHubHaulers < 1) {
+                    upsertSpawnRequest(room, {
+                        role: "hubHauler",
+                        priority: SpawnRequestPriority.HIGH,
+                        desiredCreeps: 1,
+                        expiresAt: Game.time + 2,
+                        requestedBy: roleRequestKey("hubHauler", room.name),
+                        minEnergy: 200
+                    });
+                } else {
+                    clearSpawnRequest(room, "hubHauler", roleRequestKey("hubHauler", room.name));
+                }
+            } else {
+                clearSpawnRequest(room, "hubHauler", roleRequestKey("hubHauler", room.name));
+            }
+        } else {
+            clearSpawnRequest(room, "hubHauler", roleRequestKey("hubHauler", room.name));
+        }
+    } else {
+        clearSpawnRequest(room, "hubHauler", roleRequestKey("hubHauler", room.name));
+    }
 }
 
 /* ============================================================
@@ -1242,6 +1301,9 @@ function incrementIncomingSupply(supply: SupplyTotals, kind: SpawnIntentKind): v
             break;
         case SpawnIntentKind.HAULER:
             supply.incomingHaulers += 1;
+            break;
+        case SpawnIntentKind.HUB_HAULER:
+            supply.incomingHubHaulers += 1;
             break;
         case SpawnIntentKind.FAST_FILLER:
             supply.incomingFastFillers += 1;
@@ -1309,6 +1371,9 @@ export class SpawnManager {
                     break;
                 case SpawnIntentKind.HAULER:
                     body = haulerBody(room, energy);
+                    break;
+                case SpawnIntentKind.HUB_HAULER:
+                    body = hubHaulerBody(energy);
                     break;
                 case SpawnIntentKind.FAST_FILLER:
                     body = fastFillerBody(energy);

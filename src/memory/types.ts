@@ -4,6 +4,7 @@ export type SpawnRequestRole =
     | "miner"
     | "mineralHarvester"
     | "hauler"
+    | "hubHauler"
     | "fastFiller"
     | "maintainer"
     | "worker"
