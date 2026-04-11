@@ -149,9 +149,8 @@ export class RoomEnergyState {
         const fromPos = from instanceof RoomPosition ? from : from.pos;
         const toPos = to instanceof RoomPosition ? to : to.pos;
 
-        // Don't pick up from exactly where we are dropping, UNLESS it's a dropped resource.
-        // If it's on the floor, we want to grab it regardless of proximity to the sink.
-        if (!(from instanceof Resource) && fromPos.getRangeTo(toPos) <= 1) {
+        // Don't pick up from exactly where we are dropping
+        if (fromPos.getRangeTo(toPos) <= 1) {
             return false;
         }
 
