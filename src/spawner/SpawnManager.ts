@@ -616,10 +616,10 @@ function deriveDemand(tasks: { requirements(): TaskRequirements }[]): DemandTota
  * over-requests workers. Clamp for spawn pressure so we prioritize miners/haulers/remotes first.
  */
 const SPAWN_WORK_CAP: Record<RoomGrowthStage, { maxWorkParts: number; maxWorkerCreeps: number }> = {
-    bootstrap: { maxWorkParts: 14, maxWorkerCreeps: 5 },
-    stabilizing: { maxWorkParts: 26, maxWorkerCreeps: 8 },
-    remote: { maxWorkParts: 52, maxWorkerCreeps: 12 },
-    surplus: { maxWorkParts: 100, maxWorkerCreeps: 25 }
+    bootstrap: { maxWorkParts: 20, maxWorkerCreeps: 8 },
+    stabilizing: { maxWorkParts: 35, maxWorkerCreeps: 12 },
+    remote: { maxWorkParts: 60, maxWorkerCreeps: 16 },
+    surplus: { maxWorkParts: 120, maxWorkerCreeps: 30 }
 };
 
 function taskKindForSpawnClamp(task: unknown): TaskKind | undefined {
