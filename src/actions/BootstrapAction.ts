@@ -175,12 +175,12 @@ export class BootstrapAction extends Action {
             });
         }
 
-        // Dropped energy
+        // Dropped energy - lower priority than containers to avoid pickup cycles
         for (const resource of room.find(FIND_DROPPED_RESOURCES)) {
             if (resource.resourceType !== RESOURCE_ENERGY) continue;
             const range = creep.pos.getRangeTo(resource);
             const pickup = Math.min(freeCapacity, resource.amount);
-            const score = ((pickup / 50) * 7 - range * 2) * needRatio;
+            const score = ((pickup / 50) * 4 - range * 2) * needRatio;
 
             candidates.push({
                 score,
