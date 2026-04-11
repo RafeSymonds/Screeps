@@ -5,6 +5,7 @@ import { EconomyPlan } from "plans/definitions/EconomyPlan";
 import { ExpansionPlan } from "plans/definitions/ExpansionPlan";
 import { InfrastructurePlan } from "plans/definitions/InfrastructurePlan";
 import { LinkPlan } from "plans/definitions/LinkPlan";
+import { ObserverPlan } from "plans/definitions/ObserverPlan";
 import { RemoteMiningPlan } from "plans/definitions/RemoteMiningPlan";
 import { ScoutingPlan } from "plans/definitions/ScoutingPlan";
 import { SupportPlan } from "plans/definitions/SupportPlan";
@@ -28,6 +29,7 @@ export function runPlans(world: World) {
         { key: "scouting", interval: 15, priority: "optional", plan: new ScoutingPlan() },
         { key: "expansion", interval: 50, priority: "optional", plan: new ExpansionPlan() },
         { key: "terminal", interval: 15, priority: "important", plan: new TerminalPlan() },
+        { key: "observer", interval: 1, priority: "important", plan: new ObserverPlan() },
         { key: "attack", interval: 25, priority: "optional", plan: new AttackPlan() }
     ];
 

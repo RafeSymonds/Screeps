@@ -2,7 +2,7 @@ import { roomsWithin } from "./RoomUtils";
 import { createScoutTaskData } from "tasks/definitions/ScoutTask";
 import { TaskManager } from "tasks/core/TaskManager";
 
-function needsScouting(roomName: string): boolean {
+export function needsScouting(roomName: string): boolean {
     const intel = Memory.rooms[roomName]?.intel;
     if (!intel) return true;
 
