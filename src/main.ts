@@ -72,6 +72,7 @@ declare global {
         | "mineralHarvester"
         | "hauler"
         | "fastFiller"
+        | "maintainer"
         | "worker"
         | "defender"
         | "attacker"

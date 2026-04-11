@@ -40,6 +40,8 @@ function replacementLeadTime(role: SpawnRequestRole, creep: Creep): number {
             return spawnTime + 30 + bias + remoteBias;
         case "fastFiller":
             return spawnTime + 25 + bias;
+        case "maintainer":
+            return spawnTime + 20 + bias;
         case "worker":
             return spawnTime + 20 + bias;
         case "scout":

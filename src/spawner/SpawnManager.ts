@@ -41,6 +41,7 @@ export enum SpawnIntentKind {
     MINERAL_HARVESTER,
     HAULER,
     FAST_FILLER,
+    MAINTAINER,
     WORKER,
     DEFENDER,
     CLAIMER,
@@ -53,6 +54,7 @@ type SpawnIntent =
     | { kind: SpawnIntentKind.MINERAL_HARVESTER }
     | { kind: SpawnIntentKind.HAULER }
     | { kind: SpawnIntentKind.FAST_FILLER }
+    | { kind: SpawnIntentKind.MAINTAINER }
     | { kind: SpawnIntentKind.WORKER }
     | { kind: SpawnIntentKind.DEFENDER }
     | { kind: SpawnIntentKind.CLAIMER }
@@ -76,6 +78,8 @@ function spawnIntentPreference(kind: SpawnIntentKind): number {
             return 4;
         case SpawnIntentKind.FAST_FILLER:
             return 4.5;
+        case SpawnIntentKind.MAINTAINER:
+            return 4;
         case SpawnIntentKind.WORKER:
             return 3;
         case SpawnIntentKind.SCOUT:
@@ -187,6 +191,17 @@ function fastFillerBody(energy: number): BodyPartConstant[] {
     const body: BodyPartConstant[] = [];
     for (let i = 0; i < units; i++) {
         body.push(CARRY, MOVE);
+    }
+    return body;
+}
+
+function maintainerBody(energy: number): BodyPartConstant[] {
+    if (energy < 200) return [];
+
+    const units = Math.floor(energy / 200);
+    const body: BodyPartConstant[] = [];
+    for (let i = 0; i < units; i++) {
+        body.push(WORK, WORK, CARRY, MOVE);
     }
     return body;
 }
@@ -306,6 +321,15 @@ function isWorker(cs: CreepState): boolean {
     return carryParts >= 1;
 }
 
+function isMaintainer(cs: CreepState): boolean {
+    if (!hasBodyPart(cs.creep, WORK) || !hasBodyPart(cs.creep, CARRY)) return false;
+
+    const workParts = countBodyParts(cs.creep, WORK);
+    const carryParts = countBodyParts(cs.creep, CARRY);
+
+    return workParts >= 4 && workParts > carryParts;
+}
+
 function isClaimer(cs: CreepState): boolean {
     return hasBodyPart(cs.creep, CLAIM);
 }
@@ -341,6 +365,8 @@ function replacementLeadTime(role: SpawnRequestRole, creep: Creep): number {
             return spawnTime + 30 + taskRoomBias + remoteBias;
         case "fastFiller":
             return spawnTime + 25 + taskRoomBias;
+        case "maintainer":
+            return spawnTime + 20 + taskRoomBias;
         case "worker":
             return spawnTime + 20 + taskRoomBias;
         case "scout":
@@ -376,6 +402,7 @@ interface SupplyTotals {
     idleHaulers: number;
     work: number; // WORK on workers
     workerCreeps: number;
+    maintainerCreeps: number;
     idleWorkers: number;
     scout: number;
     idleScouts: number;
@@ -388,6 +415,7 @@ interface SupplyTotals {
     incomingMiners: number;
     incomingHaulers: number;
     incomingFastFillers: number;
+    incomingMaintainers: number;
     incomingWorkers: number;
     incomingScouts: number;
     incomingDefenders: number;
@@ -405,6 +433,7 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
         idleHaulers: 0,
         work: 0,
         workerCreeps: 0,
+        maintainerCreeps: 0,
         idleWorkers: 0,
         scout: 0,
         idleScouts: 0,
@@ -417,6 +446,7 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
         incomingMiners: 0,
         incomingHaulers: 0,
         incomingFastFillers: 0,
+        incomingMaintainers: 0,
         incomingWorkers: 0,
         incomingScouts: 0,
         incomingDefenders: 0,
@@ -464,6 +494,14 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
             }
             if (idle) {
                 supply.idleMiners += 1;
+            }
+        } else if (isMaintainer(cs)) {
+            if (!isExpiringSoon(cs.creep, "maintainer")) {
+                supply.work += countBodyParts(cs.creep, WORK);
+                supply.maintainerCreeps += 1;
+            }
+            if (idle) {
+                supply.idleWorkers += 1;
             }
         } else if (isWorker(cs)) {
             if (!isExpiringSoon(cs.creep, "worker")) {
@@ -787,6 +825,8 @@ function spawnIntentFromRole(role: SpawnRequestRole): SpawnIntentKind {
             return SpawnIntentKind.HAULER;
         case "fastFiller":
             return SpawnIntentKind.FAST_FILLER;
+        case "maintainer":
+            return SpawnIntentKind.MAINTAINER;
         case "worker":
             return SpawnIntentKind.WORKER;
         case "defender":
@@ -810,6 +850,8 @@ function currentCreepsForRole(role: SpawnRequestRole, supply: SupplyTotals): num
             return supply.haulerCreeps + supply.incomingHaulers;
         case "fastFiller":
             return supply.haulerCreeps + supply.incomingHaulers;
+        case "maintainer":
+            return supply.workerCreeps + supply.incomingWorkers;
         case "worker":
             return supply.workerCreeps + supply.incomingWorkers;
         case "defender":
@@ -1118,6 +1160,47 @@ function refreshBaselineSpawnRequests(
     } else {
         clearSpawnRequest(room, "fastFiller", roleRequestKey("fastFiller", room.name));
     }
+
+    // Maintainer - repairs walls/ramparts at RCL 4+
+    const rclForMaintainer = room.controller?.level ?? 0;
+    if (rclForMaintainer >= 4) {
+        const walls = room
+            .find(FIND_STRUCTURES)
+            .filter(s => s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART);
+        const minWallHits =
+            rclForMaintainer >= 8
+                ? 1000000
+                : rclForMaintainer >= 7
+                  ? 300000
+                  : rclForMaintainer >= 6
+                    ? 100000
+                    : rclForMaintainer >= 5
+                      ? 30000
+                      : rclForMaintainer >= 4
+                        ? 10000
+                        : 1000;
+        const wallsNeedRepair = walls.filter(s => s.hits < minWallHits);
+
+        if (wallsNeedRepair.length > 0) {
+            const currentMaintainers = supply.maintainerCreeps + supply.incomingMaintainers;
+            if (currentMaintainers < 1) {
+                upsertSpawnRequest(room, {
+                    role: "maintainer",
+                    priority: SpawnRequestPriority.HIGH,
+                    desiredCreeps: 1,
+                    expiresAt: Game.time + 2,
+                    requestedBy: roleRequestKey("maintainer", room.name),
+                    minEnergy: 200
+                });
+            } else {
+                clearSpawnRequest(room, "maintainer", roleRequestKey("maintainer", room.name));
+            }
+        } else {
+            clearSpawnRequest(room, "maintainer", roleRequestKey("maintainer", room.name));
+        }
+    } else {
+        clearSpawnRequest(room, "maintainer", roleRequestKey("maintainer", room.name));
+    }
 }
 
 /* ============================================================
@@ -1162,6 +1245,9 @@ function incrementIncomingSupply(supply: SupplyTotals, kind: SpawnIntentKind): v
             break;
         case SpawnIntentKind.FAST_FILLER:
             supply.incomingFastFillers += 1;
+            break;
+        case SpawnIntentKind.MAINTAINER:
+            supply.incomingMaintainers += 1;
             break;
         case SpawnIntentKind.WORKER:
             supply.incomingWorkers += 1;
@@ -1226,6 +1312,9 @@ export class SpawnManager {
                     break;
                 case SpawnIntentKind.FAST_FILLER:
                     body = fastFillerBody(energy);
+                    break;
+                case SpawnIntentKind.MAINTAINER:
+                    body = maintainerBody(energy);
                     break;
                 case SpawnIntentKind.WORKER:
                     body = workerBody(energy);
