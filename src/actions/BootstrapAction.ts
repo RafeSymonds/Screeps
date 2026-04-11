@@ -46,6 +46,8 @@ export class BootstrapAction extends Action {
     public override perform(creepState: CreepState): void {
         const creep = creepState.creep;
         const energy = creep.store.getUsedCapacity(RESOURCE_ENERGY);
+        const capacity = creep.store.getCapacity(RESOURCE_ENERGY);
+        const energyRatio = capacity > 0 ? energy / capacity : 0;
 
         // Go to target room if not there
         if (creep.room.name !== this.targetRoom) {
@@ -58,6 +60,17 @@ export class BootstrapAction extends Action {
 
         const candidates: ActionCandidate[] = [];
 
+        // If we have enough energy (>= 50%), prioritize work over pickup
+        if (energyRatio >= 0.5) {
+            this.scoreWorkTargets(creepState, room, candidates);
+            if (candidates.length > 0) {
+                candidates.sort((a, b) => b.score - a.score);
+                candidates[0].execute(creepState);
+                return;
+            }
+        }
+
+        // Otherwise score everything and pick best
         if (energy > 0) {
             this.scoreWorkTargets(creepState, room, candidates);
         }
