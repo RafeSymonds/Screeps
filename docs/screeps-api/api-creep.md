@@ -64,7 +64,7 @@ Heal adjacent creep. Requires HEAL parts.
 - Power: 12 HP per HEAL part per tick
 
 ### move(direction)
-Move one tile in specified direction.
+Move one tile in specified direction. Also accepts a Creep being pulled: `move(creep)` makes this creep follow the puller (bypasses ERR_TIRED/ERR_NO_BODYPART).
 
 ### moveByPath(path)
 Follow a pre-computed path array or serialized path string.
@@ -79,7 +79,7 @@ Toggle attack notifications.
 Pick up adjacent dropped resource.
 
 ### pull(target)
-Pull adjacent creep toward you.
+Help an adjacent creep follow you (target's move fatigue is added to this creep). Target must call `move(thisCreep)` to accept; can be chained into trains.
 
 ### rangedAttack(target)
 Attack target up to 3 squares away. Requires RANGED_ATTACK parts.
@@ -129,8 +129,8 @@ Immortal hero units tied to player accounts. Persist after death with 8-hour res
 
 ## Methods
 Same movement/resource methods as Creep, plus:
-- `create(prototype)` - Static: create new power creep
-- `delete()` - Permanently delete
+- `create(name, className)` - Static: create new power creep (className is a POWER_CLASS constant)
+- `delete([cancel])` - Schedule permanent deletion (pass true to cancel)
 - `enableRoom(controller)` - Enable power processing
 - `rename(newName)` - Rename
 - `renew(spawnStructure)` - Renew at power spawn

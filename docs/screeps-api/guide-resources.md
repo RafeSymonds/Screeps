@@ -1,9 +1,9 @@
 # Resources Guide
 
 ## Energy
-- Found in Sources (typically 2 per room)
+- Found in Sources (1-2 per room; more in central/keeper rooms)
 - Harvested by WORK parts (2 energy/WORK/tick)
-- Sources regenerate every 300 ticks (3000 energy capacity, or 1500 in reserved rooms)
+- Sources regenerate every 300 ticks (3000 capacity in owned/reserved rooms, 1500 in neutral/unreserved, 4000 in keeper rooms)
 
 ## Minerals
 

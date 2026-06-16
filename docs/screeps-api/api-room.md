@@ -44,14 +44,14 @@ Returns Room.Terrain object for static terrain data.
 ### lookAt(target)
 Objects at specified position.
 
-### lookAtArea(top, left, bottom, right)
-Object matrix for rectangular area.
+### lookAtArea(top, left, bottom, right, [asArray])
+Object matrix for rectangular area. With asArray=true, returns a flat array instead.
 
 ### lookForAt(type, target)
 Objects at position filtered by LOOK_* constant.
 
-### lookForAtArea(type, top, left, bottom, right)
-Filtered object matrix.
+### lookForAtArea(type, top, left, bottom, right, [asArray])
+Filtered object matrix. With asArray=true, returns a flat array instead.
 
 ### serializePath(path) / deserializePath(path)
 Path serialization for compact storage.

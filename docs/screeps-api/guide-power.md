@@ -6,7 +6,7 @@ End-game mechanic focused on colony optimization rather than expansion.
 
 ## Power Banks
 
-Appear in neutral highway rooms. Contain harvestable power. Reflect 50% damage back to attackers — bring healers.
+Appear in neutral rooms dividing living sectors. Contain a random amount of harvestable power. Reflect 50% damage back to attackers — bring healers.
 
 ## Global Power Level (GPL)
 

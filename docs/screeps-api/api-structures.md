@@ -101,7 +101,7 @@ Additional: `my` (boolean), `owner` ({username})
 
 ## StructureRampart
 - `isPublic` (boolean): Non-owner walkthrough
-- `ticksToDecay` (number): Decay timer (500 ticks)
+- `ticksToDecay` (number): Decay timer (300 HP lost per 100 ticks)
 - Max HP by RCL: 300K (RCL 2) → 300M (RCL 8)
 - **Methods:** `setPublic(isPublic)`
 

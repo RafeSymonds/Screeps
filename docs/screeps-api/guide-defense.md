@@ -2,7 +2,7 @@
 
 ## Safe Mode
 
-Prevents hostile creeps from affecting your structures/units. Lasts ~20,000 ticks (~15 hours). Reactivate via `controller.activateSafeMode()`.
+Prevents hostile creeps from affecting your structures/units. Lasts ~20,000 ticks (~20 hours). Reactivate via `controller.activateSafeMode()`.
 
 - Controllers gain one activation per level
 - Additional activations from ghodium (1000 G per activation)

@@ -66,6 +66,10 @@ Main global game object containing all gameplay information.
   - `name` (string): Shard identifier
   - `type` (string): Always "normal"
   - `ptr` (boolean): Whether shard is PTR
+  - `access` (boolean): On restricted shards, whether you currently have access (via an active ACCESS_KEY or unlimited-access subscription); `undefined` on unrestricted shards
+  - `accessTime` (number): Milliseconds since UNIX epoch until restricted-shard access expires
+- Methods:
+  - `activateAccess()`: Activates access to a restricted shard for 30 days (consumes 1 ACCESS_KEY). Returns `OK` (0), `ERR_NOT_ENOUGH_RESOURCES` (-6), `ERR_INVALID_TARGET` (-7), or `ERR_FULL` (-8)
 
 ### spawns
 - **Type:** `object<string, StructureSpawn>`
@@ -210,7 +214,7 @@ In-game marketplace for resource trading via terminals.
 ### createOrder(params)
 - `params`: `{type, resourceType, price, totalAmount, roomName}`
 - Cost: `price × amount × 0.05` credits
-- Max 50 orders
+- Max 300 orders (`MARKET_MAX_ORDERS`)
 
 ### deal(orderId, amount, [yourRoomName])
 - Max 10 deals per tick
