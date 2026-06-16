@@ -12,7 +12,7 @@ These modules can be edited by different agents (or the same agent in parallel b
 - **Coordination**: Only required if changing the `TaskRequirements` interface itself (owned by `technical-architect`).
 
 ### 2. Strategy Planners (`src/plans/definitions/`)
-- **Modules**: `EconomyPlan`, `RemoteMiningPlan`, `GrowthPlan`.
+- **Modules**: `EconomyPlan`, `RemoteMiningPlan`, `ExpansionPlan` (room-growth logic lives here via `updateRoomGrowth`; there is no standalone `GrowthPlan`).
 - **Independence**: These are high-level "brain" passes that create tasks. They read from `World` and `Memory` but mostly write to the `TaskManager`.
 - **Coordination**: Minimal. As long as they don't fight over the same `Memory` keys (e.g., both trying to set `RoomMemory.growth`), they are safe to evolve separately.
 
@@ -36,6 +36,7 @@ Changes to these files have global ripple effects and MUST be treated as seriali
 
 ### 3. Task Management (`src/tasks/core/`)
 - **Risk**: `TaskManager` and `TaskAssignment` control how creeps get their jobs.
+- **Note**: Assignment is purely capability-based (`canPerformTask` + `canAcceptCreep`, ranked by `assignmentScore`). Creeps have no behavioral role; spawn-side roles only pick bodies and population targets. See `docs/architecture/SPAWN_REQUEST_CONTRACT.md`.
 - **Ownership**: `technical-architect`.
 
 ---

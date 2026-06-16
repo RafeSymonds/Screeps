@@ -48,6 +48,11 @@ export function resetScreeps(): void {
             bucket: 10000,
             limit: 100
         },
+        gcl: {
+            level: 1,
+            progress: 0,
+            progressTotal: 1000
+        },
         map: {
             describeExits(roomName: string) {
                 return exits[roomName] ?? {};

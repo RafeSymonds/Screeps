@@ -26,16 +26,15 @@ The active runtime starts in [src/main.ts](/Users/rafe/games/screeps/src/main.ts
 1. `DefensePlan`
 2. `EconomyPlan`
 3. `LinkPlan`
-4. `GrowthPlan`
-5. `SupportPlan`
-6. `InfrastructurePlan`
-7. `BasePlan`
-8. `RemoteMiningPlan`
-9. `ScoutingPlan`
-10. `ExpansionPlan`
-11. `TerminalPlan`
-12. `ReservationPlan`
-13. `AttackPlan`
+4. `SupportPlan`
+5. `InfrastructurePlan`
+6. `BasePlan`
+7. `RemoteMiningPlan`
+8. `ScoutingPlan`
+9. `ExpansionPlan` (also drives room growth via `updateRoomGrowth` — there is no separate `GrowthPlan`)
+10. `TerminalPlan`
+11. `ObserverPlan`
+12. `AttackPlan` (also handles remote reservation — `ReservationPlan` was merged in)
 
 Important nuance:
 
@@ -59,7 +58,7 @@ Important nuance:
 
 - `definitions/*`: domain tasks such as harvest, build, upgrade, remote harvest, hauling, scouting.
 - `core/TaskManager.ts`: task rehydration and lookup.
-- `core/TaskAssignment.ts`: greedy assignment of free creeps to viable tasks.
+- `core/TaskAssignment.ts`: greedy assignment of free creeps to viable tasks. **Assignment is purely capability-based** — a creep is paired with any task whose `canPerformTask` (does the body have the required parts) and `canAcceptCreep` (is there a free slot) both pass, ranked by `assignmentScore`. There is no role gate, and `CreepMemory` carries no behavioral role. Any creep does any task its body can perform.
 - `core/TaskRequirements.ts`: abstract labor requirements used by spawning and planning.
 
 ### `src/creeps`
@@ -71,7 +70,9 @@ Important nuance:
 ### `src/spawner`
 
 - `SpawnManager.ts`: derives labor supply vs demand and chooses spawn intents.
-- Current role model is capability-based, not string-role-based. Classification comes from body parts.
+- **"Role" here is a spawn-side concept only** (`SpawnRequestRole`): it selects a *body template* and a *population target*. It does **not** gate behavior — task assignment is capability-based (see `src/tasks`).
+- Population is counted off the **persisted `CreepMemory.spawnRole` tag** (set at spawn time), not re-derived from body shape. This is required because several roles share identical bodies — `hauler`/`hubHauler`/`fastFiller` are all `[CARRY, MOVE]`, and `worker`/`mineralHarvester` are both `[WORK, CARRY, MOVE]` — so body parts cannot distinguish them. Legacy/untagged creeps fall back to a body-shape heuristic (`bodyFallbackRole`).
+- The tag is a stable identity: it must survive task resets (`getDefaultCreepMemory` preserves it), or counts would drift every time a creep finishes a task.
 - Spawn requests also flow through `src/spawner/SpawnRequests.ts` via room memory.
 
 ### `src/rooms`

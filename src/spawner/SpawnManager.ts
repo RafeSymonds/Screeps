@@ -405,6 +405,91 @@ function isExpiringSoon(creep: Creep, role: SpawnRequestRole): boolean {
     return creep.ticksToLive <= replacementLeadTime(role, creep);
 }
 
+/**
+ * The spawn role a creep should be counted as. Prefers the role it was spawned for (persisted in
+ * memory), falling back to body-shape heuristics for legacy/untagged creeps. Body shape alone is
+ * ambiguous — hauler/hubHauler/fastFiller and worker/mineralHarvester share identical bodies — so
+ * the persisted tag is the only reliable signal once those roles are in play.
+ */
+function effectiveRole(cs: CreepState): SpawnRequestRole {
+    return cs.memory.spawnRole ?? bodyFallbackRole(cs);
+}
+
+function bodyFallbackRole(cs: CreepState): SpawnRequestRole {
+    if (isClaimer(cs)) return "reserver";
+    if (isAttacker(cs)) return "attacker";
+    if (isCombat(cs)) return "defender";
+    if (isMiner(cs)) return "miner";
+    if (isMaintainer(cs)) return "maintainer";
+    if (isWorker(cs)) return "worker";
+    if (isScout(cs)) return "scout";
+    if (countBodyParts(cs.creep, CARRY) > 0) return "hauler";
+    return "worker";
+}
+
+function roleFromIntent(kind: SpawnIntentKind): SpawnRequestRole {
+    switch (kind) {
+        case SpawnIntentKind.SCOUT:
+            return "scout";
+        case SpawnIntentKind.MINER:
+            return "miner";
+        case SpawnIntentKind.MINERAL_HARVESTER:
+            return "mineralHarvester";
+        case SpawnIntentKind.HAULER:
+            return "hauler";
+        case SpawnIntentKind.HUB_HAULER:
+            return "hubHauler";
+        case SpawnIntentKind.FAST_FILLER:
+            return "fastFiller";
+        case SpawnIntentKind.MAINTAINER:
+            return "maintainer";
+        case SpawnIntentKind.WORKER:
+            return "worker";
+        case SpawnIntentKind.DEFENDER:
+            return "defender";
+        case SpawnIntentKind.CLAIMER:
+            return "reserver";
+        case SpawnIntentKind.ATTACKER:
+            return "attacker";
+    }
+}
+
+function incrementIncomingForRole(supply: SupplyTotals, role: SpawnRequestRole): void {
+    switch (role) {
+        case "scout":
+        case "reserver":
+            supply.incomingScouts += 1; // claimers/reservers counted with scouts
+            break;
+        case "miner":
+            supply.incomingMiners += 1;
+            break;
+        case "mineralHarvester":
+            supply.incomingMineralHarvesters += 1;
+            break;
+        case "hauler":
+            supply.incomingHaulers += 1;
+            break;
+        case "hubHauler":
+            supply.incomingHubHaulers += 1;
+            break;
+        case "fastFiller":
+            supply.incomingFastFillers += 1;
+            break;
+        case "maintainer":
+            supply.incomingMaintainers += 1;
+            break;
+        case "worker":
+            supply.incomingWorkers += 1;
+            break;
+        case "defender":
+            supply.incomingDefenders += 1;
+            break;
+        case "attacker":
+            supply.incomingAttackers += 1;
+            break;
+    }
+}
+
 /* ============================================================
    SUPPLY TOTALS
    ============================================================ */
@@ -413,6 +498,7 @@ interface SupplyTotals {
     mine: number; // WORK on miners
     minerCreeps: number;
     idleMiners: number;
+    mineralHarvesterCreeps: number;
     carry: number; // total CARRY
     haulerCreeps: number;
     hubHaulerCreeps: number;
@@ -431,6 +517,7 @@ interface SupplyTotals {
     attackerCreeps: number;
     idleAttackers: number;
     incomingMiners: number;
+    incomingMineralHarvesters: number;
     incomingHaulers: number;
     incomingHubHaulers: number;
     incomingFastFillers: number;
@@ -446,6 +533,7 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
         mine: 0,
         minerCreeps: 0,
         idleMiners: 0,
+        mineralHarvesterCreeps: 0,
         carry: 0,
         haulerCreeps: 0,
         hubHaulerCreeps: 0,
@@ -464,6 +552,7 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
         attackerCreeps: 0,
         idleAttackers: 0,
         incomingMiners: 0,
+        incomingMineralHarvesters: 0,
         incomingHaulers: 0,
         incomingHubHaulers: 0,
         incomingFastFillers: 0,
@@ -475,85 +564,89 @@ function deriveSupply(worldRoom: WorldRoom): SupplyTotals {
     };
 
     for (const cs of worldRoom.myCreeps) {
+        // Counting is keyed off the persisted spawn role (with a body-shape fallback for legacy
+        // creeps) because several roles share identical bodies and cannot be distinguished by parts.
+        const role = effectiveRole(cs);
+
         if (cs.creep.spawning) {
-            if (isClaimer(cs)) {
-                supply.incomingScouts += 1; // claimers counted with scouts
-            } else if (isAttacker(cs)) {
-                supply.incomingAttackers += 1;
-            } else if (isCombat(cs)) {
-                supply.incomingDefenders += 1;
-            } else if (isMiner(cs)) {
-                supply.incomingMiners += 1;
-            } else if (isWorker(cs)) {
-                supply.incomingWorkers += 1;
-            } else if (isScout(cs)) {
-                supply.incomingScouts += 1;
-            } else if (countBodyParts(cs.creep, CARRY) > 0) {
-                supply.incomingHaulers += 1;
-            }
+            incrementIncomingForRole(supply, role);
             continue;
         }
 
         const idle = cs.memory.taskId === undefined;
+        const expiring = isExpiringSoon(cs.creep, role);
 
-        if (isAttacker(cs)) {
-            supply.attackCombat += countCombatParts(cs.creep);
-            supply.attackerCreeps += 1;
-            if (idle) supply.idleAttackers += 1;
-        } else if (isCombat(cs)) {
-            if (!isExpiringSoon(cs.creep, "defender")) {
-                supply.combat += countCombatParts(cs.creep);
-                supply.defenderCreeps += 1;
-            }
-            if (idle) {
-                supply.idleDefenders += 1;
-            }
-        } else if (isMiner(cs)) {
-            if (!isExpiringSoon(cs.creep, "miner")) {
-                supply.mine += countBodyParts(cs.creep, WORK);
-                supply.minerCreeps += 1;
-            }
-            if (idle) {
-                supply.idleMiners += 1;
-            }
-        } else if (isMaintainer(cs)) {
-            if (!isExpiringSoon(cs.creep, "maintainer")) {
-                supply.work += countBodyParts(cs.creep, WORK);
-                supply.maintainerCreeps += 1;
-            }
-            if (idle) {
-                supply.idleWorkers += 1;
-            }
-        } else if (isWorker(cs)) {
-            if (!isExpiringSoon(cs.creep, "worker")) {
-                supply.work += countBodyParts(cs.creep, WORK);
-                supply.workerCreeps += 1;
-            }
-            if (idle) {
-                supply.idleWorkers += 1;
-            }
-        } else if (isScout(cs)) {
-            if (!isExpiringSoon(cs.creep, "scout")) {
-                supply.scout += 1;
-            }
-            if (idle) {
-                supply.idleScouts += 1;
-            }
-        } else {
-            const carryParts = countBodyParts(cs.creep, CARRY);
-            const isHauler = carryParts > 0 && !hasBodyPart(cs.creep, WORK);
-
-            if (isHauler) {
-                const expiring = isExpiringSoon(cs.creep, "hauler");
+        switch (role) {
+            case "attacker":
                 if (!expiring) {
-                    supply.carry += carryParts;
+                    supply.attackCombat += countCombatParts(cs.creep);
+                    supply.attackerCreeps += 1;
+                }
+                if (idle) supply.idleAttackers += 1;
+                break;
+            case "defender":
+                if (!expiring) {
+                    supply.combat += countCombatParts(cs.creep);
+                    supply.defenderCreeps += 1;
+                }
+                if (idle) supply.idleDefenders += 1;
+                break;
+            case "miner":
+                if (!expiring) {
+                    supply.mine += countBodyParts(cs.creep, WORK);
+                    supply.minerCreeps += 1;
+                }
+                if (idle) supply.idleMiners += 1;
+                break;
+            case "mineralHarvester":
+                // Specialized extractor sink: not source-mining, not builder labor, so its parts
+                // feed neither the `mine` nor `work` pressure totals.
+                if (!expiring) supply.mineralHarvesterCreeps += 1;
+                if (idle) supply.idleWorkers += 1;
+                break;
+            case "maintainer":
+                if (!expiring) {
+                    supply.work += countBodyParts(cs.creep, WORK);
+                    supply.maintainerCreeps += 1;
+                }
+                if (idle) supply.idleWorkers += 1;
+                break;
+            case "worker":
+                if (!expiring) {
+                    supply.work += countBodyParts(cs.creep, WORK);
+                    supply.workerCreeps += 1;
+                }
+                if (idle) supply.idleWorkers += 1;
+                break;
+            case "scout":
+                if (!expiring) supply.scout += 1;
+                if (idle) supply.idleScouts += 1;
+                break;
+            case "hubHauler":
+                if (!expiring) {
+                    supply.carry += countBodyParts(cs.creep, CARRY);
+                    supply.hubHaulerCreeps += 1;
+                }
+                if (idle || expiring) supply.idleHaulers += 1;
+                break;
+            case "fastFiller":
+                if (!expiring) {
+                    supply.carry += countBodyParts(cs.creep, CARRY);
+                    supply.fastFillerCreeps += 1;
+                }
+                if (idle || expiring) supply.idleHaulers += 1;
+                break;
+            case "hauler":
+                if (!expiring) {
+                    supply.carry += countBodyParts(cs.creep, CARRY);
                     supply.haulerCreeps += 1;
                 }
-
-                if (idle || expiring) {
-                    supply.idleHaulers += 1;
-                }
-            }
+                if (idle || expiring) supply.idleHaulers += 1;
+                break;
+            case "reserver":
+                // Reserver demand is self-limiting via AttackPlan.needsReservation; preserve the
+                // prior behavior of not folding live reservers into any supply bucket.
+                break;
         }
     }
 
@@ -868,15 +961,15 @@ function currentCreepsForRole(role: SpawnRequestRole, supply: SupplyTotals): num
         case "miner":
             return supply.minerCreeps + supply.incomingMiners;
         case "mineralHarvester":
-            return supply.minerCreeps + supply.incomingMiners;
+            return supply.mineralHarvesterCreeps + supply.incomingMineralHarvesters;
         case "hauler":
             return supply.haulerCreeps + supply.incomingHaulers;
         case "hubHauler":
             return supply.hubHaulerCreeps + supply.incomingHubHaulers;
         case "fastFiller":
-            return supply.haulerCreeps + supply.incomingHaulers;
+            return supply.fastFillerCreeps + supply.incomingFastFillers;
         case "maintainer":
-            return supply.workerCreeps + supply.incomingWorkers;
+            return supply.maintainerCreeps + supply.incomingMaintainers;
         case "worker":
             return supply.workerCreeps + supply.incomingWorkers;
         case "defender":
@@ -1289,41 +1382,7 @@ function selectSpawnIntent(room: Room, supply: SupplyTotals, availableEnergy: nu
 }
 
 function incrementIncomingSupply(supply: SupplyTotals, kind: SpawnIntentKind): void {
-    switch (kind) {
-        case SpawnIntentKind.SCOUT:
-            supply.incomingScouts += 1;
-            break;
-        case SpawnIntentKind.MINER:
-            supply.incomingMiners += 1;
-            break;
-        case SpawnIntentKind.MINERAL_HARVESTER:
-            supply.incomingMiners += 1;
-            break;
-        case SpawnIntentKind.HAULER:
-            supply.incomingHaulers += 1;
-            break;
-        case SpawnIntentKind.HUB_HAULER:
-            supply.incomingHubHaulers += 1;
-            break;
-        case SpawnIntentKind.FAST_FILLER:
-            supply.incomingFastFillers += 1;
-            break;
-        case SpawnIntentKind.MAINTAINER:
-            supply.incomingMaintainers += 1;
-            break;
-        case SpawnIntentKind.WORKER:
-            supply.incomingWorkers += 1;
-            break;
-        case SpawnIntentKind.DEFENDER:
-            supply.incomingDefenders += 1;
-            break;
-        case SpawnIntentKind.CLAIMER:
-            supply.incomingScouts += 1;
-            break;
-        case SpawnIntentKind.ATTACKER:
-            supply.incomingAttackers += 1;
-            break;
-    }
+    incrementIncomingForRole(supply, roleFromIntent(kind));
 }
 
 /* ============================================================
@@ -1398,7 +1457,7 @@ export class SpawnManager {
             if (!body || body.length === 0) continue;
 
             const result = spawn.spawnCreep(body, `${SpawnIntentKind[intent.kind]}-${spawn.name}-${Game.time}`, {
-                memory: getDefaultCreepMemory(room.name)
+                memory: { ...getDefaultCreepMemory(room.name), spawnRole: roleFromIntent(intent.kind) }
             });
 
             if (result === OK) {

@@ -69,7 +69,10 @@ describe("loop scenarios", () => {
         setGameTime(1);
         loop();
         const firstSupportRun = (global as any).Memory.planRuns.support;
-        const firstGrowthRun = (global as any).Memory.planRuns.growth;
+        // infrastructure is a long-cadence plan (interval 25): it should run once at tick 1 and not
+        // again by tick 11, in contrast to support (interval 10) which re-runs. (The old "growth"
+        // plan this used to assert was merged into ExpansionPlan via updateRoomGrowth.)
+        const firstInfrastructureRun = (global as any).Memory.planRuns.infrastructure;
 
         setGameTime(2);
         loop();
@@ -80,8 +83,8 @@ describe("loop scenarios", () => {
         assert.isAtLeast(spawnCalls.length, 1);
         assert.deepEqual(spawnCalls[0].body, [MOVE, CARRY, WORK]);
         assert.equal(firstSupportRun, 1);
-        assert.equal(firstGrowthRun, 1);
+        assert.equal(firstInfrastructureRun, 1);
         assert.equal((global as any).Memory.planRuns.support, 11);
-        assert.equal((global as any).Memory.planRuns.growth, 1);
+        assert.equal((global as any).Memory.planRuns.infrastructure, 1);
     });
 });

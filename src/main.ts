@@ -35,6 +35,12 @@ declare global {
         remoteEnergyRoom?: string;
         working: boolean;
         ownerRoom: string;
+        // The spawn-side role this creep was built for. This is NOT a behavioral role:
+        // task assignment is purely capability-based (see TaskAssignment). It exists only so
+        // SpawnManager can count how many of each body template are alive — several roles share
+        // identical bodies (hauler/hubHauler/fastFiller, worker/mineralHarvester) and cannot be
+        // re-derived from body parts. Optional: legacy/untagged creeps fall back to body heuristics.
+        spawnRole?: SpawnRequestRole;
     }
 
     interface RoomTopology {

@@ -8,6 +8,8 @@ This file summarizes the Screeps rules that matter most when editing this reposi
 - The world persists between ticks, but your JavaScript global state can reset at any time.
 - `Memory` persists across ticks and is the durable store for task and creep state.
 - This repo also persists planner cadence in `Memory.planRuns`, so scheduling changes can have cross-tick effects even when the code path looks stateless.
+- The game runtime is **Node.js 24 (V8 13.6)** as of the April 2026 server upgrade (it previously ran Node 10). Code is sandboxed via isolated-vm, so the JavaScript language and built-ins are fully modern, but host-only Node APIs (`fs`, `process`, `require('crypto')`, real timers) are not available.
+- This repo compiles to **`es2024`** (see `tsconfig.json`). Modern syntax and built-ins — optional chaining, nullish coalescing, logical assignment, `Array.at`/`findLast`/`toSorted`/`with`, `Object.hasOwn`/`groupBy`, `String.replaceAll` — run natively rather than being transpiled away, which keeps the bundle smaller and faster.
 
 ## Map Model
 

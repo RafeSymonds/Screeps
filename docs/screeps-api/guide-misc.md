@@ -32,7 +32,7 @@
 
 ## Server Architecture
 
-- Node.js 8.9.3, MongoDB, Redis
+- Node.js 24 (V8 13.6), MongoDB, Redis
 - Two-phase ticks: player script execution → command processing
 - Player code isolated via Node.js `vm` module
 - Global objects reusable across tick executions (until global reset)

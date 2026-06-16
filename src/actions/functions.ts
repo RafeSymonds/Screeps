@@ -54,7 +54,10 @@ export function build(creepState: CreepState, target: ConstructionSite): Screeps
     return result;
 }
 
-export function upgrade(creepState: CreepState, target: StructureController): ScreepsReturnCode | undefined {
+export function upgrade(
+    creepState: CreepState,
+    target: StructureController
+): ScreepsReturnCode | ERR_ACCESS_DENIED | undefined {
     const creep = creepState.creep;
     const result = creep.upgradeController(target);
 
@@ -115,12 +118,18 @@ export function pickup(creepState: CreepState, target: Resource): ScreepsReturnC
     return result;
 }
 
-export function claim(creepState: CreepState, target: StructureController): ScreepsReturnCode {
+export function claim(
+    creepState: CreepState,
+    target: StructureController
+): ScreepsReturnCode | ERR_GCL_NOT_ENOUGH | ERR_ACCESS_DENIED {
     const creep = creepState.creep;
     return creep.claimController(target);
 }
 
-export function reserve(creepState: CreepState, target: StructureController): ScreepsReturnCode {
+export function reserve(
+    creepState: CreepState,
+    target: StructureController
+): ScreepsReturnCode | ERR_ACCESS_DENIED {
     const creep = creepState.creep;
     return creep.reserveController(target);
 }

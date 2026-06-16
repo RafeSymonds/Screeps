@@ -6,7 +6,10 @@ export function getDefaultCreepMemory(roomName: string, existing?: Partial<Creep
         lastTaskRoom: existing?.lastTaskRoom,
         energyTargetId: undefined,
         working: false,
-        ownerRoom: roomName
+        ownerRoom: roomName,
+        // spawnRole is a stable identity tag (which body template this creep is), not task state —
+        // it must survive task resets so SpawnManager keeps counting the creep against the right role.
+        spawnRole: existing?.spawnRole
     };
 }
 

@@ -39,7 +39,7 @@ VS Code creates a dev container the first time you open the project. After the d
 
 The container pre-installs and configures all Pre-Requisites for this project + other utils for your daily basis:
 
-- Node 12
+- Node 24
 - git
 - ca-certificates
 - openssl

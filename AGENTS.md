@@ -32,9 +32,10 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
 - **Task-Driven Demand**: `SpawnManager` derives demand from the current task list. If your plan adds tasks, you are responsible for the spawn pressure impact.
 
 ## Workflow Summary
+- Runtime & toolchain: the Screeps game runtime is **Node.js 24 (V8 13.6)** (April 2026 upgrade, up from Node 10). The build compiles to **`es2024`** via the official `@rollup/plugin-typescript`. The local build/test toolchain needs Node `>=20`.
 - Current baseline:
-  `npm run build` passes.
-  `npm run test` currently fails under the repo's legacy TypeScript/Mocha harness assumptions.
+  `npm run build` passes (bundles `src/main.ts` → `dist/main.js`).
+  `npm run test-unit` passes (52 tests). `npm run test-integration` has 2 pre-existing failures in the planning suites (`infrastructurePlanning`, `loopScenarios`) unrelated to the runtime upgrade.
   `npm run lint` currently reports many pre-existing violations after the ESLint config compatibility fix.
 - If changing deploy behavior, also inspect [rollup.config.js](/Users/rafe/games/screeps/rollup.config.js) and the shell wrappers [deploy](/Users/rafe/games/screeps/deploy) and [deploy_private](/Users/rafe/games/screeps/deploy_private).
 
@@ -44,6 +45,7 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
 - `Memory` survives ticks. Globals do not. Module-level caches must tolerate global resets.
 - Creep body design is constrained by spawn energy, move fatigue, carry throughput, and creep lifetime.
 - Many bugs only show up over multiple ticks. If you change scheduling, spawning, or memory ownership, reason across several ticks, not just one call site.
+- The runtime is **Node.js 24 (V8 13.6)** and the build targets `es2024`, so modern JavaScript runs natively (optional chaining, nullish coalescing, logical assignment, `Array.at`/`findLast`/`toSorted`, `Object.hasOwn`/`groupBy`, `String.replaceAll`). Host-only Node APIs (`fs`, `process`, `crypto`, real timers) are still unavailable inside the isolated-vm sandbox.
 
 ## Current Commands
 

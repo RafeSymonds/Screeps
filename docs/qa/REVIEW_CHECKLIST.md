@@ -56,7 +56,7 @@ For surgical economy or memory changes, see the [Lightweight Regression Checklis
 
 ### Environment Compatibility
 - [ ] **Private Server Support**: If changing `deploy` scripts, does it still work with `SCREEPS_LOCAL_PATH` for private servers?
-- [ ] **Node Version**: Does the change rely on Node.js features not supported by the Screeps runtime?
+- [ ] **Node Version**: The Screeps runtime is **Node.js 24 (V8 13.6)** and the build targets `es2024`, so modern JavaScript runs natively (optional chaining, nullish coalescing, logical assignment, `Array.at`/`findLast`/`toSorted`/`with`, `Object.hasOwn`/`groupBy`, `String.replaceAll`, etc.). Host-only Node APIs (`fs`, `process`, `require('crypto')`, timers) remain unavailable inside the sandbox.
 
 ---
 

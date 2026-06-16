@@ -210,8 +210,13 @@ function planExtensions(room: Room, created: { count: number }) {
 
     const spawnRange = anchor.pos.getRangeTo(anchor.pos.findClosestByRange(FIND_MY_SPAWNS)!) <= 2 ? 1 : 2;
 
+    // Track placement against the needed count so we don't greedily consume the whole per-run
+    // budget with extensions and starve higher-value sites (source containers, roads).
+    let placed = currentTotal;
+
     for (let dx = -4; dx <= 4; dx++) {
         for (let dy = -4; dy <= 4; dy++) {
+            if (placed >= neededExtensions) return;
             if (created.count >= MAX_NEW_SITES_PER_RUN) return;
             if (Object.keys(Game.constructionSites).length >= MAX_CONSTRUCTION_SITES) return;
 
@@ -228,6 +233,7 @@ function planExtensions(room: Room, created: { count: number }) {
 
             if (pos.createConstructionSite(STRUCTURE_EXTENSION) === OK) {
                 created.count += 1;
+                placed += 1;
             }
         }
     }

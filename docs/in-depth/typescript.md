@@ -8,6 +8,18 @@ To read more about how TypeScript can help you in Screeps, read [this Screeps Wo
 
 This section provides TypeScript-specific tips & tricks for you to make the best out of the ecosystem.
 
+## Compile target & runtime
+
+The Screeps game runtime was upgraded to **Node.js 24 (V8 13.6)** in April 2026 (it previously ran Node 10 / V8 ~6.x). To take advantage of this, `tsconfig.json` sets both `target` and `lib` to **`es2024`**.
+
+Practically, this means:
+
+- Modern syntax and built-ins compile straight through instead of being down-leveled — optional chaining (`?.`), nullish coalescing (`??`), logical assignment (`??=`/`||=`/`&&=`), `Array.prototype.at`/`findLast`/`toSorted`/`toReversed`/`with`, `Object.hasOwn`/`groupBy`, `String.prototype.replaceAll`, and more all run natively.
+- The shipped `dist/main.js` is smaller and faster because the compiler no longer emits the verbose `(_a = x) === null || _a === void 0 ? ...` helper expansions for every `?.`.
+- The engine still provides **lodash 3.10.1** globally as `_`; the Node upgrade does not change that.
+
+Bundling is handled by the official **`@rollup/plugin-typescript`** (we migrated off the unmaintained `rollup-plugin-typescript2`, which silently passed raw `.ts` through under TypeScript 5.x). The local build/test toolchain requires Node `>=20`.
+
 ## Strict mode
 
 The `--strict` compiler flag was introduced in TypeScript 2.3 which activates TypeScript's "strict mode". The strict mode sets all strict typechecking options to `true` by default.
