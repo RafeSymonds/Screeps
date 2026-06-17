@@ -1,47 +1,115 @@
 import { ErrorMapper } from "utils/ErrorMapper";
+import { bootstrapMemory, cleanDeadCreeps } from "memory/bootstrap";
+import { World } from "world/World";
+import { JobBoard } from "jobs/JobBoard";
+import { generateJobs } from "jobs/generators";
+import { GreedyMatcher, idleEconomyCreeps } from "matching/Matcher";
+import { SpawnManager } from "spawn/SpawnManager";
+import { SpawnRequestQueue } from "spawn/queue";
+import { runCreep } from "actions/executors";
+import { assessDefense } from "defense/Defense";
+import { runTowers } from "defense/Towers";
+import { planBase } from "base/BasePlanner";
+import { updateIntel } from "intel/Scouting";
+import { planExpansion } from "expansion/Expansion";
+import { planCombat } from "combat/Combat";
+import { commandControllerCreeps } from "controllers";
+import { shouldRun } from "cpu/Scheduler";
+import { shouldGeneratePixel } from "cpu/CpuBudget";
+import { BASE_INTERVAL, SCOUT_INTERVAL } from "config/constants";
+import { Job } from "jobs/types";
+import { SpawnRole } from "spawn/types";
+import { RoomIntel } from "intel/types";
+import { BasePlan } from "base/types";
+import { DefenseState } from "defense/types";
 
 declare global {
-    /*
-      Example types, expand on these or remove them and add your own.
-      Note: Values, properties defined here do no fully *exist* by this type definition alone.
-            You must also give them an implementation if you would like to use them. (ex. actions/loops)
-
-      Types added in this `global` block are in an ambient, global context. This is needed because `main.ts`
-      is a module file (uses import or export).
-
-      Interfaces matching on name from @types/screeps will be merged. This is how you can extend the
-      'built-in' interfaces from @types/screeps.
-    */
-    // Memory extension samples
     interface Memory {
-        uuid: number;
-        log: unknown;
+        version: number;
+        jobs: Record<string, Job>;
+        planRuns: Record<string, number>;
+        empire?: unknown;
     }
 
     interface CreepMemory {
-        role: string;
-        room: string;
+        /** Body/population tag set at spawn. NOT behavioral — matching is capability-based. */
+        spawnRole: SpawnRole;
+        /** Home room this creep belongs to. */
+        home: string;
+        /** Gather (false) vs act (true) phase used by sink executors. */
         working: boolean;
+        /** Current sticky job assignment (economy creeps). */
+        jobId?: string;
+        /** If set, a subsystem controller commands this creep and matching skips it. */
+        controller?: string;
     }
 
-    // Syntax for adding properties to `global` (ex "global.log")
-    // eslint-disable-next-line @typescript-eslint/no-namespace
-    namespace NodeJS {
-        interface Global {
-            log: unknown;
-        }
+    interface RoomMemory {
+        version?: number;
+        intel?: RoomIntel;
+        base?: BasePlan;
+        defense?: DefenseState;
     }
 }
 
-// When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change.
-// This utility uses source maps to get the line numbers and file names of the original, TS source code.
-export const loop = ErrorMapper.wrapLoop(() => {
-    console.log(`Current game tick is ${Game.time}`);
+// Stateless singletons; safe to persist across ticks and tolerate global resets.
+const matcher = new GreedyMatcher();
+const spawnManager = new SpawnManager();
 
-    // Automatically delete memory of missing creeps
-    for (const name in Memory.creeps) {
-        if (!(name in Game.creeps)) {
-            delete Memory.creeps[name];
+/**
+ * Tick pipeline. Each numbered step maps to one architecture layer; layers
+ * communicate only through the JobBoard and the SpawnRequestQueue.
+ */
+export const loop = ErrorMapper.wrapLoop(() => {
+    // 1-2. Memory + dead creep hygiene.
+    bootstrapMemory();
+    const board = new JobBoard();
+    board.rehydrate();
+    cleanDeadCreeps();
+
+    // 3. World read model.
+    const world = new World();
+
+    // 4. Scouting (throttled).
+    if (shouldRun("scout", SCOUT_INTERVAL)) {
+        updateIntel(world);
+    }
+
+    // 5. Strategy: planners post jobs and spawn requests.
+    const spawnQueue = new SpawnRequestQueue();
+    spawnQueue.pushAll(assessDefense(world));
+    generateJobs(world, board);
+    if (shouldRun("base", BASE_INTERVAL)) {
+        planBase(world);
+    }
+    spawnQueue.pushAll(planExpansion(world));
+    spawnQueue.pushAll(planCombat(world));
+
+    // 6. Job bookkeeping.
+    board.reconcile();
+    board.prune(world);
+
+    // 7. Spawn (demand + requests + floor).
+    spawnManager.run(world, board, spawnQueue);
+
+    // 8. Matching (sticky: idle economy creeps only).
+    matcher.assign(idleEconomyCreeps(world, board), board, world);
+
+    // 9. Tactical execution.
+    runTowers(world);
+    commandControllerCreeps(world);
+    for (const creep of world.creeps) {
+        if (creep.spawning || creep.memory.controller) {
+            continue;
         }
+        runCreep(creep, board, world);
+    }
+
+    // 10. Persist jobs.
+    board.persist();
+
+    // 11. Opportunistic pixel generation.
+    if (shouldGeneratePixel()) {
+        Game.cpu.generatePixel();
     }
 });

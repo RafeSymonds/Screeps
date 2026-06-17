@@ -1,5 +1,9 @@
 # Repo Map
 
+> **OUTDATED (June 2026 restart).** This document describes a previous bot that
+> was deleted. For the current architecture see
+> [docs/architecture/MODULAR_ARCHITECTURE.md](../architecture/MODULAR_ARCHITECTURE.md).
+
 ## Tick Flow
 
 The active runtime starts in [src/main.ts](/Users/rafe/games/screeps/src/main.ts):
