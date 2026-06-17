@@ -1,80 +1,77 @@
 # Screeps AI
 
-Custom Screeps AI built on top of `screeps-typescript-starter`. The active codebase is no longer a generic starter layout: it runs a persistent per-tick control loop that rehydrates task state from `Memory`, builds a world model, schedules CPU-aware planning passes, decides spawn intents, assigns labor, executes tower and creep actions, and writes state back to `Memory`.
+A modular Screeps AI built on `screeps-typescript-starter`. The codebase was rebuilt from scratch
+(June 2026) around one principle: **clean layer boundaries so every subsystem can be improved in
+isolation.** Subsystems express their needs through two shared contracts — `Job` (persistent work) and
+`SpawnRequest` (controller-requested creeps) — and shared services (spawning, matching, action
+execution) staff them.
+
+Full design: [docs/architecture/MODULAR_ARCHITECTURE.md](docs/architecture/MODULAR_ARCHITECTURE.md).
 
 ## Project Shape
 
-- [src/main.ts](/Users/rafe/games/screeps/src/main.ts): tick entrypoint and memory bootstrap.
-- [src/world](/Users/rafe/games/screeps/src/world): world and room views used during planning.
-- [src/plans](/Users/rafe/games/screeps/src/plans): CPU-throttled planning passes for defense, economy, growth, remotes, support, expansion, and attack.
-- [src/tasks](/Users/rafe/games/screeps/src/tasks): task definitions, creation, requirements, and assignment.
-- [src/creeps](/Users/rafe/games/screeps/src/creeps): creep state, controllers, and action execution.
-- [src/spawner](/Users/rafe/games/screeps/src/spawner): spawn decision logic.
-- [src/rooms](/Users/rafe/games/screeps/src/rooms): room intel, topology, support, growth, pathing, and economy helpers.
-- [src/combat](/Users/rafe/games/screeps/src/combat): tower targeting and combat support utilities.
-- [src/cpu](/Users/rafe/games/screeps/src/cpu): bucket-aware throttling and pixel generation rules.
+- [src/main.ts](src/main.ts): kernel — ambient `Memory` schema and the tick pipeline.
+- [src/config](src/config): central tunables (`constants.ts`).
+- [src/cpu](src/cpu): bucket tiers (`CpuBudget`) and interval scheduling (`Scheduler`).
+- [src/world](src/world): per-tick read model (`World`, `WorldRoom`).
+- [src/jobs](src/jobs): persistent work (`Memory.jobs`) — `JobBoard` + economy generators.
+- [src/matching](src/matching): sticky, capability-based assignment (`Matcher`, `capability`, `scoring`).
+- [src/actions](src/actions): atomic `primitives`, shared `energy` helpers, and per-kind `executors`.
+- [src/spawn](src/spawn): demand-driven spawning with a floor (`SpawnManager`, `bodies`, `queue`).
+- [src/defense](src/defense): threat assessment + tower control.
+- [src/base](src/base): minimal base planning (source containers + extensions).
+- [src/intel](src/intel): passive scouting → `RoomIntel`.
+- [src/controllers](src/controllers): tactical phase for controller-commanded creeps.
+- [src/expansion](src/expansion), [src/combat](src/combat), [src/tasks](src/tasks): seams (stubs) for
+  expansion, offensive combat, and the future task-chaining layer.
 
 ## Tick Pipeline
 
-The main loop in [src/main.ts](/Users/rafe/games/screeps/src/main.ts) runs in this order:
+The kernel in [src/main.ts](src/main.ts) runs each tick in this order:
 
-1. Clear stale cached paths.
-2. Bootstrap top-level `Memory` collections.
-3. Rehydrate tasks through `TaskManager`.
-4. Remove dead creeps from `Memory` and task assignments.
-5. Normalize creep memory and wrap live creeps in `CreepState`.
-6. Build `World`, `WorldRoom`, and `ResourceManager`.
-7. Run CPU-aware plans through `PlanManager`.
-8. Prune invalid tasks.
-9. Run `SpawnManager`.
-10. Assign creeps to tasks.
-11. Run tower defense and repairs.
-12. Execute creep actions.
-13. Persist creep and task data back to `Memory`.
-14. Update CPU averages and opportunistically generate pixels when the bucket is high.
+1. Bootstrap `Memory` + run version-gated migrations.
+2. Rehydrate the `JobBoard` and delete dead creeps' memory.
+3. Build the `World` read model.
+4. Scouting (throttled) → `RoomIntel`.
+5. Strategy: `assessDefense`, economy `generateJobs`, `planBase` (throttled), expansion/combat stubs —
+   posting jobs and spawn requests.
+6. `JobBoard.reconcile()` + `prune()`.
+7. `SpawnManager.run()` — merge job demand + spawn requests + a population floor.
+8. `Matcher.assign()` — sticky matching of idle economy creeps only.
+9. Tactical: towers, controller-commanded creeps, then per-creep job executors.
+10. Persist the `JobBoard`.
+11. Opportunistic pixel generation when the bucket is high.
 
 ## Common Commands
 
 ```bash
-npm run build
-npm run test
-npm run lint
-npm run lint:fix
-npm run push-main
-npm run push-pserver
-npm run push-season
+npm run build      # bundle src/main.ts -> dist/main.js
+npm run test       # unit + integration suites (mocha)
+npm run lint       # eslint (see Validation Notes — currently blocked by toolchain)
+npm run push-main  # upload using the `main` target in screeps.json
 npm run push-sim
 npm run privateServer
 npm run watch-main
-npm run watch-pserver
-npm run watch-season
-npm run watch-sim
-npm run agent:roles
-npm run agent:queue
-npm run agent:process
 ```
 
 ## Local Setup
 
 1. Install dependencies with `npm install`.
-2. Copy [screeps.sample.json](/Users/rafe/games/screeps/screeps.sample.json) to `screeps.json`.
-3. Fill in the relevant Screeps credentials or server host settings.
-4. For private-server deploys, set `SCREEPS_LOCAL_PATH` if the default local client path is not correct for your machine.
+2. Copy [screeps.sample.json](screeps.sample.json) to `screeps.json`.
+3. Fill in Screeps credentials or server host settings.
+4. For private-server deploys, set `SCREEPS_LOCAL_PATH` if the default local client path is wrong.
 
 ## Validation Notes
 
-- `npm run build` is the current reliable baseline check.
-- `npm run test` runs both unit and integration suites via the TypeScript test build.
-- `npm run lint` targets `src/**/*.ts`.
-- `npm run lint:fix` can be used to automatically fix many lint violations.
-- Some agent docs call out known failures or pre-existing lint debt; check [AGENTS.md](/Users/rafe/games/screeps/AGENTS.md) before treating those as regressions.
+- `npm run build` is the reliable baseline check (bundles via `@rollup/plugin-typescript`).
+- `npm run test` runs unit + integration suites (currently 17 unit + 1 integration, all passing).
+- `npm run lint` is **currently broken repo-wide** with `Invalid value for lib provided: es2024` —
+  the installed `@typescript-eslint` parser predates `es2024` and fails to parse every file. This is
+  pre-existing toolchain debt; build and tests are the working gates.
 
-## Agent Guidance
+## Guidance
 
-This project uses a durable multi-agent workflow for development and maintenance. For onboarding and architectural guidance, see:
-
-- [AGENTS.md](/Users/rafe/games/screeps/AGENTS.md): The "Start Here" guide for all agents and contributors.
-- [docs/agent-workflow.md](/Users/rafe/games/screeps/docs/agent-workflow.md): Comprehensive guide to roles, session state, and queue resolution.
-- [docs/agents/REPO_MAP.md](/Users/rafe/games/screeps/docs/agents/REPO_MAP.md): Technical overview of the tick pipeline and codebase subsystems.
-- [docs/agents/SCREEPS_PRIMER.md](/Users/rafe/games/screeps/docs/agents/SCREEPS_PRIMER.md): Summary of Screeps game rules and their impact on this AI.
-- [agents/README.md](/Users/rafe/games/screeps/agents/README.md): Quick reference for the `agents/` workspace.
+- [AGENTS.md](AGENTS.md): start-here guide for contributors and agents.
+- [docs/architecture/MODULAR_ARCHITECTURE.md](docs/architecture/MODULAR_ARCHITECTURE.md): the current design.
+- [docs/agents/REPO_MAP.md](docs/agents/REPO_MAP.md): subsystem-by-subsystem map.
+- [docs/agents/SCREEPS_PRIMER.md](docs/agents/SCREEPS_PRIMER.md): Screeps rules that shape the AI.

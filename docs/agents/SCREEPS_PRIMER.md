@@ -6,8 +6,8 @@ This file summarizes the Screeps rules that matter most when editing this reposi
 
 - Screeps runs your code once per game tick.
 - The world persists between ticks, but your JavaScript global state can reset at any time.
-- `Memory` persists across ticks and is the durable store for task and creep state.
-- This repo also persists planner cadence in `Memory.planRuns`, so scheduling changes can have cross-tick effects even when the code path looks stateless.
+- `Memory` persists across ticks and is the durable store for jobs (`Memory.jobs`) and creep state.
+- This repo also persists pass cadence in `Memory.planRuns`, so scheduling changes can have cross-tick effects even when the code path looks stateless.
 - The game runtime is **Node.js 24 (V8 13.6)** as of the April 2026 server upgrade (it previously ran Node 10). Code is sandboxed via isolated-vm, so the JavaScript language and built-ins are fully modern, but host-only Node APIs (`fs`, `process`, `require('crypto')`, real timers) are not available.
 - This repo compiles to **`es2024`** (see `tsconfig.json`). Modern syntax and built-ins — optional chaining, nullish coalescing, logical assignment, `Array.at`/`findLast`/`toSorted`/`with`, `Object.hasOwn`/`groupBy`, `String.replaceAll` — run natively rather than being transpiled away, which keeps the bundle smaller and faster.
 
@@ -35,16 +35,16 @@ This file summarizes the Screeps rules that matter most when editing this reposi
 - Every tick has a CPU limit plus a bucket that absorbs bursts.
 - Hot-path code should avoid redundant searches, excess pathfinding, and unnecessary object churn.
 - Logging in per-creep or per-room loops can become a real performance problem.
-- In this repo, the CPU bucket is part of gameplay behavior: non-critical plans are delayed or skipped when the bucket is low, and pixels are generated when the bucket is high.
+- In this repo, the CPU bucket is part of gameplay behavior: non-critical passes are delayed or skipped when the bucket is low, and pixels are generated when the bucket is high.
 
 ## Implications For This Repo
 
-- Task logic should be stable across many ticks, not just correct for a single call.
-- Remote mining changes often have second-order effects on hauling and spawn demand.
+- Job and executor logic should be stable across many ticks, not just correct for a single call.
+- Spawn demand is derived from open job slots, so adding jobs has second-order effects on spawning.
 - Room intel and scouting data become stale, so code should tolerate partial information.
-- Memory migrations need explicit handling because old data can survive long after code changes.
-- Plan changes should be reasoned about in terms of both execution order and interval throttling.
-- Tower behavior is a distinct execution phase after task assignment and before creep actions, so defense changes may bypass normal task logic.
+- Memory migrations need explicit handling because old data can survive long after code changes (though `Memory.jobs` regenerates each tick and is safe to wipe).
+- Pass changes should be reasoned about in terms of both execution order and interval throttling.
+- Tower behavior is a distinct execution phase after job matching and before creep actions, so defense changes may bypass the normal job pipeline.
 
 ## Official References
 

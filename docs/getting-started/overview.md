@@ -1,34 +1,28 @@
 # Project Overview
 
-This repository is a custom Screeps AI that replaces the empty logic of the upstream starter kit with a persistent, CPU-aware tick loop.
+This repository is a modular Screeps AI (rebuilt June 2026) that replaces the empty logic of the
+upstream starter kit with a persistent, CPU-aware tick loop organized into clean layers.
 
 ## Core Tick Pipeline
 
 The AI runs a structured pipeline every tick:
 
-1. **Memory Bootstrap**: Rehydrating persistent task and world state.
-2. **World View Building**: Normalizing room and creep state into a shared world model.
-3. **CPU-Aware Planning**: Strategizing economy, defense, growth, and exploration. Plans are skipped when CPU bucket is low.
-4. **Task Assignment**: Matching live creeps to rehydrated or newly created tasks.
-5. **Action Execution**: Towers and creeps execute their assigned work.
-6. **Memory Persistence**: Saving the updated state for the next tick.
+1. **Memory bootstrap**: init `Memory`, run migrations, rehydrate the `JobBoard`, clean dead creeps.
+2. **World view**: build the per-tick `World`/`WorldRoom` read model.
+3. **Strategy (throttled)**: scouting, economy job generation, defense assessment, base planning —
+   posting jobs and spawn requests. Non-critical passes are skipped when the CPU bucket is low.
+4. **Spawning**: merge job demand + controller spawn requests + a population floor.
+5. **Matching**: assign idle creeps to open jobs by capability (sticky).
+6. **Execution**: towers, controller-commanded creeps, then per-creep job executors.
+7. **Persistence**: write the `JobBoard` back to `Memory`.
 
-For more details on these subsystems, see the [Repo Map](../agents/REPO_MAP.md).
+For subsystem detail, see the [Repo Map](../agents/REPO_MAP.md) and
+[Modular Architecture](../architecture/MODULAR_ARCHITECTURE.md).
 
 ## Common Development Commands
 
-- `npm run build`: Bundles the project without uploading.
-- `npm run privateServer`: The standard baseline check for local development. Deploys code to a path specified in `screeps.json`.
-- `npm run test`: Runs unit tests (check `AGENTS.md` for current status).
-- `npm run lint`: Runs ESLint on `src/**/*.ts`.
-- `npm run push-main`: Deploys to the "main" target in `screeps.json`.
-
-## Multi-Agent Operations
-
-If you are using the headless agent runner, use these commands:
-
-- `npm run agent:roles`: List all available agent roles.
-- `npm run agent:queue`: Refresh the task queue.
-- `npm run agent:process`: Rehearse the next tasks in the queue (dry-run).
-
-For more on this workflow, see the [Agent Workflow](../agent-workflow.md) guide.
+- `npm run build`: bundle the project without uploading.
+- `npm run privateServer`: deploy to the local path in `screeps.json` (baseline local check).
+- `npm run test`: unit + integration tests.
+- `npm run lint`: ESLint on `src/**/*.ts` (see `AGENTS.md` for current status).
+- `npm run push-main`: deploy to the "main" target in `screeps.json`.

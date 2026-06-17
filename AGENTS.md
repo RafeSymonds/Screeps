@@ -1,51 +1,77 @@
 # AGENTS.md
 
-This repository is a Screeps AI written in TypeScript. Agents should optimize for safe, incremental changes that preserve in-game behavior and CPU efficiency.
+This repository is a modular Screeps AI written in TypeScript. Optimize for safe, incremental changes
+that respect the layer boundaries below and preserve in-game stability and CPU efficiency.
+
+The bot was rebuilt from scratch in June 2026. The current design is
+[docs/architecture/MODULAR_ARCHITECTURE.md](docs/architecture/MODULAR_ARCHITECTURE.md).
 
 ## Start Here
 
-1. Read [README.md](/Users/rafe/games/screeps/README.md).
-2. Read [docs/agent-workflow.md](/Users/rafe/games/screeps/docs/agent-workflow.md).
-3. Review the [Shared Review Checklist](/Users/rafe/games/screeps/docs/qa/REVIEW_CHECKLIST.md) (or the lightweight [Regression Checklist](/Users/rafe/games/screeps/docs/qa/REGRESSION_CHECKLIST.md) for economy/memory changes) for risky changes.
-    - **Memory**: Ambient types updated? Migration/cleanup needed? Stale data pruning?
-    - **Balance**: 300 energy bootstrap possible? Task demand reported? Priority inversions?
-    - **Remotes**: Route length in formula? Safety interlocks? Visibility handling?
-    - **CPU**: O(n) loops avoided? Caching used? Throttling respected?
-4. Read [docs/agents/REPO_MAP.md](/Users/rafe/games/screeps/docs/agents/REPO_MAP.md).
-5. Read [docs/architecture/ECONOMY_DECOMPOSITION.md](/Users/rafe/games/screeps/docs/architecture/ECONOMY_DECOMPOSITION.md) for economy-facing task boundaries.
-6. Read [docs/agents/SCREEPS_PRIMER.md](/Users/rafe/games/screeps/docs/agents/SCREEPS_PRIMER.md).
-7. Inspect the code you are about to change, starting from [src/main.ts](/Users/rafe/games/screeps/src/main.ts).
+1. Read [README.md](README.md).
+2. Read [docs/architecture/MODULAR_ARCHITECTURE.md](docs/architecture/MODULAR_ARCHITECTURE.md) — layers, contracts, pipeline.
+3. Read [docs/agents/REPO_MAP.md](docs/agents/REPO_MAP.md) — subsystem map.
+4. Read [docs/agents/SCREEPS_PRIMER.md](docs/agents/SCREEPS_PRIMER.md) — Screeps rules that shape the AI.
+5. Before risky changes, scan the [Review Checklist](docs/qa/REVIEW_CHECKLIST.md) (or the lightweight
+   [Regression Checklist](docs/qa/REGRESSION_CHECKLIST.md)); for memory schema changes follow the
+   [Memory Migration Rules](docs/qa/MEMORY_MIGRATIONS.md).
+6. Inspect the code you are about to change, starting from [src/main.ts](src/main.ts).
 
 ## Repository Intent
 
-- The runtime is the Screeps game loop. Code is evaluated repeatedly across ticks, with persistent `Memory` and ephemeral globals.
-- The main execution pipeline is:
-  `loop -> task rehydration -> World -> CPU-aware plans -> task pruning -> spawning -> task assignment -> tower actions -> creep actions -> persist memory`
-- This repo extends the upstream `screeps-typescript-starter` with higher-level planning, CPU throttling, task assignment, scouting, room intel, combat automation, and private-server deployment.
+- The runtime is the Screeps game loop: code is re-evaluated each tick, with persistent `Memory` and
+  ephemeral globals.
+- The pipeline is:
+  `bootstrap memory -> rehydrate JobBoard -> build World -> scouting -> strategy (post jobs/requests)
+  -> reconcile/prune jobs -> spawn -> match -> tactical (towers, controllers, job executors) -> persist`.
+- Subsystems communicate **only** through two shared contracts: `Job` (`src/jobs/types.ts`, persisted
+  in `Memory.jobs`) and `SpawnRequest` (`src/spawn/types.ts`). Shared services — spawning, matching,
+  action execution — staff that demand.
 
 ## Architectural Guardrails
 
-- **Architectural Guardrails**: This repo uses Architectural Ownership and Escalation rules. Changes to `Memory` schemas MUST follow the [Memory Migration Rules](/docs/qa/MEMORY_MIGRATIONS.md).
-- **Ownership**: Each role (technical-architect, economy-engineer, operations-engineer, combat-specialist, base-specialist, systems-engineer, documentation-owner, qa-reviewer) owns specific file paths and `Memory` keys. Check `docs/agent-workflow.md` for the current ownership map.
-- **Escalation**: Any change to `Memory` schemas in `src/main.ts` or plan scheduling in `src/plans/core/` **MUST** be reviewed by the `technical-architect`.
-- **Throttling Awareness**: Code must tolerate "missing" or "stale" state in `RoomMemory` since plans are CPU-throttled and may be skipped.
-- **Task-Driven Demand**: `SpawnManager` derives demand from the current task list. If your plan adds tasks, you are responsible for the spawn pressure impact.
+- **Three registries extend the economy.** Adding a job kind means adding one entry to each of:
+  generator (`src/jobs/generators/index.ts`), capability (`src/matching/capability.ts`), and executor
+  (`src/actions/executors/index.ts`). The pipeline, `JobBoard`, `Matcher`, and `SpawnManager` stay
+  untouched. Prefer this over editing the core.
+- **Deterministic job ids.** Generators upsert by a stable id (e.g. `harvest:<sourceId>`) so jobs are
+  idempotent and self-healing. Don't generate random ids.
+- **Capability-based assignment.** `CreepMemory` has no behavioral role. `spawnRole` is a
+  body/population tag only; what a creep does is decided by `Matcher` from its body.
+- **Hybrid command model.** Economy creeps are job-matched. Controller subsystems (defense/combat/
+  expansion) request creeps via `SpawnRequest` and command them imperatively; such creeps carry
+  `CreepMemory.controller` and are skipped by the matcher.
+- **Demand-driven spawning + floor.** `SpawnManager` derives demand from open job slots vs live parts,
+  and always keeps a minimum generalist floor so a wiped room recovers. If you add jobs, you affect
+  spawn pressure.
+- **Memory schema changes** to `src/main.ts` ambient interfaces MUST follow
+  [MEMORY_MIGRATIONS.md](docs/qa/MEMORY_MIGRATIONS.md).
+- **Throttling awareness.** Non-critical passes run through `src/cpu/Scheduler.ts` and may be skipped
+  when the bucket is low. Code must tolerate stale `RoomMemory`.
 
-## Workflow Summary
-- Runtime & toolchain: the Screeps game runtime is **Node.js 24 (V8 13.6)** (April 2026 upgrade, up from Node 10). The build compiles to **`es2024`** via the official `@rollup/plugin-typescript`. The local build/test toolchain needs Node `>=20`.
-- Current baseline:
-  `npm run build` passes (bundles `src/main.ts` → `dist/main.js`).
-  `npm run test-unit` passes (52 tests). `npm run test-integration` has 2 pre-existing failures in the planning suites (`infrastructurePlanning`, `loopScenarios`) unrelated to the runtime upgrade.
-  `npm run lint` currently reports many pre-existing violations after the ESLint config compatibility fix.
-- If changing deploy behavior, also inspect [rollup.config.js](/Users/rafe/games/screeps/rollup.config.js) and the shell wrappers [deploy](/Users/rafe/games/screeps/deploy) and [deploy_private](/Users/rafe/games/screeps/deploy_private).
+## Baseline (current)
+
+- Runtime: Screeps is **Node.js 24 (V8 13.6)**; the build targets **`es2024`** via
+  `@rollup/plugin-typescript`. Local toolchain needs Node `>=20`.
+- `npm run build` passes (bundles `src/main.ts` → `dist/main.js`).
+- `npm run test` passes: 17 unit + 1 integration tests.
+- `npm run lint` is **broken repo-wide**: `Invalid value for lib provided: es2024` — the installed
+  `@typescript-eslint` parser predates es2024 and fails on every file (including untouched ones). This
+  is toolchain debt, not a code regression; build + tests are the gates.
+- If changing deploy behavior, also inspect [rollup.config.js](rollup.config.js) and the shell
+  wrappers [deploy](deploy) and [deploy_private](deploy_private).
 
 ## Screeps-Specific Constraints
 
-- CPU matters. Avoid per-tick allocations, repeated global scans, and noisy logging in hot paths.
-- `Memory` survives ticks. Globals do not. Module-level caches must tolerate global resets.
-- Creep body design is constrained by spawn energy, move fatigue, carry throughput, and creep lifetime.
-- Many bugs only show up over multiple ticks. If you change scheduling, spawning, or memory ownership, reason across several ticks, not just one call site.
-- The runtime is **Node.js 24 (V8 13.6)** and the build targets `es2024`, so modern JavaScript runs natively (optional chaining, nullish coalescing, logical assignment, `Array.at`/`findLast`/`toSorted`, `Object.hasOwn`/`groupBy`, `String.replaceAll`). Host-only Node APIs (`fs`, `process`, `crypto`, real timers) are still unavailable inside the isolated-vm sandbox.
+- CPU matters. Avoid per-tick allocations, repeated global scans, and noisy logging in hot paths. The
+  `WorldRoom` read model exists so subsystems don't call `room.find` ad hoc.
+- `Memory` survives ticks; globals do not. Module-level caches must tolerate global resets.
+- Creep body design is constrained by spawn energy, fatigue, carry throughput, and lifetime.
+- Many bugs only appear over multiple ticks. When changing scheduling, spawning, or memory ownership,
+  reason across several ticks.
+- Modern JS runs natively (optional chaining, nullish coalescing, `Array.at`/`findLast`/`toSorted`,
+  `Object.hasOwn`/`groupBy`, `String.replaceAll`). Host-only Node APIs (`fs`, `process`, `crypto`,
+  real timers) are unavailable inside the isolated-vm sandbox.
 
 ## Current Commands
 
@@ -53,21 +79,18 @@ This repository is a Screeps AI written in TypeScript. Agents should optimize fo
 - `npm run push-main`: upload using the `main` target from `screeps.json`.
 - `npm run privateServer`: deploy to the local path controlled by `SCREEPS_LOCAL_PATH`.
 - `npm run test`: unit and integration tests.
-- `npm run lint`: ESLint on `src/**/*.ts`.
-- `npm run lint:fix`: automatically fix many lint violations.
-- `npm run agent:roles`: list available agent roles.
-- `npm run agent:queue`: build the current session queue from agent files.
-- `npm run agent:process`: run assigned roles headlessly in dry-run mode.
+- `npm run lint` / `npm run lint:fix`: ESLint on `src/**/*.ts` (see baseline note above).
 
 ## Secrets And Local Config
 
-- `screeps.json` is ignored and should never be committed.
-- Use [screeps.sample.json](/Users/rafe/games/screeps/screeps.sample.json) as the template for new local configs.
-- The private-server deployment path defaults to the Windows Screeps client path mounted into WSL, but can be overridden with `SCREEPS_LOCAL_PATH`.
+- `screeps.json` is ignored and must never be committed.
+- Use [screeps.sample.json](screeps.sample.json) as the template for new local configs.
+- The private-server deployment path can be overridden with `SCREEPS_LOCAL_PATH`.
 
 ## Known Sharp Edges
 
-- Upstream docs in `docs/` still describe the starter kit broadly; this repo contains custom game logic beyond those docs.
-- Integration tests are wired into the default `npm test` command along with unit tests.
-- The unit-test harness and lint ruleset are partially out of date relative to the currently installed Node/Mocha/ESLint versions.
-- If you touch `Memory` schemas, update the ambient interfaces in [src/main.ts](/Users/rafe/games/screeps/src/main.ts) and any default-memory helpers.
+- Upstream docs in `docs/getting-started`, `docs/in-depth`, and `docs/screeps-api` are generic starter
+  / API references, not descriptions of this bot.
+- `npm test` runs integration tests alongside unit tests.
+- If you touch `Memory` schemas, update the ambient interfaces in [src/main.ts](src/main.ts) and the
+  initializer in [src/memory/bootstrap.ts](src/memory/bootstrap.ts).

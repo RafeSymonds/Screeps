@@ -1,107 +1,101 @@
 # Repo Map
 
-> **OUTDATED (June 2026 restart).** This document describes a previous bot that
-> was deleted. For the current architecture see
-> [docs/architecture/MODULAR_ARCHITECTURE.md](../architecture/MODULAR_ARCHITECTURE.md).
+Subsystem-by-subsystem map of the rebuilt (June 2026) modular AI. For the design rationale see
+[../architecture/MODULAR_ARCHITECTURE.md](../architecture/MODULAR_ARCHITECTURE.md).
 
 ## Tick Flow
 
-The active runtime starts in [src/main.ts](/Users/rafe/games/screeps/src/main.ts):
+The kernel in [src/main.ts](../../src/main.ts) runs each tick:
 
-1. Clear stale path cache entries.
-2. Bootstrap top-level `Memory` collections.
-3. Rehydrate tasks from `Memory.tasks` through `TaskManager`.
-4. Remove dead creeps from memory and task assignments.
-5. Normalize live creep memory and wrap creeps in `CreepState`.
-6. Build `World`, which creates `WorldRoom` instances and a `ResourceManager`.
-7. Run plans through `PlanManager`, subject to CPU bucket throttling.
-8. Prune invalid tasks after planning.
-9. Run `SpawnManager`.
-10. Assign creeps to tasks.
-11. Run tower defense, healing, and repair logic.
-12. Execute creep actions.
-13. Persist creep and task data back to memory.
-14. Update CPU averages and generate pixels when the bucket is high enough.
+1. `bootstrapMemory()` — init `Memory` collections + version-gated migrations.
+2. `new JobBoard(); board.rehydrate()` + `cleanDeadCreeps()`.
+3. `new World()` — build the per-tick read model.
+4. `updateIntel(world)` — scouting, throttled by `shouldRun("scout", …)`.
+5. Strategy: `assessDefense`, `generateJobs`, `planBase` (throttled), `planExpansion`/`planCombat`
+   (stubs). These post jobs to the board and `SpawnRequest`s to the queue.
+6. `board.reconcile()` + `board.prune(world)`.
+7. `spawnManager.run(world, board, spawnQueue)`.
+8. `matcher.assign(idleEconomyCreeps(world, board), board, world)`.
+9. Tactical: `runTowers(world)`, `commandControllerCreeps(world)`, then `runCreep` per economy creep.
+10. `board.persist()`.
+11. `Game.cpu.generatePixel()` when the bucket is high.
 
-### Plan Order
+## Layers and contracts
 
-`PlanManager` currently schedules these plans in this order:
+Two contracts connect everything:
 
-1. `DefensePlan`
-2. `EconomyPlan`
-3. `LinkPlan`
-4. `SupportPlan`
-5. `InfrastructurePlan`
-6. `BasePlan`
-7. `RemoteMiningPlan`
-8. `ScoutingPlan`
-9. `ExpansionPlan` (also drives room growth via `updateRoomGrowth` — there is no separate `GrowthPlan`)
-10. `TerminalPlan`
-11. `ObserverPlan`
-12. `AttackPlan` (also handles remote reservation — `ReservationPlan` was merged in)
-
-Important nuance:
-
-- Plans do not all run every tick. `src/cpu/CpuBudget.ts` and `src/plans/core/PlanScheduler.ts` stretch or skip non-critical plans based on `Game.cpu.bucket`.
-- `Memory.planRuns` is part of the scheduling contract. If plan cadence changes, update the docs and consider migration implications.
+- **`Job`** (`src/jobs/types.ts`) — a persistent unit of economic/build work with a labor `demand`,
+  stored in `Memory.jobs` under a deterministic id. Produced by generators; consumed by matching and
+  spawning.
+- **`SpawnRequest`** (`src/spawn/types.ts`) — a controller subsystem asking for a creep through the
+  shared spawn service, with a priority and `owner` tag.
 
 ## Main Subsystems
 
 ### `src/world`
-
-- `World.ts`: shared per-tick world object.
-- `WorldRoom.ts`: room-scoped view of owned creeps, structures, hostiles, and room state.
-
-### `src/plans`
-
-- `core/PlanManager.ts`: plan ordering and CPU-aware execution.
-- `core/PlanScheduler.ts`: interval scheduling keyed by `Memory.planRuns`.
-- `definitions/*`: strategic planning passes that create or update tasks and room intent.
-
-### `src/tasks`
-
-- `definitions/*`: domain tasks such as harvest, build, upgrade, remote harvest, hauling, scouting.
-- `core/TaskManager.ts`: task rehydration and lookup.
-- `core/TaskAssignment.ts`: greedy assignment of free creeps to viable tasks. **Assignment is purely capability-based** — a creep is paired with any task whose `canPerformTask` (does the body have the required parts) and `canAcceptCreep` (is there a free slot) both pass, ranked by `assignmentScore`. There is no role gate, and `CreepMemory` carries no behavioral role. Any creep does any task its body can perform.
-- `core/TaskRequirements.ts`: abstract labor requirements used by spawning and planning.
-
-### `src/creeps`
-
-- `CreepState.ts`: wrapper around live creep plus derived state.
-- `CreepController.ts`: task memory and preemption helpers.
-- `CreepActions.ts`: per-tick execution of assigned work.
-
-### `src/spawner`
-
-- `SpawnManager.ts`: derives labor supply vs demand and chooses spawn intents.
-- **"Role" here is a spawn-side concept only** (`SpawnRequestRole`): it selects a *body template* and a *population target*. It does **not** gate behavior — task assignment is capability-based (see `src/tasks`).
-- Population is counted off the **persisted `CreepMemory.spawnRole` tag** (set at spawn time), not re-derived from body shape. This is required because several roles share identical bodies — `hauler`/`hubHauler`/`fastFiller` are all `[CARRY, MOVE]`, and `worker`/`mineralHarvester` are both `[WORK, CARRY, MOVE]` — so body parts cannot distinguish them. Legacy/untagged creeps fall back to a body-shape heuristic (`bodyFallbackRole`).
-- The tag is a stable identity: it must survive task resets (`getDefaultCreepMemory` preserves it), or counts would drift every time a creep finishes a task.
-- Spawn requests also flow through `src/spawner/SpawnRequests.ts` via room memory.
-
-### `src/rooms`
-
-- Room intel, scouting, topology, pathfinding, resource accounting, and remote mining support.
-
-### `src/combat`
-
-- `TowerDefense.ts`: tower attack, heal, repair, and fortification behavior.
+- `World.ts`: per-tick world — owned rooms + all creeps.
+- `WorldRoom.ts`: one room scanned once — sources, spawns/extensions/towers, containers, sites,
+  hostiles, dropped energy, energy sinks/stores. Everything reads from here, not `room.find`.
 
 ### `src/cpu`
+- `CpuBudget.ts`: bucket tiers (Critical/Low/Normal/High), throttle multiplier, pixel policy.
+- `Scheduler.ts`: `shouldRun(key, interval)` keyed by `Memory.planRuns`, stretched when the bucket is low.
 
-- `CpuBudget.ts`: CPU bucket tiers, plan throttling, and pixel generation.
+### `src/jobs`
+- `JobBoard.ts`: index over `Memory.jobs` — `rehydrate`/`persist`, `upsert` (idempotent), `assign`,
+  `reconcile` (drop dead/desynced assignments), `prune` (invalid targets), `demand(roomName)`.
+- `generators/*`: one generator per economy job kind (harvest/haul/upgrade/build), registered in
+  `generators/index.ts`.
+
+### `src/matching`
+- `capability.ts`: `canPerform(creep, job)` — required parts per job kind. The only thing that gates
+  whether a creep can do a job. No behavioral role.
+- `scoring.ts`: `score(creep, job)` — priority minus range/away-from-home penalties (swappable).
+- `Matcher.ts`: `GreedyMatcher` assigns idle creeps to best-scoring open jobs; `idleEconomyCreeps`
+  selects who is eligible (sticky: not controller-owned, no valid job).
+
+### `src/actions`
+- `primitives.ts`: atomic intents (move/harvest/transfer/withdraw/pickup/upgrade/build/repair) +
+  `toggleWorking` gather/act phase flag.
+- `energy.ts`: `acquireEnergy` (dropped → store → harvest) and `nearestEnergySink`.
+- `executors/*`: one executor per job kind; `executors/index.ts` registers them and exposes `runCreep`
+  — **the documented insertion point for the future task-chaining layer**.
+
+### `src/spawn`
+- `SpawnManager.ts`: merges controller `SpawnRequest`s (priority-first) with economy demand, applies a
+  population **floor**, sizes a body, and spawns. Tags `spawnRole`/`home`/`working`/`controller`.
+- `bodies.ts`: `buildBody(role, energy)` + `bodyCost`. `queue.ts`: `SpawnRequestQueue`. `demand.ts`:
+  `laborSupply` (live WORK/CARRY parts).
+
+### `src/defense`
+- `Defense.ts`: `assessDefense` flags threats, triggers safe mode as a last resort, returns
+  `SpawnRequest`s (defenders are a future expansion).
+- `Towers.ts`: attack → heal → repair-critical.
+
+### `src/base`
+- `BasePlanner.ts`: minimal — anchor on first spawn, place source containers + RCL-gated extensions
+  (capped per run). Emits construction sites; the build generator turns them into jobs.
+
+### `src/intel`
+- `Scouting.ts`: passive — write `RoomIntel` for every visible room.
+
+### `src/controllers`, `src/expansion`, `src/combat`, `src/tasks`
+- Seams. `controllers/index.ts` dispatches controller-commanded creeps to their subsystem.
+  `expansion`/`combat` are no-op stubs that will post `SpawnRequest`s and command creeps. `tasks/Task.ts`
+  reserves the task-chaining layer.
 
 ## Important Data Contracts
 
-- `Memory.tasks` is the canonical persisted task list.
-- `Memory.planRuns` stores per-plan scheduling timestamps.
-- `Memory.creeps[name]` stores assignment and work-state metadata.
-- `RoomMemory` is extended with topology, intel, base, and remote mining fields.
-- Ambient interfaces for `Memory`, `CreepMemory`, `RoomMemory`, and related custom types live in [src/main.ts](/Users/rafe/games/screeps/src/main.ts).
+- `Memory.jobs` — canonical persisted job list (deterministic ids).
+- `Memory.planRuns` — per-pass scheduling timestamps.
+- `Memory.creeps[name]` — `spawnRole`, `home`, `working`, `jobId?`, `controller?`.
+- `Memory.rooms[name]` — `intel?` (scouting), `base?` (planning), `defense?` (threat flags).
+- Ambient interfaces live in [src/main.ts](../../src/main.ts); initializer in
+  [src/memory/bootstrap.ts](../../src/memory/bootstrap.ts).
 
 ## Change Guidance
 
-- If you add a task type, update task definitions, task creation, assignment compatibility, and any spawn-demand implications.
-- If you add room intelligence, update both persistent types and any default memory initializers.
-- If you change plan cadence or priorities, verify the effect on `Memory.planRuns`, CPU bucket behavior, and any logic that assumes fresh room intel.
-- If you change spawn heuristics, verify the effect on miners, haulers, workers, and request-driven special creeps together. The current spawn manager balances supply against task demand, hauling throughput, and explicit room spawn requests.
+- Add a job kind → add a generator, a capability entry, and an executor; nothing else.
+- Add room intelligence → extend `RoomIntel` and the ambient `RoomMemory` type.
+- Change plan cadence → update intervals in `src/config/constants.ts`; verify `Memory.planRuns` effects.
+- Change spawn heuristics → verify the floor still prevents collapse and demand still self-limits.

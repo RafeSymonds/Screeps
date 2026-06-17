@@ -1,44 +1,41 @@
-# Regression Checklist: Lightweight Economy & Memory Review
+# Regression Checklist: Lightweight Review
 
-Use this checklist for surgical changes to **Memory**, **Spawn Heuristics**, or **Remote Mining**. This is a lightweight alternative to the full [Review Checklist](REVIEW_CHECKLIST.md) focused on multi-tick stability.
+Use this for surgical changes to **Memory**, **jobs/matching**, or **spawning**. A lightweight
+alternative to the full [Review Checklist](REVIEW_CHECKLIST.md), focused on multi-tick stability.
 
 ---
 
-## 1. Memory & State Persistence
-- [ ] **Ambient Types**: Is the new field in `src/main.ts` (`Memory`, `CreepMemory`, `RoomMemory`)?
-- [ ] **Migration/Cleanup**: Does existing memory need a manual wipe or a migration bridge? (See [Memory Migration Rules](MEMORY_MIGRATIONS.md))
-- [ ] **Stale Data**: Will this field grow forever? (e.g., does it need a `lastSeen` or `lastUpdated` timestamp?)
+## 1. Memory & State
 
-## 2. Spawn Heuristics & Balance
-- [ ] **Energy Floor**: Can the room still spawn a basic miner/hauler if energy hits 300?
-- [ ] **Pressure Analysis**: Does the new task kind correctly report its WORK/CARRY/MOVE demand to `SpawnManager`?
-- [ ] **Priority**: Could a low-priority spawn (scout/upgrader) block a high-priority one (miner/defender)?
-- [ ] **Unified Labor Scaling**:
-    - **Starvation Bonus**: Does the hauler bonus trigger only when there is actually energy to haul (e.g., in containers/storage)? Does it avoid blocking the last miner?
-    - **Construction Penalty**: Does the worker penalty avoid blocking critical repairs (e.g., ramparts under attack)?
+- [ ] **Ambient types**: new field in `src/main.ts` (`Memory`/`CreepMemory`/`RoomMemory`)?
+- [ ] **Bootstrap/migration**: initialized in `src/memory/bootstrap.ts`; existing data handled per
+      [MEMORY_MIGRATIONS.md](MEMORY_MIGRATIONS.md)? (`Memory.jobs` is safe to wipe — it regenerates.)
+- [ ] **Stale data**: bounded growth; aging data has a timestamp.
 
-## 3. Remote Mining & Operations
-- [ ] **Throughput Formula**: If changing `desiredHaulerCarry`, does it account for `routeLength`?
-- [ ] **Safety Interlocks**: Does the task correctly abort if the room status becomes `DANGEROUS`?
-- [ ] **Visibility**: Does the logic handle `null` results from `Game.getObjectById` when the room is invisible?
+## 2. Jobs, Matching & Spawn
 
-## 4. CPU Efficiency & Scaling
-- [ ] **Hot-Path Loops**: Does this logic run for every creep or every tick? Does it avoid redundant `find`, `lookAt`, or `RoomVisual` calls in those loops?
-- [ ] **Caching**: If the calculation is expensive, is it cached in `Memory` (persistent) or a global (tick-local)?
-- [ ] **Throttling**: If it's a new planning pass, is it registered with `PlanScheduler`?
+- [ ] **Deterministic ids**: generator upserts in place (no duplicates per tick)?
+- [ ] **Capability + executor**: new job kind wired into `matching/capability.ts` and
+      `actions/executors/index.ts`?
+- [ ] **Floor**: a room at 300 energy with no workers still spawns a generalist?
+- [ ] **Demand self-limits**: open-slot demand drops to zero as the matcher fills slots?
+- [ ] **Priority**: a controller `SpawnRequest` won't starve the economy (or vice versa)?
 
-## 5. Multi-Tick Failure Modes (Watch for these in Simulation)
+## 3. CPU Efficiency
 
-| Change Area | Failure Mode | Success Metric (100+ Ticks) |
+- [ ] **Hot paths**: no redundant `find`/`lookAt`/pathfinding per creep or tick; reads from `WorldRoom`?
+- [ ] **Throttling**: a new heavy pass is registered with `Scheduler.shouldRun`?
+
+## 4. Multi-Tick Failure Modes (watch in sim, 100+ ticks)
+
+| Area | Failure mode | Success metric |
 | :--- | :--- | :--- |
-| **Spawn Priority** | **Energy Death Spiral**: Non-economy creeps starve the room of energy. | `room.energyAvailable` recovers quickly after a mass-death. |
-| **Body Design** | **Throughput Collapse**: Creeps are too expensive or too slow. | Creeps move with 0 fatigue; economy stays positive. |
-| **Hauling** | **Remote Overflow**: Energy decays in remote containers. | No `ENERGY_DECAY` events in remote mining rooms. |
-| **Remote Life** | **The Meat Grinder**: Repeated deaths to invaders or hostiles. | `Creep.ticksToLive` average stays high; task turnover is low. |
+| Spawn priority | Death spiral | `room.energyAvailable` recovers after a mass-death |
+| Body design | Throughput collapse | creeps move with ~0 fatigue; economy stays positive |
+| Prune/reconcile | Lost labor / idle creeps | jobs stable; no stale `jobId`s |
 
----
+## 5. Gating Checks
 
-## 6. Gating Checks
 - [ ] `npm run build` passes.
-- [ ] Incremental Lint: New lines are clean (ignoring pre-existing debt).
-- [ ] Multi-tick validation: Verified for 100+ ticks in Simulator or Private Server.
+- [ ] `npm run test` passes (17 unit + 1 integration).
+- [ ] Multi-tick validation: ~100+ ticks in the simulator or a private server.

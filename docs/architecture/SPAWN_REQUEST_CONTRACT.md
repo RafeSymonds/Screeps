@@ -1,78 +1,76 @@
 # Spawn Request Contract
 
-This document defines the shared contract for requesting spawns via `RoomMemory.spawnRequests`. It ensures that baseline economic logic and high-level strategic plans can coexist without unintentional interference.
+`SpawnManager` produces creeps from two demand sources, merged each tick:
 
-## What a "role" is (and is not)
+1. **Economy job demand** — aggregated from open `JobBoard` slots vs live labor (`src/spawn/demand.ts`).
+2. **Controller `SpawnRequest`s** — explicit asks from defense/combat/expansion via the
+   `SpawnRequestQueue` (`src/spawn/queue.ts`).
 
-A `SpawnRequestRole` (`miner`, `hauler`, `hubHauler`, `fastFiller`, `mineralHarvester`, `maintainer`, `worker`, `scout`, `defender`, `attacker`, `reserver`) is a **spawn-side concept only**. It answers two questions for `SpawnManager`:
+Controller requests always outrank economy demand. A population **floor** sits under both so a wiped
+room can never collapse.
 
-1. **Which body template to build** (`minerBody`, `maintainerBody`, …).
-2. **How many of that template to keep alive** (the population target a request expresses via `desiredCreeps`).
+## What a `spawnRole` is (and is not)
 
-It is **not** a behavioral role. Once a creep is alive, what it does is decided entirely by capability-based task assignment (`TaskAssignment`): any creep performs any task its body can satisfy. A `maintainer` is not pinned to repair, a `mineralHarvester` is not pinned to the extractor — they simply have bodies suited to that work and a population target sized for it.
+`SpawnRole` (`src/spawn/types.ts`: `generalist | miner | hauler | worker | defender | claimer |
+soldier`) is a **spawn-side tag only**. It answers two questions:
 
-### How role population is counted
+1. Which body template to build (`buildBody` in `src/spawn/bodies.ts`).
+2. How many of that template to keep alive (population counting in `SpawnManager.chooseRole`).
 
-`SpawnManager` counts existing creeps per role from the **persisted `CreepMemory.spawnRole` tag** written at spawn time — *not* by inspecting body parts. This is mandatory because several roles share identical bodies:
+It is **not** a behavioral role. Once a creep is alive, what it does is decided by capability-based
+matching (`src/matching/capability.ts`): any economy creep performs any job its body can satisfy. A
+`worker` is not pinned to building; it simply has a body suited to general work.
 
-| Body | Roles that share it |
-| :--- | :--- |
-| `[CARRY, MOVE]×n` | `hauler`, `hubHauler`, `fastFiller` |
-| `[WORK, CARRY, MOVE]×n` | `worker`, `mineralHarvester` |
+Population is counted from the persisted `CreepMemory.spawnRole` tag written at spawn time — not by
+inspecting body parts — because several roles can share a body shape.
 
-Body-shape classification cannot tell these apart, so demand for the specialized roles would be silently satisfied by the wrong creeps (e.g. a `mineralHarvester` request "met" by an unrelated worker). The tag is treated as stable identity and is preserved across task resets (`getDefaultCreepMemory`). Legacy creeps without a tag fall back to a body-shape heuristic (`bodyFallbackRole`) until they cycle out.
+## The `SpawnRequest` contract
 
-**If you add a new role:** add a `SupplyTotals` field + an `incoming*` field, populate it in the `deriveSupply` count loop, add it to `currentCreepsForRole`, `roleFromIntent`, and `incrementIncomingForRole`. Counting and demand must reference the same dedicated bucket or the role will over- or under-spawn.
+```ts
+interface SpawnRequest {
+    key: string;       // stable key so a subsystem avoids duplicate requests across ticks
+    roomName: string;
+    role: SpawnRole;
+    priority: number;  // higher wins; controller requests outrank economy demand
+    body?: BodyPartConstant[];  // optional explicit body; else SpawnManager sizes one
+    owner?: string;    // controller tag -> written to CreepMemory.controller (skips the matcher)
+}
+```
 
-## Core Mechanism
+- **`owner` is the hybrid-command switch.** A creep spawned with `owner` set carries
+  `CreepMemory.controller` and is commanded imperatively by that subsystem in the tactical phase
+  (`src/controllers/index.ts`); the matcher skips it. Economy creeps leave `owner` undefined and flow
+  to job matching.
+- **Priority ordering.** `SpawnManager` drains `queue.forRoom(roomName)` highest-priority first and
+  spawns the top affordable request before considering economy demand.
+- **Affordability.** A request is only spawned when `bodyCost(body) <= room.energyAvailable`.
 
-- **Absolute Targets**: Each request specifies a `desiredCreeps` target for a specific `SpawnRequestRole` in a `room`.
-- **Global Visibility**: `SpawnManager` subtracts *all* creeps of the requested role (including those spawning or in transit) from the target. Requests are *not* additive.
-- **Priority Selection**: In each tick, the `SpawnManager` sorts all active requests and attempts to satisfy the one with the highest `priority` that still has `unmetCreeps > 0`.
-- **Coexistence**: If two plans request the same role (e.g., `baseline` wants 3 workers, `bootstrap` wants 2), they compete. If 2 workers exist, `bootstrap` is satisfied, but `baseline` will still try to spawn 1 more (at its own priority).
+## Priority guidance
 
-## Priority Ranges
-
-To maintain system stability, use the following priority tiers:
-
-| Tier | Range | Use Case |
+| Tier | Range | Use |
 | :--- | :--- | :--- |
-| **EMERGENCY** | 220+ | Critical bootstrap (0 energy), emergency defense. |
-| **CRITICAL** | 180-219 | First miner/hauler in a room, high-pressure recovery. |
-| **HIGH** | 140-179 | Cross-room Support/Bootstrap, high-pressure economy. |
-| **NORMAL** | 90-139 | Expansion (Claim), Reservation, Scouting, typical labor. |
-| **LOW** | 50-89 | Secondary builders, surplus haulers, optimization. |
-| **IDLE** | < 50 | Opportunistic or low-value tasks. |
+| Emergency | 220+ | Critical defense, must-spawn-now |
+| Critical | 180–219 | First defender, high-pressure recovery |
+| Normal | 90–139 | Expansion claimers, typical controller asks |
+| Low | < 90 | Opportunistic / optional |
 
-## Naming Conventions (`requestedBy`)
+Economy demand effectively sits below controller requests (it is only consulted when the queue is
+empty for that room), with the generalist floor as the hard backstop.
 
-To avoid collisions and ensure proper cleanup, use the following prefixes:
+## Economy demand + floor (no SpawnRequest needed)
 
-- `baseline:${role}:${roomName}`: Reserved for `SpawnManager`'s internal task-based demand.
-- `plan:${planName}:${identifier}`: For long-running strategic intents (e.g., `plan:expansion:E1N1`).
-- `task:${taskId}`: For specific, short-lived tasks that need dedicated labor.
-- `support:${targetRoom}`: For cross-room assistance requests.
+Economy creeps are **not** requested via `SpawnRequest`. `SpawnManager.decideEconomy`:
 
-## Expiry Guidance (`expiresAt`)
+1. **Floor** — if a room has zero creeps or no creep with WORK, spawn a generalist immediately using
+   whatever energy is on hand.
+2. **Demand** — compare `JobBoard.demand(roomName)` (open slots × per-slot demand) to `laborSupply`
+   (live WORK/CARRY parts). Spawn only while demand exceeds supply; as the matcher fills slots, demand
+   falls and spawning self-limits.
+3. **Role** — stay on cheap generalists until the room can afford specialists and has source
+   containers, then fill miners/haulers.
 
-- **Baseline**: `Game.time + 2` (refreshed every tick).
-- **Plan/Task**: `Game.time + (PlanInterval * 2)`. If a plan runs every 10 ticks, an expiry of 20-30 ticks is recommended.
-- **Safety**: Requests automatically expire to prevent "ghost demand" if a plan is disabled or crashes.
+## Adding a controller subsystem
 
-## Usage Patterns
-
-### The "Adapter" Recommendation
-
-Do **not** modify `room.memory.spawnRequests` directly. Use the helpers in `src/spawner/SpawnRequests.ts`:
-
-1.  `upsertSpawnRequest(room, request)`: The standard entry point.
-2.  `clearSpawnRequest(room, role, requestedBy)`: Explicitly remove a request when no longer needed.
-
-Plans should prefer a standardized priority constant from the Tier table above.
-
-### Cross-Room Requests
-
-When a plan in Room A wants to spawn a creep in Room B (Helper), it should:
-1.  Check if Room B is "healthy" (e.g., `roomCanHelp`).
-2.  Write the request to `Game.rooms[B].memory.spawnRequests`.
-3.  Ensure the `requestedBy` key includes Room A's name to avoid collisions if multiple rooms are being helped.
+Post `SpawnRequest`s from the subsystem's `plan*` function (returned to the kernel, pushed onto the
+queue), give them an `owner` prefix (e.g. `combat:`, `expansion:`), and command the resulting creeps in
+`commandControllerCreeps` (`src/controllers/index.ts`). No change to `SpawnManager` is required.

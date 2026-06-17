@@ -1,8 +1,8 @@
 # Modular Architecture (current)
 
-This describes the AI as it exists after the June 2026 restart. The older docs
-under `docs/agents/` and `docs/architecture/ECONOMY_DECOMPOSITION.md` describe a
-previous bot that was deleted and do **not** match the current code.
+This describes the AI as it exists after the June 2026 restart and is the
+authoritative design reference. The companion docs ([REPO_MAP](../agents/REPO_MAP.md),
+[SPAWN_REQUEST_CONTRACT](SPAWN_REQUEST_CONTRACT.md), and the QA docs) all track this design.
 
 ## Goal
 
