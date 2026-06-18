@@ -4,6 +4,9 @@
  * these pure and tiny is what lets higher layers stay declarative.
  */
 
+// Standard movement options. `creep.moveTo` already does multi-room routing
+// (PathFinder spans up to 16 rooms), so this supports remote mining / expansion /
+// combat travel out of the box; `reusePath` caches the path for a few ticks.
 const MOVE_OPTS: MoveToOpts = { reusePath: 10, visualizePathStyle: { stroke: "#ffffff", opacity: 0.15 } };
 
 export function moveTo(creep: Creep, target: RoomPosition | { pos: RoomPosition }, range = 1): void {

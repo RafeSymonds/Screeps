@@ -1,11 +1,11 @@
 import { expect } from "../helpers/chai";
 import { JobBoard } from "jobs/JobBoard";
 import { JobKind } from "jobs/types";
-import { idleEconomyCreeps } from "matching/Matcher";
+import { economyCreepsToMatch } from "matching/Matcher";
 import { World } from "world/World";
 import { makeCreep } from "../helpers/mock";
 
-describe("idleEconomyCreeps (sticky matching)", () => {
+describe("economyCreepsToMatch (sticky matching)", () => {
     it("includes idle creeps, excludes assigned and controller-owned creeps", () => {
         const board = new JobBoard();
         board.rehydrate();
@@ -24,7 +24,7 @@ describe("idleEconomyCreeps (sticky matching)", () => {
         const owned = makeCreep({ name: "owned", memory: { controller: "combat:op1" } });
         const world = { creeps: [assigned, idle, owned] } as unknown as World;
 
-        const result = idleEconomyCreeps(world, board);
+        const result = economyCreepsToMatch(world, board);
         expect(result.map(creep => creep.name)).to.deep.equal(["idle"]);
     });
 
@@ -33,6 +33,6 @@ describe("idleEconomyCreeps (sticky matching)", () => {
         board.rehydrate();
         const stale = makeCreep({ name: "stale", memory: { jobId: "gone" } });
         const world = { creeps: [stale] } as unknown as World;
-        expect(idleEconomyCreeps(world, board).map(creep => creep.name)).to.deep.equal(["stale"]);
+        expect(economyCreepsToMatch(world, board).map(creep => creep.name)).to.deep.equal(["stale"]);
     });
 });

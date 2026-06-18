@@ -80,6 +80,40 @@ The bot was rebuilt from scratch in June 2026. The current design is
 -   `npm run privateServer`: deploy to the local path controlled by `SCREEPS_LOCAL_PATH`.
 -   `npm run test`: unit and integration tests.
 -   `npm run lint` / `npm run lint:fix`: ESLint on `src/**/*.ts` (see baseline note above).
+-   `bin/sim run [ticks]`: run the real bot in the real Screeps engine **headless** (Node 24,
+    in Docker) and print live per-tick room state — economy, spawns, CPU. Not unit tests;
+    for watching real behavior over many ticks. See [sim/README.md](sim/README.md).
+
+## Headless Simulation
+
+`bin/sim` runs the **real bot in the real Screeps engine, headless, on Node 24** (in Docker),
+so you can watch actual behavior over many ticks — economy bootstrap, spawn pressure, RCL
+progress, CPU — that unit tests can't surface. Use it to sanity-check multi-tick behavior
+changes (spawning, scheduling, job/matching, memory ownership); keep `npm run test` for pure
+logic. Full details and rationale: [sim/README.md](sim/README.md).
+
+-   `bin/sim run [ticks]`: build the bot (`npm run build`), tick a fresh RCL1 world, print live
+    room state, exit. Flags: `--every N` (state cadence), `--scenario NAME`, `--verbose`
+    (bot console each tick + final Memory dump). It is a batch tool, not a daemon.
+-   `bin/sim test`: behavioral **regression tests** (`sim/tests/`) that run scenarios for many
+    ticks and assert on the timeline (economy growth, tower defense, CPU bounds, no crashes).
+    These run the real engine in Docker — a separate, slower suite from `npm run test` (host-side
+    pure-logic mocks). Add cases with the `sim/lib/harness.js` `runScenario()` helper.
+-   `bin/sim build` / `shell` / `clean`: manage the Docker engine image.
+-   Requires Docker running. The **first** build compiles a patched `isolated-vm` (~a few
+    minutes); later runs reuse the image. The bot bundle is bind-mounted, so editing
+    `src/**` then re-running `bin/sim run` picks up changes without an image rebuild.
+-   Each output line is real engine state for a room: creep count + roles (inferred from body),
+    controller level/upgrade progress, energy by structure, towers, construction sites, source
+    energy, and per-tick CPU.
+-   Scenarios (starting world states) live in `sim/scenarios/` and are picked with
+    `--scenario <name>`: `default` (fresh RCL1), `full-base` (mature RCL8 + workforce),
+    `under-attack` (defended base + hostile wave). Build them with the `sim/scenarios/_world.js`
+    helpers (engine-correct structure/creep shapes, e.g. `fullBase`, `addHostiles`, `addStructure`).
+    To author a new one, use the **`/build-scenario`** skill.
+-   Node-24 reality, don't "simplify" away: the harness installs the mockup's **git master** +
+    `@screeps/driver@5.3.0` (`feat-node24`) and applies a `localhost`→IPv4 fix in `sim/run.js`
+    (storage binds `::1`, the driver dials `127.0.0.1`). Removing either re-breaks the engine.
 
 ## Secrets And Local Config
 
