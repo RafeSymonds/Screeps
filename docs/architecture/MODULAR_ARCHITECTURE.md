@@ -2,7 +2,8 @@
 
 This describes the AI as it exists after the June 2026 restart and is the
 authoritative design reference. The companion docs ([REPO_MAP](../agents/REPO_MAP.md),
-[SPAWN_REQUEST_CONTRACT](SPAWN_REQUEST_CONTRACT.md), and the QA docs) all track this design.
+[SPAWN_REQUEST_CONTRACT](SPAWN_REQUEST_CONTRACT.md),
+[ENERGY_FLOW_SPAWNING](ENERGY_FLOW_SPAWNING.md), and the QA docs) all track this design.
 
 ## Goal
 
@@ -12,10 +13,10 @@ two shared contracts, so each part can be improved in isolation.
 ## Layers
 
 ```
-Foundations (every tick):  Memory · World read-model · CPU/Scheduler
+Foundations (every tick):  Memory · World read-model · CPU/Scheduler · Economy sensing
 Intel:                     Scouting -> RoomIntel
 Strategy (produce work):   Economy generators · Base planner · Defense · Expansion* · Combat*
-Shared services (staff it): JobBoard · SpawnManager · Matcher · Action executors
+Shared services (staff it): JobBoard · EnergyModel · SpawnManager · Matcher · Action executors
 Tactical execution:        Towers · controller-commanded creeps · job executors
 ```
 `*` = seam only (no-op stub wired into the pipeline; expand by filling in).
@@ -55,7 +56,8 @@ SpawnManager are untouched.
 5. Strategy: `assessDefense`, `generateJobs`, `planBase` (throttled),
    `planExpansion`/`planCombat` (stubs) — post jobs + spawn requests
 6. `JobBoard.reconcile()` + `prune()`
-7. `SpawnManager.run()` (demand + requests + floor)
+6.5 `senseEconomy()` — update each room's storage EMA/trend integrator
+7. `SpawnManager.run()` (energy-flow demand + requests + floor)
 8. `Matcher.assign()` (sticky: idle economy creeps only)
 9. Tactical: `runTowers`, `commandControllerCreeps`, per-creep `runCreep`
 10. `JobBoard.persist()`
@@ -66,8 +68,13 @@ SpawnManager are untouched.
 - **Persistent jobs**, deterministic ids, self-healing via `reconcile`/`prune`.
 - **Sticky matching** — a creep keeps its job until done/invalid; only idle
   creeps enter matching. Strategy is swappable (`src/matching/Matcher.ts`).
-- **Demand-driven spawning + floor** — open job slots define demand; live parts
-  define supply; a wiped room always recovers via a guaranteed generalist.
+- **Energy-flow-driven spawning + floor** — population is an *output* of a
+  per-room flow model ([EnergyModel](../../src/economy/EnergyModel.ts)): targets
+  for income (saturate sources), logistics (carry sized to income × distance),
+  and consumption (elastic upgrade, gated by a storage band) are measured each
+  tick, and `SpawnManager` spawns the largest deficit. A wiped room always
+  recovers via a guaranteed generalist. Full design:
+  [ENERGY_FLOW_SPAWNING](ENERGY_FLOW_SPAWNING.md).
 - **Capability-based assignment** — `CreepMemory` carries no behavioral role;
   `spawnRole` is a body/population tag only.
 - **Single-action execution now; task chaining later** — insertion point is

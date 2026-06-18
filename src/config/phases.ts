@@ -16,6 +16,7 @@ export enum Phase {
     Combat = "combat",
     Reconcile = "reconcile",
     Prune = "prune",
+    Economy = "economy",
     Spawn = "spawn",
     Match = "match",
     Towers = "towers",

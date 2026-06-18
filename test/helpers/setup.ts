@@ -29,6 +29,13 @@ g.BODYPART_COST = { move: 50, work: 100, carry: 50, attack: 80, ranged_attack: 1
 // Resources
 g.RESOURCE_ENERGY = "energy";
 
+// Economy constants (energy-flow model)
+g.SOURCE_ENERGY_CAPACITY = 3000;
+g.ENERGY_REGEN_TIME = 300;
+g.HARVEST_POWER = 2;
+g.CARRY_CAPACITY = 50;
+g.UPGRADE_CONTROLLER_POWER = 1;
+
 // Find constants
 g.FIND_SOURCES = 105;
 g.FIND_HOSTILE_CREEPS = 103;
@@ -45,6 +52,7 @@ g.STRUCTURE_EXTENSION = "extension";
 g.STRUCTURE_TOWER = "tower";
 g.STRUCTURE_CONTAINER = "container";
 g.STRUCTURE_STORAGE = "storage";
+g.STRUCTURE_LINK = "link";
 g.STRUCTURE_ROAD = "road";
 g.STRUCTURE_WALL = "constructedWall";
 g.STRUCTURE_RAMPART = "rampart";

@@ -48,6 +48,12 @@ The bot was rebuilt from scratch in June 2026. The current design is
     [MEMORY_MIGRATIONS.md](docs/qa/MEMORY_MIGRATIONS.md).
 -   **Throttling awareness.** Non-critical passes run through `src/cpu/Scheduler.ts` and may be skipped
     when the bucket is low. Code must tolerate stale `RoomMemory`.
+-   **Prefer enums over bare string literals.** Named string sets — including discriminated-union tags
+    (e.g. `kind` fields) and other categorical values — should be backed by a string enum
+    (`enum EnergySourceKind { Pickup = "pickup", Withdraw = "withdraw" }`), not loose `"..."` literals
+    scattered across producers and consumers. It reads better and keeps the allowed values in one place.
+    Reference the enum members everywhere (code and tests), following `JobKind` (`src/jobs/types.ts`) and
+    `EnergySourceKind` (`src/actions/logistics.ts`).
 
 ## Baseline (current)
 

@@ -1,27 +1,23 @@
 import { harvest, pickup, withdraw } from "actions/primitives";
 import { WorldRoom } from "world/WorldRoom";
+import { EnergySourceKind, pickEnergySource } from "actions/logistics";
 
 /**
- * Shared energy logistics used by the sink executors (upgrade/build). Priority:
- * dropped energy (decays, grab it first) -> containers/storage -> harvest a
- * source directly. This is the composite that bootstrap generalists rely on.
+ * Shared energy gathering for the sink executors (build/upgrade/repair) and
+ * bootstrap generalists. Delegates source selection to the scored logistics
+ * policy (dropped/containers/storage), then falls back to harvesting a source
+ * directly when nothing is staged — the path a fresh room relies on. Spenders
+ * may always draw from storage; the scorer's storage gate is for haulers only.
  */
 export function acquireEnergy(creep: Creep, worldRoom: WorldRoom): void {
-    if (worldRoom.droppedEnergy.length > 0) {
-        const pile = creep.pos.findClosestByRange(worldRoom.droppedEnergy);
-        if (pile) {
-            pickup(creep, pile);
-            return;
+    const staged = pickEnergySource(creep, worldRoom);
+    if (staged) {
+        if (staged.kind === EnergySourceKind.Pickup) {
+            pickup(creep, staged.target);
+        } else {
+            withdraw(creep, staged.target);
         }
-    }
-
-    const stores = worldRoom.energyStores();
-    if (stores.length > 0) {
-        const store = creep.pos.findClosestByRange(stores);
-        if (store) {
-            withdraw(creep, store);
-            return;
-        }
+        return;
     }
 
     const activeSources = worldRoom.sources.filter(source => source.energy > 0);
@@ -29,9 +25,4 @@ export function acquireEnergy(creep: Creep, worldRoom: WorldRoom): void {
     if (source) {
         harvest(creep, source);
     }
-}
-
-/** Closest spawn/extension/tower that still needs energy. */
-export function nearestEnergySink(creep: Creep, worldRoom: WorldRoom): Structure | undefined {
-    return creep.pos.findClosestByRange(worldRoom.energySinks()) ?? undefined;
 }

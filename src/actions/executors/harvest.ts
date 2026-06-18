@@ -1,7 +1,7 @@
 import { harvest, toggleWorking, transfer } from "actions/primitives";
 import { Job } from "jobs/types";
 import { WorldRoom } from "world/WorldRoom";
-import { nearestEnergySink } from "actions/energy";
+import { pickEnergySink } from "actions/logistics";
 
 /**
  * Harvest executor. A pure miner (no CARRY) just mines — energy drops where it
@@ -38,7 +38,7 @@ export function runHarvest(creep: Creep, job: Job, worldRoom: WorldRoom): void {
         return;
     }
 
-    const sink = nearestEnergySink(creep, worldRoom);
+    const sink = pickEnergySink(creep, worldRoom);
     if (sink) {
         transfer(creep, sink);
         return;

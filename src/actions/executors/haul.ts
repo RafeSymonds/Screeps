@@ -1,49 +1,34 @@
 import { moveTo, pickup, toggleWorking, transfer, withdraw } from "actions/primitives";
 import { Job } from "jobs/types";
 import { WorldRoom } from "world/WorldRoom";
-import { nearestEnergySink } from "actions/energy";
+import { EnergySourceKind, pickEnergySink, pickEnergySource } from "actions/logistics";
 
 /**
  * Haul executor. A single room-level haul job; the executor picks the best
- * pickup and sink dynamically each tick. Gather priority: dropped energy ->
- * mining containers -> storage (the buffer, drained only when a sink needs it).
- * Deliver priority: spawn/extension/tower -> storage as overflow.
+ * pickup and sink each tick via the scored logistics policy. Source value:
+ * dropped (decays) > mining containers (buffers) > storage (reserve, and only
+ * when a sink needs it, to avoid ping-pong). Sink value: empty spawn / depleted
+ * tower-under-attack > extensions, all traded off against distance.
  */
 export function runHaul(creep: Creep, _job: Job, worldRoom: WorldRoom): void {
     toggleWorking(creep);
 
     if (!creep.memory.working) {
-        // Dropped energy decays — grab it first.
-        if (worldRoom.droppedEnergy.length > 0) {
-            const pile = creep.pos.findClosestByRange(worldRoom.droppedEnergy);
-            if (pile) {
-                pickup(creep, pile);
-                return;
+        // Storage is eligible as a source only when a sink actually needs energy,
+        // so we never withdraw from the reserve just to put it back (ping-pong).
+        const allowStorage = worldRoom.energySinks().length > 0;
+        const source = pickEnergySource(creep, worldRoom, { allowStorage });
+        if (source) {
+            if (source.kind === EnergySourceKind.Pickup) {
+                pickup(creep, source.target);
+            } else {
+                withdraw(creep, source.target);
             }
-        }
-        // Move fresh mining output before touching the storage buffer.
-        const containers = worldRoom.containers.filter(c => c.store.getUsedCapacity(RESOURCE_ENERGY) > 0);
-        if (containers.length > 0) {
-            const container = creep.pos.findClosestByRange(containers);
-            if (container) {
-                withdraw(creep, container);
-                return;
-            }
-        }
-        // Storage is the last-resort source, and only when a sink actually needs it
-        // (prevents withdraw-then-redeposit ping-pong).
-        if (
-            worldRoom.storage &&
-            worldRoom.storage.store.getUsedCapacity(RESOURCE_ENERGY) > 0 &&
-            worldRoom.energySinks().length > 0
-        ) {
-            withdraw(creep, worldRoom.storage);
-            return;
         }
         return;
     }
 
-    const sink = nearestEnergySink(creep, worldRoom);
+    const sink = pickEnergySink(creep, worldRoom);
     if (sink) {
         transfer(creep, sink);
         return;

@@ -11,6 +11,12 @@ import { WorldRoom } from "world/WorldRoom";
 
 type Tile = { x: number; y: number };
 
+// Source containers are a mining *optimization*, not a speed lever (drop-mining
+// works without them). Defer them until the room has its early extensions and is
+// upgrading, so the build budget goes to capacity/RCL first — "speed before
+// containers". Kept local to avoid contending on the shared constants file.
+const CONTAINER_MIN_RCL = 3;
+
 /**
  * Base planning: anchor on the first spawn, place source containers (which
  * unlock static mining + the hauler economy), RCL-gated extensions in a
@@ -25,14 +31,18 @@ export function planBase(world: World): void {
         if (!anchor) {
             continue;
         }
-        // Economic structures share one budget; containers and storage outrank extensions.
+        // Speed before optimization: spend the shared build budget on extensions
+        // (more spawn capacity -> bigger miners/haulers/workers) first, then storage,
+        // and only then the mining-optimization source containers (gated by RCL). At
+        // RCL1 none of these are allowed yet, so workers fall back to upgrading — the
+        // fastest path to RCL2.
         let budget = MAX_SITES_PER_RUN;
-        budget -= ensureSourceContainers(worldRoom, budget);
+        budget -= ensureExtensions(worldRoom, anchor, budget);
         if (budget > 0 && worldRoom.rcl >= STORAGE_MIN_RCL) {
             budget -= ensureStorage(worldRoom, anchor, plan);
         }
-        if (budget > 0) {
-            ensureExtensions(worldRoom, anchor, budget);
+        if (budget > 0 && worldRoom.rcl >= CONTAINER_MIN_RCL) {
+            budget -= ensureSourceContainers(worldRoom, budget);
         }
         // Roads use a separate budget so they never starve extension growth.
         if (worldRoom.rcl >= ROAD_PLAN_MIN_RCL) {

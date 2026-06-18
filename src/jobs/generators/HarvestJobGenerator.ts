@@ -25,16 +25,24 @@ export function countOpenSeats(source: Source): number {
     return count;
 }
 
-/** One harvest job per source. Capacity is bounded by mineable seats. */
+/**
+ * One harvest job per source, capacity 1. Static mining: a single (grown) miner
+ * saturates a source's 10 energy/tick, so one seat is all the labor a source
+ * needs. Extra seats only pull priority-80 harvest workers off building and
+ * upgrading for redundant mining — the worst place for versatile WORK+CARRY labor.
+ * Sources with no walkable seat (fully walled) get no job.
+ */
 export function generateHarvestJobs(worldRoom: WorldRoom, board: JobBoard): void {
     for (const source of worldRoom.sources) {
-        const seats = Math.min(countOpenSeats(source), 3);
+        if (countOpenSeats(source) === 0) {
+            continue;
+        }
         board.upsert({
             id: `harvest:${source.id}`,
             kind: JobKind.Harvest,
             roomName: worldRoom.name,
             targetId: source.id,
-            capacity: Math.max(1, seats),
+            capacity: 1,
             assigned: [],
             priority: JOB_PRIORITY[JobKind.Harvest],
             demand: { work: 2, carry: 1 }

@@ -7,6 +7,8 @@ import { GreedyMatcher, economyCreepsToMatch } from "matching/Matcher";
 import { SpawnManager } from "spawn/SpawnManager";
 import { SpawnRequestQueue } from "spawn/queue";
 import { runCreep } from "actions/executors";
+import { senseEconomy } from "economy/EnergyModel";
+import { EconomyMemory } from "economy/types";
 import { assessDefense } from "defense/Defense";
 import { runTowers } from "defense/Towers";
 import { planBase } from "base/BasePlanner";
@@ -51,6 +53,9 @@ declare global {
         intel?: RoomIntel;
         base?: BasePlan;
         defense?: DefenseState;
+        /** Energy-flow controller state (smoothed storage level + trend). Lazily
+         *  initialized by the EnergyModel; additive/optional, no migration. */
+        economy?: EconomyMemory;
     }
 }
 
@@ -105,7 +110,11 @@ export const loop = ErrorMapper.wrapLoop(() => {
     guard(Phase.Reconcile, () => board.reconcile());
     guard(Phase.Prune, () => board.prune(world));
 
-    // 7. Spawn (demand + requests + floor).
+    // 6.5 Economy sensing: update each room's smoothed storage level/trend. Runs
+    // every tick (cheap, O(1)/room) so the spawn flow model has a fresh integrator.
+    guard(Phase.Economy, () => senseEconomy(world));
+
+    // 7. Spawn (energy-flow demand + requests + floor).
     guard(Phase.Spawn, () => spawnManager.run(world, board, spawnQueue));
 
     // 8. Matching (idle creeps + those that just finished a work cycle).

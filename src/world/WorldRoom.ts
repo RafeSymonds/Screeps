@@ -1,4 +1,4 @@
-import { REPAIR_THRESHOLD } from "config/constants";
+import { REPAIR_THRESHOLD, SOURCE_CONTAINER_RANGE } from "config/constants";
 
 /**
  * Per-tick view of a single room. Does all the room.find() work once and caches
@@ -23,6 +23,9 @@ export class WorldRoom {
 
     /** Lazily-computed structures below the repair threshold (roads/containers). */
     private cachedRepairTargets?: Structure[];
+
+    /** Lazily-computed containers adjacent to a source (mining output buffers). */
+    private cachedMiningContainers?: StructureContainer[];
 
     public constructor(room: Room) {
         this.room = room;
@@ -94,6 +97,42 @@ export class WorldRoom {
             }
         }
         return sinks;
+    }
+
+    /** Stored energy sitting in storage (the strategic buffer), 0 if no storage. */
+    public storageEnergy(): number {
+        return this.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0;
+    }
+
+    /**
+     * Containers adjacent to a source — where drop-mining output buffers before
+     * haulers move it. Distinct from a (future) controller container, which is a
+     * delivery sink rather than undelivered output. Lazily computed and cached.
+     */
+    public miningContainers(): StructureContainer[] {
+        if (this.cachedMiningContainers) {
+            return this.cachedMiningContainers;
+        }
+        this.cachedMiningContainers = this.containers.filter(container =>
+            this.sources.some(source => container.pos.inRangeTo(source.pos, SOURCE_CONTAINER_RANGE))
+        );
+        return this.cachedMiningContainers;
+    }
+
+    /**
+     * Undelivered energy waiting on logistics: dropped piles plus mining-container
+     * fill. The energy-flow model reads this as the "am I under-hauled?" signal —
+     * a rising backlog means income is outpacing carry. (See EnergyModel.)
+     */
+    public backlogEnergy(): number {
+        let total = 0;
+        for (const pile of this.droppedEnergy) {
+            total += pile.amount;
+        }
+        for (const container of this.miningContainers()) {
+            total += container.store.getUsedCapacity(RESOURCE_ENERGY);
+        }
+        return total;
     }
 
     /** Containers/storage holding withdrawable energy, biggest first. */
