@@ -2,6 +2,7 @@ import { expect } from "../helpers/chai";
 import { JobBoard } from "jobs/JobBoard";
 import { SpawnManager } from "spawn/SpawnManager";
 import { SpawnRequestQueue } from "spawn/queue";
+import { SpawnRole } from "spawn/types";
 import { World } from "world/World";
 import { WorldRoom } from "world/WorldRoom";
 
@@ -40,7 +41,7 @@ describe("SpawnManager", () => {
         new SpawnManager().run(world, board, new SpawnRequestQueue());
 
         expect(capture.body, "should have spawned").to.not.equal(undefined);
-        expect(capture.memory?.spawnRole).to.equal("generalist");
+        expect(capture.memory?.spawnRole).to.equal(SpawnRole.Generalist);
         expect(capture.memory?.home).to.equal("W1N1");
         expect(capture.memory?.working).to.equal(false);
     });
@@ -55,11 +56,11 @@ describe("SpawnManager", () => {
         board.rehydrate();
 
         const queue = new SpawnRequestQueue();
-        queue.push({ key: "def", roomName: "W1N1", role: "defender", priority: 200, owner: "defense" });
+        queue.push({ key: "def", roomName: "W1N1", role: SpawnRole.Defender, priority: 200, owner: "defense" });
 
         new SpawnManager().run(world, board, queue);
 
-        expect(capture.memory?.spawnRole).to.equal("defender");
+        expect(capture.memory?.spawnRole).to.equal(SpawnRole.Defender);
         expect(capture.memory?.controller).to.equal("defense");
     });
 });

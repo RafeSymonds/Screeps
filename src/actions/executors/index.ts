@@ -5,6 +5,7 @@ import { WorldRoom } from "world/WorldRoom";
 import { runBuild } from "actions/executors/build";
 import { runHarvest } from "actions/executors/harvest";
 import { runHaul } from "actions/executors/haul";
+import { runRepair } from "actions/executors/repair";
 import { runUpgrade } from "actions/executors/upgrade";
 
 type Executor = (creep: Creep, job: Job, worldRoom: WorldRoom) => void;
@@ -14,10 +15,11 @@ type Executor = (creep: Creep, job: Job, worldRoom: WorldRoom) => void;
  * entry here — runCreep and everything above it stays untouched.
  */
 const EXECUTORS: Record<JobKind, Executor> = {
-    harvest: runHarvest,
-    haul: runHaul,
-    upgrade: runUpgrade,
-    build: runBuild
+    [JobKind.Harvest]: runHarvest,
+    [JobKind.Haul]: runHaul,
+    [JobKind.Upgrade]: runUpgrade,
+    [JobKind.Build]: runBuild,
+    [JobKind.Repair]: runRepair
 };
 
 /**

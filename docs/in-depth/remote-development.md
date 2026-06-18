@@ -1,6 +1,6 @@
 # Remote Development
 
-It may be the case you don't want to install and maintain multiple versions of Node _(10, 12, 14... future releases)_ in your machine, or you don't want to install npm packages globally.
+It may be the case you don't want to install and maintain multiple versions of Node on your machine, or you don't want to install npm packages globally. This project's toolchain targets **Node 24** (the dev container ships Node 24, matching the Screeps game runtime).
 
 Keep your Screeps-TypeScript project isolated with its dependencies within a container!
 

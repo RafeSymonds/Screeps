@@ -44,7 +44,7 @@ Two contracts connect everything:
 ### `src/jobs`
 - `JobBoard.ts`: index over `Memory.jobs` — `rehydrate`/`persist`, `upsert` (idempotent), `assign`,
   `reconcile` (drop dead/desynced assignments), `prune` (invalid targets), `demand(roomName)`.
-- `generators/*`: one generator per economy job kind (harvest/haul/upgrade/build), registered in
+- `generators/*`: one generator per economy job kind (harvest/haul/upgrade/build/repair), registered in
   `generators/index.ts`.
 
 ### `src/matching`

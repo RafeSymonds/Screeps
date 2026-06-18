@@ -1,5 +1,6 @@
 import { expect } from "../helpers/chai";
 import { JobBoard } from "jobs/JobBoard";
+import { JobKind } from "jobs/types";
 import { GreedyMatcher, idleEconomyCreeps } from "matching/Matcher";
 import { World } from "world/World";
 import { makeCreep } from "../helpers/mock";
@@ -15,7 +16,7 @@ describe("integration: jobs + matching + memory", () => {
         board.rehydrate();
         board.upsert({
             id: "harvest:s1",
-            kind: "harvest",
+            kind: JobKind.Harvest,
             roomName: "W1N1",
             targetId: "s1",
             capacity: 1,
@@ -25,7 +26,7 @@ describe("integration: jobs + matching + memory", () => {
         });
         board.upsert({
             id: "upgrade:W1N1",
-            kind: "upgrade",
+            kind: JobKind.Upgrade,
             roomName: "W1N1",
             targetId: "c1",
             capacity: 1,

@@ -5,7 +5,16 @@
  * spawn service.
  */
 
-export type SpawnRole = "generalist" | "miner" | "hauler" | "worker" | "defender" | "claimer" | "soldier";
+/** String-valued so it serializes to the same token persisted in `CreepMemory.spawnRole`. */
+export enum SpawnRole {
+    Generalist = "generalist",
+    Miner = "miner",
+    Hauler = "hauler",
+    Worker = "worker",
+    Defender = "defender",
+    Claimer = "claimer",
+    Soldier = "soldier"
+}
 
 export interface SpawnRequest {
     /** Stable key so a subsystem can avoid duplicate requests across ticks. */

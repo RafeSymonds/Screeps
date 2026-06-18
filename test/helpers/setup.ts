@@ -45,6 +45,7 @@ g.STRUCTURE_EXTENSION = "extension";
 g.STRUCTURE_TOWER = "tower";
 g.STRUCTURE_CONTAINER = "container";
 g.STRUCTURE_STORAGE = "storage";
+g.STRUCTURE_ROAD = "road";
 g.STRUCTURE_WALL = "constructedWall";
 g.STRUCTURE_RAMPART = "rampart";
 
@@ -53,8 +54,11 @@ g.LOOK_STRUCTURES = "structure";
 g.LOOK_CONSTRUCTION_SITES = "constructionSite";
 g.TERRAIN_MASK_WALL = 1;
 
-// Controller structure limits (extensions only — what base planning reads)
-g.CONTROLLER_STRUCTURES = { extension: { 0: 0, 1: 0, 2: 5, 3: 10, 4: 20, 5: 30, 6: 40, 7: 50, 8: 60 } };
+// Controller structure limits (what base planning reads)
+g.CONTROLLER_STRUCTURES = {
+    extension: { 0: 0, 1: 0, 2: 5, 3: 10, 4: 20, 5: 30, 6: 40, 7: 50, 8: 60 },
+    storage: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1 }
+};
 
 function freshGame(): void {
     g.Game = {

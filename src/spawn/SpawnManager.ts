@@ -74,7 +74,7 @@ export class SpawnManager {
         // energy is on hand right now.
         const hasWorker = population.some(creep => creep.getActiveBodyparts(WORK) > 0);
         if (population.length === 0 || !hasWorker) {
-            return { role: "generalist", body: buildBody("generalist", Math.max(energyNow, 200)) };
+            return { role: SpawnRole.Generalist, body: buildBody(SpawnRole.Generalist, Math.max(energyNow, 200)) };
         }
 
         if (population.length >= MAX_ROOM_POPULATION) {
@@ -109,17 +109,17 @@ export class SpawnManager {
      */
     private chooseRole(worldRoom: WorldRoom, population: Creep[], needWork: boolean, needCarry: boolean): SpawnRole {
         if (worldRoom.energyCapacityAvailable < SPECIALIZE_ENERGY || !this.hasSourceContainers(worldRoom)) {
-            return "generalist";
+            return SpawnRole.Generalist;
         }
-        const miners = population.filter(creep => creep.memory.spawnRole === "miner").length;
+        const miners = population.filter(creep => creep.memory.spawnRole === SpawnRole.Miner).length;
         if (needWork && miners < worldRoom.sources.length) {
-            return "miner";
+            return SpawnRole.Miner;
         }
-        const haulers = population.filter(creep => creep.memory.spawnRole === "hauler").length;
+        const haulers = population.filter(creep => creep.memory.spawnRole === SpawnRole.Hauler).length;
         if (needCarry && haulers <= worldRoom.sources.length) {
-            return "hauler";
+            return SpawnRole.Hauler;
         }
-        return needWork ? "worker" : "hauler";
+        return needWork ? SpawnRole.Worker : SpawnRole.Hauler;
     }
 
     private hasSourceContainers(worldRoom: WorldRoom): boolean {

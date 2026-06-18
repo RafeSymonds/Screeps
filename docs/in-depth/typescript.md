@@ -18,7 +18,7 @@ Practically, this means:
 - The shipped `dist/main.js` is smaller and faster because the compiler no longer emits the verbose `(_a = x) === null || _a === void 0 ? ...` helper expansions for every `?.`.
 - The engine still provides **lodash 3.10.1** globally as `_`; the Node upgrade does not change that.
 
-Bundling is handled by the official **`@rollup/plugin-typescript`** (we migrated off the unmaintained `rollup-plugin-typescript2`, which silently passed raw `.ts` through under TypeScript 5.x). The local build/test toolchain requires Node `>=20`.
+Bundling is handled by the official **`@rollup/plugin-typescript`** (we migrated off the unmaintained `rollup-plugin-typescript2`, which silently passed raw `.ts` through under TypeScript 5.x). The local build/test toolchain requires Node `>=24`.
 
 ## Strict mode
 

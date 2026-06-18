@@ -1,5 +1,6 @@
 import { expect } from "../helpers/chai";
 import { JobBoard } from "jobs/JobBoard";
+import { JobKind } from "jobs/types";
 import { idleEconomyCreeps } from "matching/Matcher";
 import { World } from "world/World";
 import { makeCreep } from "../helpers/mock";
@@ -10,7 +11,7 @@ describe("idleEconomyCreeps (sticky matching)", () => {
         board.rehydrate();
         board.upsert({
             id: "j1",
-            kind: "upgrade",
+            kind: JobKind.Upgrade,
             roomName: "W1N1",
             capacity: 1,
             assigned: [],

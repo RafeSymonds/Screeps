@@ -31,18 +31,18 @@ function minerBody(energy: number): BodyPartConstant[] {
 /** Build a body for a spawn role sized to the energy budget. */
 export function buildBody(role: SpawnRole, energy: number): BodyPartConstant[] {
     switch (role) {
-        case "miner":
+        case SpawnRole.Miner:
             return minerBody(energy);
-        case "hauler":
+        case SpawnRole.Hauler:
             return repeatBody([CARRY, MOVE], energy);
-        case "defender":
+        case SpawnRole.Defender:
             return repeatBody([TOUGH, ATTACK, MOVE], energy);
-        case "soldier":
+        case SpawnRole.Soldier:
             return repeatBody([ATTACK, MOVE], energy);
-        case "claimer":
+        case SpawnRole.Claimer:
             return [CLAIM, MOVE];
-        case "worker":
-        case "generalist":
+        case SpawnRole.Worker:
+        case SpawnRole.Generalist:
         default:
             return repeatBody([WORK, CARRY, MOVE], energy);
     }

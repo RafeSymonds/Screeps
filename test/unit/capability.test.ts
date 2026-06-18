@@ -10,17 +10,19 @@ function job(kind: JobKind): Job {
 describe("capability.canPerform", () => {
     it("lets a WORK+CARRY creep perform every economy job", () => {
         const creep = makeCreep({ body: [WORK, CARRY, MOVE] });
-        expect(canPerform(creep, job("harvest"))).to.equal(true);
-        expect(canPerform(creep, job("haul"))).to.equal(true);
-        expect(canPerform(creep, job("upgrade"))).to.equal(true);
-        expect(canPerform(creep, job("build"))).to.equal(true);
+        expect(canPerform(creep, job(JobKind.Harvest))).to.equal(true);
+        expect(canPerform(creep, job(JobKind.Haul))).to.equal(true);
+        expect(canPerform(creep, job(JobKind.Upgrade))).to.equal(true);
+        expect(canPerform(creep, job(JobKind.Build))).to.equal(true);
+        expect(canPerform(creep, job(JobKind.Repair))).to.equal(true);
     });
 
     it("rejects a CARRY-only creep from WORK jobs but allows hauling", () => {
         const creep = makeCreep({ body: [CARRY, MOVE] });
-        expect(canPerform(creep, job("harvest"))).to.equal(false);
-        expect(canPerform(creep, job("upgrade"))).to.equal(false);
-        expect(canPerform(creep, job("build"))).to.equal(false);
-        expect(canPerform(creep, job("haul"))).to.equal(true);
+        expect(canPerform(creep, job(JobKind.Harvest))).to.equal(false);
+        expect(canPerform(creep, job(JobKind.Upgrade))).to.equal(false);
+        expect(canPerform(creep, job(JobKind.Build))).to.equal(false);
+        expect(canPerform(creep, job(JobKind.Repair))).to.equal(false);
+        expect(canPerform(creep, job(JobKind.Haul))).to.equal(true);
     });
 });

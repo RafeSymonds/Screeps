@@ -1,5 +1,6 @@
 import { JOB_PRIORITY } from "config/constants";
 import { JobBoard } from "jobs/JobBoard";
+import { JobKind } from "jobs/types";
 import { WorldRoom } from "world/WorldRoom";
 
 /**
@@ -10,11 +11,11 @@ export function generateHaulJobs(worldRoom: WorldRoom, board: JobBoard): void {
     const capacity = Math.min(Math.max(worldRoom.sources.length, 1), 3);
     board.upsert({
         id: `haul:${worldRoom.name}`,
-        kind: "haul",
+        kind: JobKind.Haul,
         roomName: worldRoom.name,
         capacity,
         assigned: [],
-        priority: JOB_PRIORITY.haul,
+        priority: JOB_PRIORITY[JobKind.Haul],
         demand: { work: 0, carry: 4 }
     });
 }

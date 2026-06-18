@@ -4,7 +4,14 @@
  * consumed by matching (who does it) and spawning (how much labor to make).
  */
 
-export type JobKind = "harvest" | "haul" | "upgrade" | "build";
+/** String-valued so it serializes to the same token persisted in `Memory.jobs`. */
+export enum JobKind {
+    Harvest = "harvest",
+    Haul = "haul",
+    Upgrade = "upgrade",
+    Build = "build",
+    Repair = "repair"
+}
 
 /** Live game objects a job can target — all have an id and a position. */
 export type JobTarget = Structure | Source | ConstructionSite | StructureController;

@@ -1,5 +1,6 @@
 import { JOB_PRIORITY } from "config/constants";
 import { JobBoard } from "jobs/JobBoard";
+import { JobKind } from "jobs/types";
 import { WorldRoom } from "world/WorldRoom";
 
 /**
@@ -13,11 +14,11 @@ export function generateBuildJobs(worldRoom: WorldRoom, board: JobBoard): void {
     }
     board.upsert({
         id: `build:${worldRoom.name}`,
-        kind: "build",
+        kind: JobKind.Build,
         roomName: worldRoom.name,
         capacity: Math.min(siteCount, 3),
         assigned: [],
-        priority: JOB_PRIORITY.build,
+        priority: JOB_PRIORITY[JobKind.Build],
         demand: { work: 1, carry: 1 }
     });
 }

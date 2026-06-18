@@ -6,10 +6,11 @@ import { Job, JobKind } from "jobs/types";
  * behavioral role. Adding a job kind adds one entry here.
  */
 const REQUIRED_PARTS: Record<JobKind, BodyPartConstant[]> = {
-    harvest: [WORK],
-    haul: [CARRY],
-    upgrade: [WORK, CARRY],
-    build: [WORK, CARRY]
+    [JobKind.Harvest]: [WORK],
+    [JobKind.Haul]: [CARRY],
+    [JobKind.Upgrade]: [WORK, CARRY],
+    [JobKind.Build]: [WORK, CARRY],
+    [JobKind.Repair]: [WORK, CARRY]
 };
 
 export function canPerform(creep: Creep, job: Job): boolean {

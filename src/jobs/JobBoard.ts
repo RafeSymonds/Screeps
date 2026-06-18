@@ -1,4 +1,4 @@
-import { Job, JobDemand, JobTarget } from "jobs/types";
+import { Job, JobDemand, JobKind, JobTarget } from "jobs/types";
 import { World } from "world/World";
 
 /**
@@ -172,9 +172,15 @@ export function isJobValid(job: Job, world: World): boolean {
     }
 
     // Build jobs are room-level (no targetId): valid only while sites remain.
-    if (job.kind === "build" && roomVisible) {
+    if (job.kind === JobKind.Build && roomVisible) {
         const worldRoom = world.getRoom(job.roomName);
         return (worldRoom?.constructionSites.length ?? 0) > 0;
+    }
+
+    // Repair jobs are room-level: valid only while damaged structures remain.
+    if (job.kind === JobKind.Repair && roomVisible) {
+        const worldRoom = world.getRoom(job.roomName);
+        return (worldRoom?.repairTargets().length ?? 0) > 0;
     }
 
     return true;

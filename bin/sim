@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# bin/sim — run the bot headless in a REAL Screeps engine (Node 24, in Docker).
+#
+# Not a daemon: each `run` builds the bot, ticks a simulated world to completion,
+# prints what happened, and exits. See sim/README.md for the why.
+#
+# Usage:
+#   bin/sim run [TICKS] [--build] [--scenario NAME] [--every N] [--verbose]
+#   bin/sim build            # (re)build the Docker engine image
+#   bin/sim shell            # drop into the engine container (debugging)
+#   bin/sim clean            # remove the Docker engine image
+#
+# Examples:
+#   bin/sim run                       # 150 ticks, default scenario
+#   bin/sim run 400 --every 25        # longer run, sparser state lines
+#   bin/sim run --verbose             # console every tick + final Memory dump
+#   bin/sim run --scenario default
+#
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SIM="$ROOT/sim"
+IMAGE="screeps-sim"
+
+die() { echo "error: $*" >&2; exit 1; }
+command -v docker >/dev/null 2>&1 || die "docker not found on PATH"
+docker info >/dev/null 2>&1 || die "docker daemon not running (start Docker Desktop)"
+
+build_image() { echo "[sim] building image $IMAGE (first build compiles isolated-vm; takes a few minutes)…"; docker build -t "$IMAGE" "$SIM"; }
+ensure_image() { docker image inspect "$IMAGE" >/dev/null 2>&1 || build_image; }
+build_bot() { echo "[sim] building bot bundle (npm run build)…"; ( cd "$ROOT" && npm run build >/dev/null ) || die "bot build failed"; }
+
+cmd="${1:-run}"; shift || true
+
+case "$cmd" in
+  run)
+    ticks="${TICKS:-150}"; scenario="${SCENARIO:-default}"; every="${EVERY:-10}"; verbose="${VERBOSE:-0}"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --build)    build_image ;;
+        --scenario) scenario="${2:?--scenario needs a name}"; shift ;;
+        --every)    every="${2:?--every needs a number}"; shift ;;
+        --verbose)  verbose=1 ;;
+        --ticks)    ticks="${2:?--ticks needs a number}"; shift ;;
+        ''|*[!0-9]*) die "unknown argument: $1" ;;
+        *)          ticks="$1" ;;
+      esac
+      shift
+    done
+    ensure_image
+    build_bot
+    [[ -f "$ROOT/dist/main.js" ]] || die "dist/main.js missing after build"
+    echo "[sim] running: scenario=$scenario ticks=$ticks every=$every verbose=$verbose"
+    docker run --rm \
+      -v "$ROOT/dist:/bot:ro" \
+      -v "$SIM/run.js:/sim/run.js:ro" \
+      -v "$SIM/scenarios:/sim/scenarios:ro" \
+      -e TICKS="$ticks" -e SCENARIO="$scenario" -e EVERY="$every" -e VERBOSE="$verbose" \
+      "$IMAGE"
+    ;;
+  build|rebuild) build_image ;;
+  shell)
+    ensure_image
+    docker run --rm -it -v "$ROOT/dist:/bot:ro" -v "$SIM:/sim" --entrypoint bash "$IMAGE"
+    ;;
+  clean) docker image rm "$IMAGE" 2>/dev/null && echo "[sim] removed $IMAGE" || echo "[sim] no image to remove" ;;
+  help|-h|--help) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown command: $cmd (try: run | build | shell | clean | help)" ;;
+esac

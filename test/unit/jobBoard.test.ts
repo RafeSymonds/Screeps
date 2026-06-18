@@ -1,11 +1,11 @@
 import { expect } from "../helpers/chai";
 import { JobBoard } from "jobs/JobBoard";
-import { Job } from "jobs/types";
+import { Job, JobKind } from "jobs/types";
 
 function harvestJob(over: Partial<Job> = {}): Job {
     return {
         id: "harvest:s1",
-        kind: "harvest",
+        kind: JobKind.Harvest,
         roomName: "W1N1",
         targetId: "s1",
         capacity: 2,
@@ -62,6 +62,6 @@ describe("JobBoard", () => {
 
         const reloaded = new JobBoard();
         reloaded.rehydrate();
-        expect(reloaded.get("harvest:s1")?.kind).to.equal("harvest");
+        expect(reloaded.get("harvest:s1")?.kind).to.equal(JobKind.Harvest);
     });
 });

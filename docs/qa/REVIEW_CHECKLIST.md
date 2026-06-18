@@ -66,6 +66,6 @@ For small surgical changes, see the [Regression Checklist](REGRESSION_CHECKLIST.
 
 ## 7. Baseline Compliance
 
-- **Mandatory**: `npm run build` passes; `npm run test` passes (17 unit + 1 integration).
+- **Mandatory**: `npm run build` passes; `npm run test` passes (24 unit + 1 integration).
 - **Lint**: currently blocked repo-wide by the `es2024` parser issue — not a gate; verify by build+tests.
 - **Dry-run**: for complex logic, watch the first ~100 ticks in the simulator or a private server.

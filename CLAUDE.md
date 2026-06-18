@@ -52,9 +52,9 @@ The bot was rebuilt from scratch in June 2026. The current design is
 ## Baseline (current)
 
 -   Runtime: Screeps is **Node.js 24 (V8 13.6)**; the build targets **`es2024`** via
-    `@rollup/plugin-typescript`. Local toolchain needs Node `>=20`.
+    `@rollup/plugin-typescript`. Local toolchain needs Node `>=24`.
 -   `npm run build` passes (bundles `src/main.ts` → `dist/main.js`).
--   `npm run test` passes: 17 unit + 1 integration tests.
+-   `npm run test` passes: 24 unit + 1 integration tests.
 -   `npm run lint` is **broken repo-wide**: `Invalid value for lib provided: es2024` — the installed
     `@typescript-eslint` parser predates es2024 and fails on every file (including untouched ones). This
     is toolchain debt, not a code regression; build + tests are the gates.

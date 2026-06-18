@@ -1,3 +1,5 @@
+import { REPAIR_THRESHOLD } from "config/constants";
+
 /**
  * Per-tick view of a single room. Does all the room.find() work once and caches
  * the buckets so no other subsystem has to scan ad hoc. Everything downstream
@@ -8,19 +10,25 @@ export class WorldRoom {
     public readonly name: string;
     public readonly isMine: boolean;
     public readonly controller?: StructureController;
+    public readonly storage?: StructureStorage;
     public readonly sources: Source[];
     public readonly spawns: StructureSpawn[];
     public readonly extensions: StructureExtension[];
     public readonly towers: StructureTower[];
     public readonly containers: StructureContainer[];
+    public readonly roads: StructureRoad[];
     public readonly constructionSites: ConstructionSite[];
     public readonly hostiles: Creep[];
     public readonly droppedEnergy: Resource[];
+
+    /** Lazily-computed structures below the repair threshold (roads/containers). */
+    private cachedRepairTargets?: Structure[];
 
     public constructor(room: Room) {
         this.room = room;
         this.name = room.name;
         this.controller = room.controller;
+        this.storage = room.storage;
         this.isMine = room.controller?.my === true;
         this.sources = room.find(FIND_SOURCES);
         this.hostiles = room.find(FIND_HOSTILE_CREEPS);
@@ -33,6 +41,7 @@ export class WorldRoom {
         this.extensions = [];
         this.towers = [];
         this.containers = [];
+        this.roads = [];
         for (const structure of room.find(FIND_STRUCTURES)) {
             switch (structure.structureType) {
                 case STRUCTURE_SPAWN:
@@ -46,6 +55,9 @@ export class WorldRoom {
                     break;
                 case STRUCTURE_CONTAINER:
                     this.containers.push(structure);
+                    break;
+                case STRUCTURE_ROAD:
+                    this.roads.push(structure);
                     break;
             }
         }
@@ -97,5 +109,29 @@ export class WorldRoom {
             stores.push(storage);
         }
         return stores;
+    }
+
+    /**
+     * Non-fortification structures (roads/containers) decayed below the repair
+     * threshold. Computed once per tick and reused by the repair job generator,
+     * the repair executor, and JobBoard pruning.
+     */
+    public repairTargets(): Structure[] {
+        if (this.cachedRepairTargets) {
+            return this.cachedRepairTargets;
+        }
+        const targets: Structure[] = [];
+        for (const road of this.roads) {
+            if (road.hits < road.hitsMax * REPAIR_THRESHOLD) {
+                targets.push(road);
+            }
+        }
+        for (const container of this.containers) {
+            if (container.hits < container.hitsMax * REPAIR_THRESHOLD) {
+                targets.push(container);
+            }
+        }
+        this.cachedRepairTargets = targets;
+        return targets;
     }
 }

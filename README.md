@@ -64,7 +64,7 @@ npm run watch-main
 ## Validation Notes
 
 - `npm run build` is the reliable baseline check (bundles via `@rollup/plugin-typescript`).
-- `npm run test` runs unit + integration suites (currently 17 unit + 1 integration, all passing).
+- `npm run test` runs unit + integration suites (currently 24 unit + 1 integration, all passing).
 - `npm run lint` is **currently broken repo-wide** with `Invalid value for lib provided: es2024` —
   the installed `@typescript-eslint` parser predates `es2024` and fails to parse every file. This is
   pre-existing toolchain debt; build and tests are the working gates.

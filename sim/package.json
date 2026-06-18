@@ -1,0 +1,12 @@
+{
+  "name": "screeps-sim",
+  "private": true,
+  "description": "Headless Node-24 Screeps engine harness for live-simulating the bot",
+  "dependencies": {
+    "screeps-server-mockup": "github:screepers/screeps-server-mockup",
+    "@screeps/driver": "5.3.0"
+  },
+  "overrides": {
+    "@screeps/driver": "5.3.0"
+  }
+}

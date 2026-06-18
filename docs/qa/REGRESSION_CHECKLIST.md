@@ -37,5 +37,5 @@ alternative to the full [Review Checklist](REVIEW_CHECKLIST.md), focused on mult
 ## 5. Gating Checks
 
 - [ ] `npm run build` passes.
-- [ ] `npm run test` passes (17 unit + 1 integration).
+- [ ] `npm run test` passes (24 unit + 1 integration).
 - [ ] Multi-tick validation: ~100+ ticks in the simulator or a private server.

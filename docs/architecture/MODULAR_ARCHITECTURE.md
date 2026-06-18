@@ -88,9 +88,10 @@ SpawnManager are untouched.
 
 ## Status
 
-Built now: foundations, jobs (harvest/haul/upgrade/build), matching, actions,
-spawning, defense (towers + threat/safe-mode), minimal base planning
-(containers + extensions), passive scouting.
+Built now: foundations, jobs (harvest/haul/upgrade/build/repair), matching,
+actions, spawning, defense (towers + threat/safe-mode), base planning
+(containers + extensions + storage at RCL4 + roads on hauling lanes), storage
+logistics in hauling, passive scouting.
 
 Seams only: task chaining, expansion, combat (offensive), full base layout,
 defender/rampart logic, links/terminal/labs, remote mining.

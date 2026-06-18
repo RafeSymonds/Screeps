@@ -1,5 +1,6 @@
 import { JOB_PRIORITY } from "config/constants";
 import { JobBoard } from "jobs/JobBoard";
+import { JobKind } from "jobs/types";
 import { WorldRoom } from "world/WorldRoom";
 
 /** Walkable tiles adjacent to a source — the number of creeps that can mine it at once. */
@@ -30,12 +31,12 @@ export function generateHarvestJobs(worldRoom: WorldRoom, board: JobBoard): void
         const seats = Math.min(countOpenSeats(source), 3);
         board.upsert({
             id: `harvest:${source.id}`,
-            kind: "harvest",
+            kind: JobKind.Harvest,
             roomName: worldRoom.name,
             targetId: source.id,
             capacity: Math.max(1, seats),
             assigned: [],
-            priority: JOB_PRIORITY.harvest,
+            priority: JOB_PRIORITY[JobKind.Harvest],
             demand: { work: 2, carry: 1 }
         });
     }
