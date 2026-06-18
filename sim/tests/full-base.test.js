@@ -4,11 +4,11 @@ const { runScenario, seriesOf, finalOf } = require("../lib/harness");
 
 // Steady-state behavior on a mature RCL8 room. Guards against crashes and CPU
 // blowups at scale, and against the bot losing/miscounting its own structures.
-describe("sim: steady state (full-base RCL8, 40 ticks)", function () {
+describe("sim: steady state (full-base RCL8, 30 ticks)", function () {
   this.timeout(10 * 60 * 1000);
   let res;
   before(async () => {
-    res = await runScenario({ scenario: "full-base", ticks: 40, every: 10 });
+    res = await runScenario({ scenario: "full-base", ticks: 30, every: 10 });
   });
 
   it("never raises an engine-level or bot error", () => {

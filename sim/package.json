@@ -3,7 +3,7 @@
   "private": true,
   "description": "Headless Node-24 Screeps engine harness for live-simulating the bot",
   "scripts": {
-    "test": "mocha --exit \"tests/**/*.test.js\""
+    "test": "mocha --exit --parallel \"tests/**/*.test.js\""
   },
   "dependencies": {
     "screeps-server-mockup": "github:screepers/screeps-server-mockup",

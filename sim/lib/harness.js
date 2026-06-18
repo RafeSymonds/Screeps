@@ -15,7 +15,9 @@ const { ScreepsServer, TerrainMatrix } = require("screeps-server-mockup");
 const { summarize } = require("./summary");
 const { seedSurroundingTerrain } = require("../scenarios/_world");
 
-let nextPort = 21025;
+// Per-process base port so `mocha --parallel` workers never collide on storage
+// ports/dirs (each worker is a separate process with its own counter).
+let nextPort = 21025 + (process.pid % 1000) * 4;
 
 function readBotModules(botMain, botMap) {
   botMain = botMain || process.env.BOT_MAIN || "/bot/main.js";

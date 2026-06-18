@@ -53,8 +53,15 @@ export function runHaul(creep: Creep, _job: Job, worldRoom: WorldRoom): void {
         transfer(creep, worldRoom.storage);
         return;
     }
-    // Everything is full — idle near the controller so we're ready to refill.
+    // No sink and no storage (early game): drop the surplus at the controller as an
+    // upgrade buffer rather than hoarding it. Upgraders/builders gather dropped
+    // energy first, so this turns otherwise-idle hauler loads into upgrade/build
+    // throughput instead of locking energy inside parked haulers.
     if (worldRoom.controller) {
-        moveTo(creep, worldRoom.controller, 3);
+        if (creep.pos.inRangeTo(worldRoom.controller, 3)) {
+            creep.drop(RESOURCE_ENERGY);
+        } else {
+            moveTo(creep, worldRoom.controller, 3);
+        }
     }
 }

@@ -43,6 +43,19 @@ MOUNTS=(
   -v "$SIM/tests:/sim/tests:ro"
 )
 
+# `docker run --rm` only removes the container when it stops normally; if the CLIENT
+# is killed (Ctrl-C, `timeout`, kill) the container can keep running. So we name the
+# container and force-remove it via a trap on any exit/interrupt as a backstop.
+CONTAINER=""
+cleanup() { [[ -n "$CONTAINER" ]] && docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT TERM
+
+# Run the engine container in the background and wait, so a trapped signal (Ctrl-C,
+# timeout, kill) interrupts the wait and fires cleanup immediately — a foreground
+# `docker run` would defer the trap until it returned, leaking a live container.
+run_container() { docker run "$@" & wait $!; }
+
 cmd="${1:-run}"; shift || true
 
 case "$cmd" in
@@ -64,8 +77,10 @@ case "$cmd" in
     build_bot
     [[ -f "$ROOT/dist/main.js" ]] || die "dist/main.js missing after build"
     echo "[sim] running: scenario=$scenario ticks=$ticks every=$every verbose=$verbose"
-    docker run --rm "${MOUNTS[@]}" \
+    CONTAINER="screeps-sim-run-$$"
+    run_container --rm --init --name "$CONTAINER" "${MOUNTS[@]}" \
       -e TICKS="$ticks" -e SCENARIO="$scenario" -e EVERY="$every" -e VERBOSE="$verbose" \
+      -e SIM_NEIGHBOR_RADIUS \
       "$IMAGE"
     ;;
   test)
@@ -74,12 +89,16 @@ case "$cmd" in
     build_bot
     [[ -f "$ROOT/dist/main.js" ]] || die "dist/main.js missing after build"
     echo "[sim] running behavioral tests (real engine, this is slower than npm run test)…"
-    docker run --rm "${MOUNTS[@]}" --entrypoint npx "$IMAGE" mocha --exit "tests/**/*.test.js" "$@"
+    CONTAINER="screeps-sim-test-$$"
+    # --parallel runs the test files concurrently (each boots its own engine on a
+    # unique port); the suite's wall time drops to ~the slowest single file.
+    run_container --rm --init --name "$CONTAINER" "${MOUNTS[@]}" -e SIM_NEIGHBOR_RADIUS --entrypoint npx "$IMAGE" mocha --exit --parallel "tests/**/*.test.js" "$@"
     ;;
   build|rebuild) build_image ;;
   shell)
     ensure_image
-    docker run --rm -it -v "$ROOT/dist:/bot:ro" -v "$SIM:/sim" --entrypoint bash "$IMAGE"
+    CONTAINER="screeps-sim-shell-$$"
+    docker run --rm -it --init --name "$CONTAINER" -v "$ROOT/dist:/bot:ro" -v "$SIM:/sim" --entrypoint bash "$IMAGE"
     ;;
   clean) docker image rm "$IMAGE" 2>/dev/null && echo "[sim] removed $IMAGE" || echo "[sim] no image to remove" ;;
   help|-h|--help) sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;

@@ -9,8 +9,16 @@
 // combat travel out of the box; `reusePath` caches the path for a few ticks.
 const MOVE_OPTS: MoveToOpts = { reusePath: 10, visualizePathStyle: { stroke: "#ffffff", opacity: 0.15 } };
 
+/**
+ * Move `creep` toward `target` (a RoomPosition, or any game object with a `.pos`
+ * such as a source, structure, or the controller) and stop once it is within
+ * `range` tiles. `range` is the action's reach: 1 to end up adjacent
+ * (harvest / withdraw / transfer), 3 for ranged actions (upgrade / build / repair)
+ * so the creep stops as soon as it's close enough to act instead of crowding the
+ * exact tile. The wrappers below call this with the right range for each intent.
+ */
 export function moveTo(creep: Creep, target: RoomPosition | { pos: RoomPosition }, range = 1): void {
-    creep.moveTo(target as RoomPosition, { ...MOVE_OPTS, range });
+    creep.moveTo(target, { ...MOVE_OPTS, range });
 }
 
 /** Flip the gather/act phase based on whether the creep is empty or full. */

@@ -4,11 +4,11 @@ const { runScenario, seriesOf, finalOf } = require("../lib/harness");
 
 // Long-term economy behavior on a fresh RCL1 room. Guards against regressions that
 // would stall the bootstrap (no spawning, no harvest, CPU blowups, crashes).
-describe("sim: economy bootstrap (default, 250 ticks)", function () {
+describe("sim: economy bootstrap (default, 180 ticks)", function () {
   this.timeout(10 * 60 * 1000);
   let res;
   before(async () => {
-    res = await runScenario({ scenario: "default", ticks: 250, every: 10 });
+    res = await runScenario({ scenario: "default", ticks: 180, every: 10 });
   });
 
   it("never raises an engine-level or bot error", () => {

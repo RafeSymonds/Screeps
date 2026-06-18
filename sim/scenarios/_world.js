@@ -64,7 +64,11 @@ function xyToRoomName(x, y) {
  * that isn't already part of the world. Idempotent; safe to call once after a
  * scenario's own rooms (with their real terrain) are set up.
  */
-async function seedSurroundingTerrain(server, rooms, radius = 2) {
+async function seedSurroundingTerrain(server, rooms, radius) {
+  // radius 1 (the 8 adjacent rooms) is enough for in-room PathFinder edge probing
+  // and keeps the engine from processing dozens of empty rooms each tick. Override
+  // with SIM_NEIGHBOR_RADIUS for wide multi-room pathfinding.
+  if (radius === undefined) radius = parseInt(process.env.SIM_NEIGHBOR_RADIUS ?? "1", 10);
   const existing = new Set(rooms);
   const seeded = new Set();
   for (const room of rooms) {

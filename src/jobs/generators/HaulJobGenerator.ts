@@ -8,7 +8,9 @@ import { WorldRoom } from "world/WorldRoom";
  * sink each tick, so a single job covers all hauling in the room.
  */
 export function generateHaulJobs(worldRoom: WorldRoom, board: JobBoard): void {
-    const capacity = Math.min(Math.max(worldRoom.sources.length, 1), 3);
+    // One more slot than sources so every spawned hauler (the spawn target is
+    // sources + 1) has a slot — otherwise a hauler is left permanently idle.
+    const capacity = Math.min(worldRoom.sources.length + 1, 4);
     board.upsert({
         id: `haul:${worldRoom.name}`,
         kind: JobKind.Haul,

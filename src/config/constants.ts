@@ -35,6 +35,13 @@ export const MAX_ROOM_POPULATION = 12;
 export const BODY_MAX_PARTS = 50;
 // Below this energy capacity we stay on cheap generalists; above it we may specialize.
 export const SPECIALIZE_ENERGY = 550;
+// Energy capacity at which a dedicated static miner becomes worthwhile (affords a
+// ~[WORK,WORK,MOVE] miner). Drop-mining needs no container, so we specialize this
+// early and let speed/income come first; containers are an optimization later.
+export const MIN_MINER_ENERGY = 250;
+// WORK+CARRY flex workers kept for build/upgrade — pure miners (no CARRY) and
+// haulers (no WORK) can do neither, so the base composition must include these.
+export const FLEX_WORKERS = 2;
 // Minimum energy to bank before spawning a non-emergency economy creep.
 export const MIN_SPAWN_ENERGY = 300;
 

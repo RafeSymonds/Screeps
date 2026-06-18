@@ -20,6 +20,11 @@ bin/sim clean                        # remove the engine image
 Each `run` rebuilds the bot (`npm run build`), boots the engine in Docker, ticks the
 world to completion, prints what happened, and exits. It is a batch tool, not a daemon.
 
+Containers are ephemeral: every container runs with `--rm` and a unique `--name`, and
+`bin/sim` traps signals to force-remove it — so nothing is left running after a normal exit,
+a `Ctrl-C`, a `timeout`, or a kill. (The `screeps-sim` image is kept for reuse; drop it with
+`bin/sim clean`.)
+
 ## Example output
 
 ```
@@ -81,11 +86,15 @@ bin/sim test                  # run all
 bin/sim test -- --grep defense  # only matching
 ```
 
+The files run with `mocha --parallel` (each boots its own engine on a unique port), so the
+suite's wall time is roughly the slowest single file, not the sum. Keep each scenario's tick
+count to the minimum that proves the behavior — engine ticks are ~the only cost (~0.25s each).
+
 Tests use the shared `lib/harness.js`:
 
 ```js
 const { runScenario, seriesOf, finalOf } = require("../lib/harness");
-const res = await runScenario({ scenario: "default", ticks: 250, every: 10 });
+const res = await runScenario({ scenario: "default", ticks: 180, every: 10 });
 // res.timeline    : per-snapshot state (same fields you watch in `bin/sim run`)
 // res.engineErrors : engine-level failures (e.g. module load)
 // res.botErrors    : exceptions the bot caught (ErrorMapper red-span console lines)
@@ -124,5 +133,10 @@ engine constants. Key helpers (`const W = require("./_world")`):
 `addBot` must run **after** the room has a controller (it claims it at RCL1 and drops an owned
 spawn at `x,y`); call `W.fullBase` / `W.setController` afterward to mature it. Files starting
 with `_` are helpers, not selectable scenarios.
+
+Neighbor rooms get all-plains terrain seeded around each scenario room so cross-border
+pathfinding works (the real map has terrain everywhere). The default radius is 1 (the 8
+adjacent rooms) — enough for in-room edge probing and cheap. Bump it for wide multi-room
+pathfinding with `SIM_NEIGHBOR_RADIUS=2 bin/sim run …` (forwarded into the container).
 
 Run `/build-scenario` (the project skill) to have an agent author a new one for you.

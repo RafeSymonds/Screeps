@@ -17,6 +17,7 @@ import { commandControllerCreeps } from "controllers";
 import { shouldRun } from "cpu/Scheduler";
 import { shouldGeneratePixel } from "cpu/CpuBudget";
 import { BASE_INTERVAL, SCOUT_INTERVAL } from "config/constants";
+import { Phase } from "config/phases";
 import { Job } from "jobs/types";
 import { SpawnRole } from "spawn/types";
 import { RoomIntel } from "intel/types";
@@ -63,7 +64,7 @@ const spawnManager = new SpawnManager();
  * runs. Persistent state is the JobBoard/Memory, so a skipped phase degrades
  * gracefully rather than freezing the whole bot.
  */
-function guard(label: string, fn: () => void): void {
+function guard(label: Phase | string, fn: () => void): void {
     try {
         fn();
     } catch (e) {
@@ -86,38 +87,38 @@ export const loop = ErrorMapper.wrapLoop(() => {
     const world = new World();
 
     // 4. Scouting (throttled).
-    if (shouldRun("scout", SCOUT_INTERVAL)) {
-        guard("scout", () => updateIntel(world));
+    if (shouldRun(Phase.Scout, SCOUT_INTERVAL)) {
+        guard(Phase.Scout, () => updateIntel(world));
     }
 
     // 5. Strategy: planners post jobs and spawn requests.
     const spawnQueue = new SpawnRequestQueue();
-    guard("defense", () => spawnQueue.pushAll(assessDefense(world)));
-    guard("jobs", () => generateJobs(world, board));
-    if (shouldRun("base", BASE_INTERVAL)) {
-        guard("base", () => planBase(world));
+    guard(Phase.Defense, () => spawnQueue.pushAll(assessDefense(world)));
+    guard(Phase.Jobs, () => generateJobs(world, board));
+    if (shouldRun(Phase.Base, BASE_INTERVAL)) {
+        guard(Phase.Base, () => planBase(world));
     }
-    guard("expansion", () => spawnQueue.pushAll(planExpansion(world)));
-    guard("combat", () => spawnQueue.pushAll(planCombat(world)));
+    guard(Phase.Expansion, () => spawnQueue.pushAll(planExpansion(world)));
+    guard(Phase.Combat, () => spawnQueue.pushAll(planCombat(world)));
 
     // 6. Job bookkeeping.
-    guard("reconcile", () => board.reconcile());
-    guard("prune", () => board.prune(world));
+    guard(Phase.Reconcile, () => board.reconcile());
+    guard(Phase.Prune, () => board.prune(world));
 
     // 7. Spawn (demand + requests + floor).
-    guard("spawn", () => spawnManager.run(world, board, spawnQueue));
+    guard(Phase.Spawn, () => spawnManager.run(world, board, spawnQueue));
 
     // 8. Matching (idle creeps + those that just finished a work cycle).
-    guard("match", () => matcher.assign(economyCreepsToMatch(world, board), board, world));
+    guard(Phase.Match, () => matcher.assign(economyCreepsToMatch(world, board), board, world));
 
     // 9. Tactical execution.
-    guard("towers", () => runTowers(world));
-    guard("controllers", () => commandControllerCreeps(world));
+    guard(Phase.Towers, () => runTowers(world));
+    guard(Phase.Controllers, () => commandControllerCreeps(world));
     for (const creep of world.creeps) {
         if (creep.spawning || creep.memory.controller) {
             continue;
         }
-        guard(`run:${creep.name}`, () => runCreep(creep, board, world));
+        guard(`${Phase.Run}:${creep.name}`, () => runCreep(creep, board, world));
     }
 
     // 10. Persist jobs.

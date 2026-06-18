@@ -1,4 +1,4 @@
-import { MAX_ROOM_POPULATION, MIN_SPAWN_ENERGY, SOURCE_CONTAINER_RANGE, SPECIALIZE_ENERGY } from "config/constants";
+import { FLEX_WORKERS, MAX_ROOM_POPULATION, MIN_MINER_ENERGY, MIN_SPAWN_ENERGY } from "config/constants";
 import { JobBoard } from "jobs/JobBoard";
 import { SpawnRequest, SpawnRole } from "spawn/types";
 import { bodyCost, buildBody } from "spawn/bodies";
@@ -81,13 +81,8 @@ export class SpawnManager {
             return null;
         }
 
-        // Demand-driven: open job slots define demand; live parts define supply.
-        // As the matcher fills slots, demand falls and spawning self-limits.
-        const demand = board.demand(worldRoom.name);
-        const supply = laborSupply(world, worldRoom.name);
-        const needWork = supply.work < demand.work;
-        const needCarry = supply.carry < demand.carry;
-        if (!needWork && !needCarry) {
+        const role = this.chooseRole(worldRoom, world, board, population);
+        if (!role) {
             return null;
         }
 
@@ -98,35 +93,64 @@ export class SpawnManager {
             return null;
         }
 
-        const role = this.chooseRole(worldRoom, population, needWork, needCarry);
         return { role, body: buildBody(role, energyNow) };
     }
 
     /**
-     * Pick a body category. Stays on cheap generalists until the room can afford
-     * specialists AND has source containers (static mining is pointless without
-     * them), then fills miners and haulers.
+     * Pick the next body to add, targeting a base composition before chasing
+     * residual demand:
+     *   1. one static miner per source (drop-mining — no container needed),
+     *      interleaved with haulers so every miner has a ferry feeding the room,
+     *   2. a few WORK+CARRY flex workers for build/upgrade (miners/haulers can't),
+     *   3. then top up by aggregate labor demand.
+     * Below the miner-affordability floor the room runs on plain generalists.
      */
-    private chooseRole(worldRoom: WorldRoom, population: Creep[], needWork: boolean, needCarry: boolean): SpawnRole {
-        if (worldRoom.energyCapacityAvailable < SPECIALIZE_ENERGY || !this.hasSourceContainers(worldRoom)) {
-            return SpawnRole.Generalist;
+    private chooseRole(worldRoom: WorldRoom, world: World, board: JobBoard, population: Creep[]): SpawnRole | null {
+        const has = (role: SpawnRole) => population.filter(creep => creep.memory.spawnRole === role).length;
+        const sources = worldRoom.sources.length;
+
+        // Too poor for a worthwhile static miner: generalists do everything.
+        if (worldRoom.energyCapacityAvailable < MIN_MINER_ENERGY) {
+            return this.hasDemand(worldRoom, world, board) ? SpawnRole.Generalist : null;
         }
-        const miners = population.filter(creep => creep.memory.spawnRole === SpawnRole.Miner).length;
-        if (needWork && miners < worldRoom.sources.length) {
-            return SpawnRole.Miner;
-        }
-        const haulers = population.filter(creep => creep.memory.spawnRole === SpawnRole.Hauler).length;
-        if (needCarry && haulers <= worldRoom.sources.length) {
+
+        const miners = has(SpawnRole.Miner);
+        const haulers = has(SpawnRole.Hauler);
+
+        // Core logistics. A miner with no ferry just piles decaying energy, so add
+        // a hauler the moment miners outnumber haulers; otherwise grow miners up to
+        // one per source, then top haulers up to one more than the sources.
+        if (haulers < miners) {
             return SpawnRole.Hauler;
         }
-        return needWork ? SpawnRole.Worker : SpawnRole.Hauler;
+        if (miners < sources) {
+            return SpawnRole.Miner;
+        }
+        if (haulers < sources + 1) {
+            return SpawnRole.Hauler;
+        }
+
+        // Flex labor for the jobs specialists can't take (build, upgrade).
+        const flex = has(SpawnRole.Worker) + has(SpawnRole.Generalist);
+        if (flex < FLEX_WORKERS) {
+            return SpawnRole.Worker;
+        }
+
+        // Base composition met — follow residual demand, carry before work.
+        const demand = board.demand(worldRoom.name);
+        const supply = laborSupply(world, worldRoom.name);
+        if (supply.carry < demand.carry) {
+            return SpawnRole.Hauler;
+        }
+        if (supply.work < demand.work) {
+            return SpawnRole.Worker;
+        }
+        return null;
     }
 
-    private hasSourceContainers(worldRoom: WorldRoom): boolean {
-        return worldRoom.sources.some(source =>
-            source.pos
-                .findInRange(FIND_STRUCTURES, SOURCE_CONTAINER_RANGE)
-                .some(structure => structure.structureType === STRUCTURE_CONTAINER)
-        );
+    private hasDemand(worldRoom: WorldRoom, world: World, board: JobBoard): boolean {
+        const demand = board.demand(worldRoom.name);
+        const supply = laborSupply(world, worldRoom.name);
+        return supply.work < demand.work || supply.carry < demand.carry;
     }
 }
