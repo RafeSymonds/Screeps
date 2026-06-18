@@ -2,9 +2,14 @@
   "name": "screeps-sim",
   "private": true,
   "description": "Headless Node-24 Screeps engine harness for live-simulating the bot",
+  "scripts": {
+    "test": "mocha --exit \"tests/**/*.test.js\""
+  },
   "dependencies": {
     "screeps-server-mockup": "github:screepers/screeps-server-mockup",
-    "@screeps/driver": "5.3.0"
+    "@screeps/driver": "5.3.0",
+    "chai": "^4.5.0",
+    "mocha": "^10.8.2"
   },
   "overrides": {
     "@screeps/driver": "5.3.0"

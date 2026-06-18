@@ -18,8 +18,10 @@ COPY package.json ./
 RUN npm install --no-audit --no-fund
 
 # Baked defaults; bin/sim bind-mounts these (and the bot bundle) at runtime so
-# editing a scenario or the harness needs no image rebuild.
+# editing a scenario, the harness, or a test needs no image rebuild.
 COPY run.js ./
+COPY lib ./lib
 COPY scenarios ./scenarios
+COPY tests ./tests
 
 ENTRYPOINT ["node", "/sim/run.js"]

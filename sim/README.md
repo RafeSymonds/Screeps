@@ -1,0 +1,128 @@
+# Headless simulation (`bin/sim`)
+
+Run the **real bot** in the **real Screeps engine**, headless, on the **same Node major
+as production (Node 24)** — no Steam client, no screeps.com account. This is for watching
+how the bot actually behaves over many ticks (economy bootstrap, spawn pressure, CPU),
+not for assertions. For fast pure-logic checks keep using `npm run test`.
+
+```bash
+bin/sim run                          # 150 ticks, fresh RCL1 room (default scenario)
+bin/sim run 400 --every 25           # longer run, state line every 25 ticks
+bin/sim run --scenario full-base     # mature RCL8 room, full structures + workforce
+bin/sim run --scenario under-attack  # defended base + a wave of hostile creeps
+bin/sim run --verbose                # bot console every tick + final Memory dump
+bin/sim test                         # behavioral regression tests (real engine)
+bin/sim build                        # (re)build the engine image
+bin/sim shell                        # shell into the engine container (debugging)
+bin/sim clean                        # remove the engine image
+```
+
+Each `run` rebuilds the bot (`npm run build`), boots the engine in Docker, ticks the
+world to completion, prints what happened, and exits. It is a batch tool, not a daemon.
+
+## Example output
+
+```
+[t  51] W1N1/bot: creeps=1 {"worker":1} RCL1(up=0) spawn=150 ext=0/0 cont=0/0 stor=0 towers=0 sites=2 src=5950 cpu=2.00
+[t 151] W1N1/bot: creeps=2 {"worker":2} RCL1(up=0) spawn=109 ...
+[t 251] W1N1/bot: creeps=3 {"worker":3} RCL1(up=0) spawn=109 ... src=5714 cpu=2.00
+```
+
+Each line is real engine state for a room: creep count + role breakdown (inferred from
+body), controller level/upgrade progress, spawn/extension/container/storage energy, tower
+and construction-site counts, remaining source energy, and the bot's CPU for that tick.
+
+## How it works
+
+- [`screeps-server-mockup`](https://github.com/screepers/screeps-server-mockup) embeds the
+  actual `@screeps/engine` + `@screeps/driver` and ticks it one step at a time. The bundled
+  `dist/main.js` is loaded as the bot's `main` module (plus `main.js.map` so thrown errors
+  map back to TypeScript).
+- The harness lives in [`run.js`](run.js); the world is built by a scenario in
+  [`scenarios/`](scenarios). [`scenarios/default.js`](scenarios/default.js) is a fresh RCL1
+  room (controller, two sources, an owned spawn with 300 energy) — the canonical "can the
+  bot bootstrap from scratch?" world.
+
+## Why Docker / Node version pinning
+
+The stock `screeps-server-mockup` npm release pins the ancient `isolated-vm@2.x` engine,
+which only builds on Node ≤12. We instead install the mockup's **git master** (the
+maintainers added Node-24 support there) with **`@screeps/driver@5.3.0`** — the
+`feat-node24` driver that compiles a patched `isolated-vm` from git. That native build (and
+matching the production Node major) is why the engine runs in a container, not on the host
+(which is Node 25). The first `bin/sim build` compiles `isolated-vm` and takes a few minutes;
+later runs reuse the image.
+
+Two Node-24 fixes the harness applies at startup (see the top of `run.js`):
+- `localhost` → IPv4: `@screeps/storage` binds `localhost` (IPv6 `::1` first on Node 17+)
+  while the driver dials `127.0.0.1`, so without this the driver gets `ECONNREFUSED` forever.
+- the brief storage-reconnect noise before the storage port binds is suppressed.
+
+## Scenarios
+
+A scenario is a starting world state. They live in `scenarios/` and are selected with
+`--scenario <name>` (the name is the filename without `.js`):
+
+| scenario       | what it sets up                                                            |
+| -------------- | ------------------------------------------------------------------------- |
+| `default`      | fresh RCL1 room (controller, 2 sources, owned spawn) — bootstrap from zero |
+| `full-base`    | RCL8 room: 3 spawns, 60 extensions, 6 towers, storage, terminal, links, labs, all energy filled, + 10 creeps |
+| `under-attack` | defended RCL7 base (3 towers, safe mode off) + a wave of hostile melee creeps owned by an enemy player |
+
+## Regression tests (`bin/sim test`)
+
+Behavioral tests in `tests/` assert on long-term behavior by running a scenario for many
+ticks and checking the timeline of real engine state — economy growth, defense, structure
+retention, CPU bounds, no crashes. They run the **real engine in Docker** (slower than the
+host-side `npm run test`, which is pure-logic mocks), so they're a separate suite:
+
+```bash
+bin/sim test                  # run all
+bin/sim test -- --grep defense  # only matching
+```
+
+Tests use the shared `lib/harness.js`:
+
+```js
+const { runScenario, seriesOf, finalOf } = require("../lib/harness");
+const res = await runScenario({ scenario: "default", ticks: 250, every: 10 });
+// res.timeline    : per-snapshot state (same fields you watch in `bin/sim run`)
+// res.engineErrors : engine-level failures (e.g. module load)
+// res.botErrors    : exceptions the bot caught (ErrorMapper red-span console lines)
+// seriesOf(res.timeline, "W1N1", "bot", "creeps") -> [1,1,2,3,...]
+// finalOf(res.timeline, "W1N1", "bot")            -> last snapshot's stats
+```
+
+Each `runScenario` uses a fresh storage port + dir, so suites run back-to-back safely. Add a
+test by dropping `tests/<name>.test.js` (mocha + chai); it's bind-mounted, no rebuild needed.
+Current suites: `economy` (bootstrap grows + harvests + CPU-bounded), `defense` (towers clear
+a hostile wave, spawns survive), `full-base` (RCL8 stays intact, CPU-bounded at scale).
+
+## Authoring scenarios
+
+A scenario file exports `setup(server, { TerrainMatrix, modules })` and returns
+`{ rooms: string[], bots: { <name>: <userEmitter> } }`. `modules` is the bundled bot — pass
+it to `server.world.addBot(...)`. See `default.js` (raw mockup API) and `full-base.js` /
+`under-attack.js` (using the builder).
+
+Most scenarios should use **`scenarios/_world.js`**, a builder whose structure/creep shapes
+mirror what `@screeps/engine` actually writes, with all capacities/hits read from the live
+engine constants. Key helpers (`const W = require("./_world")`):
+
+- `W.resetWorld(server)`, `W.freshRoom(server, room, terrain?)`
+- `W.addController/addSource/addMineral(server, room, x, y, ...)`
+- `W.addStructure(server, room, type, x, y, { user, level, energy, name })` — any structure
+  (`spawn`, `extension`, `tower`, `storage`, `terminal`, `link`, `lab`, `container`,
+  `rampart`, `constructedWall`, `road`, `extractor`, `observer`, `powerSpawn`, `factory`, `nuker`)
+- `W.setController(server, room, user, level, opts)` — force RCL/owner/safe mode
+- `W.addUser(server, username)` — create a non-bot (enemy) user, returns its id
+- `W.addCreep(server, room, x, y, user, body, opts)` — place a live creep
+- `W.fullBase(server, room, botId, { level, center, creeps })` — a whole base in one call
+- `W.addHostiles(server, room, enemyId, count, { near, body })` — drop attackers
+- `W.Placer(box, { checkerboard, used })` — hand out distinct free tiles
+
+`addBot` must run **after** the room has a controller (it claims it at RCL1 and drops an owned
+spawn at `x,y`); call `W.fullBase` / `W.setController` afterward to mature it. Files starting
+with `_` are helpers, not selectable scenarios.
+
+Run `/build-scenario` (the project skill) to have an agent author a new one for you.

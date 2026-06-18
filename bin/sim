@@ -2,20 +2,23 @@
 #
 # bin/sim — run the bot headless in a REAL Screeps engine (Node 24, in Docker).
 #
-# Not a daemon: each `run` builds the bot, ticks a simulated world to completion,
-# prints what happened, and exits. See sim/README.md for the why.
+# Not a daemon: each command builds the bot, drives the engine to completion, and exits.
+# See sim/README.md for the why.
 #
 # Usage:
 #   bin/sim run [TICKS] [--build] [--scenario NAME] [--every N] [--verbose]
-#   bin/sim build            # (re)build the Docker engine image
-#   bin/sim shell            # drop into the engine container (debugging)
-#   bin/sim clean            # remove the Docker engine image
+#   bin/sim test [-- <mocha args>]   # behavioral regression tests (sim/tests/)
+#   bin/sim build                    # (re)build the Docker engine image
+#   bin/sim shell                    # drop into the engine container (debugging)
+#   bin/sim clean                    # remove the Docker engine image
 #
 # Examples:
-#   bin/sim run                       # 150 ticks, default scenario
-#   bin/sim run 400 --every 25        # longer run, sparser state lines
-#   bin/sim run --verbose             # console every tick + final Memory dump
-#   bin/sim run --scenario default
+#   bin/sim run                          # 150 ticks, default scenario
+#   bin/sim run 400 --every 25           # longer run, sparser state lines
+#   bin/sim run --scenario full-base     # mature RCL8 base
+#   bin/sim run --scenario under-attack  # base + hostile wave
+#   bin/sim test                         # run all behavioral tests
+#   bin/sim test -- --grep defense       # only matching tests
 #
 set -euo pipefail
 
@@ -30,6 +33,15 @@ docker info >/dev/null 2>&1 || die "docker daemon not running (start Docker Desk
 build_image() { echo "[sim] building image $IMAGE (first build compiles isolated-vm; takes a few minutes)…"; docker build -t "$IMAGE" "$SIM"; }
 ensure_image() { docker image inspect "$IMAGE" >/dev/null 2>&1 || build_image; }
 build_bot() { echo "[sim] building bot bundle (npm run build)…"; ( cd "$ROOT" && npm run build >/dev/null ) || die "bot build failed"; }
+
+# Bind-mounts shared by run/test so editing the harness/scenarios/tests needs no rebuild.
+MOUNTS=(
+  -v "$ROOT/dist:/bot:ro"
+  -v "$SIM/run.js:/sim/run.js:ro"
+  -v "$SIM/lib:/sim/lib:ro"
+  -v "$SIM/scenarios:/sim/scenarios:ro"
+  -v "$SIM/tests:/sim/tests:ro"
+)
 
 cmd="${1:-run}"; shift || true
 
@@ -52,12 +64,17 @@ case "$cmd" in
     build_bot
     [[ -f "$ROOT/dist/main.js" ]] || die "dist/main.js missing after build"
     echo "[sim] running: scenario=$scenario ticks=$ticks every=$every verbose=$verbose"
-    docker run --rm \
-      -v "$ROOT/dist:/bot:ro" \
-      -v "$SIM/run.js:/sim/run.js:ro" \
-      -v "$SIM/scenarios:/sim/scenarios:ro" \
+    docker run --rm "${MOUNTS[@]}" \
       -e TICKS="$ticks" -e SCENARIO="$scenario" -e EVERY="$every" -e VERBOSE="$verbose" \
       "$IMAGE"
+    ;;
+  test)
+    [[ "${1:-}" == "--" ]] && shift || true
+    ensure_image
+    build_bot
+    [[ -f "$ROOT/dist/main.js" ]] || die "dist/main.js missing after build"
+    echo "[sim] running behavioral tests (real engine, this is slower than npm run test)…"
+    docker run --rm "${MOUNTS[@]}" --entrypoint npx "$IMAGE" mocha --exit "tests/**/*.test.js" "$@"
     ;;
   build|rebuild) build_image ;;
   shell)
@@ -65,6 +82,6 @@ case "$cmd" in
     docker run --rm -it -v "$ROOT/dist:/bot:ro" -v "$SIM:/sim" --entrypoint bash "$IMAGE"
     ;;
   clean) docker image rm "$IMAGE" 2>/dev/null && echo "[sim] removed $IMAGE" || echo "[sim] no image to remove" ;;
-  help|-h|--help) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
-  *) die "unknown command: $cmd (try: run | build | shell | clean | help)" ;;
+  help|-h|--help) sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown command: $cmd (try: run | test | build | shell | clean | help)" ;;
 esac
