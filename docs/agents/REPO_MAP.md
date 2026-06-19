@@ -14,6 +14,7 @@ The kernel in [src/main.ts](../../src/main.ts) runs each tick:
 5. Strategy: `assessDefense`, `generateJobs`, `planBase` (throttled), `planExpansion`/`planCombat`
    (stubs). These post jobs to the board and `SpawnRequest`s to the queue.
 6. `board.reconcile()` + `board.prune(world)`.
+6.5. `senseEconomy(world)` — update each room's storage EMA/trend (energy-flow integrator).
 7. `spawnManager.run(world, board, spawnQueue)`.
 8. `matcher.assign(idleEconomyCreeps(world, board), board, world)`.
 9. Tactical: `runTowers(world)`, `commandControllerCreeps(world)`, then `runCreep` per economy creep.
@@ -35,7 +36,9 @@ Two contracts connect everything:
 ### `src/world`
 - `World.ts`: per-tick world — owned rooms + all creeps.
 - `WorldRoom.ts`: one room scanned once — sources, spawns/extensions/towers, containers, sites,
-  hostiles, dropped energy, energy sinks/stores. Everything reads from here, not `room.find`.
+  hostiles, dropped energy, energy sinks/stores. Also `miningContainers()`, `backlogEnergy()`
+  (undelivered energy — the under-haul signal), `storageEnergy()`. Everything reads from here, not
+  `room.find`.
 
 ### `src/cpu`
 - `CpuBudget.ts`: bucket tiers (Critical/Low/Normal/High), throttle multiplier, pixel policy.
@@ -57,15 +60,24 @@ Two contracts connect everything:
 ### `src/actions`
 - `primitives.ts`: atomic intents (move/harvest/transfer/withdraw/pickup/upgrade/build/repair) +
   `toggleWorking` gather/act phase flag.
-- `energy.ts`: `acquireEnergy` (dropped → store → harvest) and `nearestEnergySink`.
+- `logistics.ts`: scored energy policy — `pickEnergySource`/`pickEnergySink`/`pickBuildSite`, each an
+  `argmax(value − distance·weight)` (distance is one term, not a gate). Replaces the old hardcoded
+  ladders / nearest-only selection. `EnergySourceKind` enum tags the source intent.
+- `energy.ts`: `acquireEnergy` — gather via `pickEnergySource`, fall back to harvesting a source.
 - `executors/*`: one executor per job kind; `executors/index.ts` registers them and exposes `runCreep`
   — **the documented insertion point for the future task-chaining layer**.
 
+### `src/economy`
+- `EnergyModel.ts`: the energy-flow spawn controller. `senseEconomy` (per-tick storage EMA/trend),
+  `roomDemand` (income / logistics / consumption targets vs supply), `pickDeficitRole` (spawn the
+  largest deficit). See [../architecture/ENERGY_FLOW_SPAWNING.md](../architecture/ENERGY_FLOW_SPAWNING.md).
+- `types.ts`: `EconomyMemory`, `LaborKind`, `RoomDemand`.
+
 ### `src/spawn`
-- `SpawnManager.ts`: merges controller `SpawnRequest`s (priority-first) with economy demand, applies a
-  population **floor**, sizes a body, and spawns. Tags `spawnRole`/`home`/`working`/`controller`.
-- `bodies.ts`: `buildBody(role, energy)` + `bodyCost`. `queue.ts`: `SpawnRequestQueue`. `demand.ts`:
-  `laborSupply` (live WORK/CARRY parts).
+- `SpawnManager.ts`: merges controller `SpawnRequest`s (priority-first) with economy demand from the
+  `EnergyModel` (spawns the most under-supplied flow stage), applies a population **floor**, sizes a
+  body, and spawns. Tags `spawnRole`/`home`/`working`/`controller`.
+- `bodies.ts`: `buildBody(role, energy)` + `bodyCost`. `queue.ts`: `SpawnRequestQueue`.
 
 ### `src/defense`
 - `Defense.ts`: `assessDefense` flags threats, triggers safe mode as a last resort, returns
@@ -89,7 +101,8 @@ Two contracts connect everything:
 - `Memory.jobs` — canonical persisted job list (deterministic ids).
 - `Memory.planRuns` — per-pass scheduling timestamps.
 - `Memory.creeps[name]` — `spawnRole`, `home`, `working`, `jobId?`, `controller?`.
-- `Memory.rooms[name]` — `intel?` (scouting), `base?` (planning), `defense?` (threat flags).
+- `Memory.rooms[name]` — `intel?` (scouting), `base?` (planning), `defense?` (threat flags),
+  `economy?` (storage EMA/trend for the energy-flow controller).
 - Ambient interfaces live in [src/main.ts](../../src/main.ts); initializer in
   [src/memory/bootstrap.ts](../../src/memory/bootstrap.ts).
 
@@ -98,4 +111,8 @@ Two contracts connect everything:
 - Add a job kind → add a generator, a capability entry, and an executor; nothing else.
 - Add room intelligence → extend `RoomIntel` and the ambient `RoomMemory` type.
 - Change plan cadence → update intervals in `src/config/constants.ts`; verify `Memory.planRuns` effects.
-- Change spawn heuristics → verify the floor still prevents collapse and demand still self-limits.
+- Change spawn heuristics → tune `ECONOMY_*` in `src/config/constants.ts`; verify the floor still
+  prevents collapse and that `pickDeficitRole` returns null when staffed (self-limits). See
+  [../architecture/ENERGY_FLOW_SPAWNING.md](../architecture/ENERGY_FLOW_SPAWNING.md).
+- Change energy routing (what to haul/build/withdraw) → edit the scored policy in
+  `src/actions/logistics.ts` (weights in `LOGISTICS_*`).

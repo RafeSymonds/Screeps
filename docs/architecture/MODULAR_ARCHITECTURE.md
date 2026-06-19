@@ -91,14 +91,17 @@ SpawnManager are untouched.
 | `Memory.rooms[n].intel` | scouting |
 | `Memory.rooms[n].base` | base planning |
 | `Memory.rooms[n].defense` | defense |
+| `Memory.rooms[n].economy` | energy-flow controller (storage EMA/trend) |
 | `Memory.planRuns` | scheduler |
 
 ## Status
 
 Built now: foundations, jobs (harvest/haul/upgrade/build/repair), matching,
-actions, spawning, defense (towers + threat/safe-mode), base planning
-(containers + extensions + storage at RCL4 + roads on hauling lanes), storage
-logistics in hauling, passive scouting.
+actions, **scored energy logistics** (source/sink/build selection by blended
+value-vs-distance, `src/actions/logistics.ts`), **energy-flow-driven spawning**
+(`src/economy/EnergyModel.ts`, see [ENERGY_FLOW_SPAWNING](ENERGY_FLOW_SPAWNING.md)),
+defense (towers + threat/safe-mode), base planning (containers + extensions +
+storage at RCL4 + roads on hauling lanes), passive scouting.
 
 Seams only: task chaining, expansion, combat (offensive), full base layout,
 defender/rampart logic, links/terminal/labs, remote mining.

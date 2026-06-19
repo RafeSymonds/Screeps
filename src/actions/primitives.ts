@@ -6,8 +6,11 @@
 
 // Standard movement options. `creep.moveTo` already does multi-room routing
 // (PathFinder spans up to 16 rooms), so this supports remote mining / expansion /
-// combat travel out of the box; `reusePath` caches the path for a few ticks.
-const MOVE_OPTS: MoveToOpts = { reusePath: 10, visualizePathStyle: { stroke: "#ffffff", opacity: 0.15 } };
+// combat travel out of the box. We use the engine-default path cache (reusePath
+// 5): a longer cache (10) left creeps replaying a stale path when a tile became
+// blocked, stranding them for 100+ ticks. The default repaths often enough to
+// route around dynamic congestion.
+const MOVE_OPTS: MoveToOpts = { visualizePathStyle: { stroke: "#ffffff", opacity: 0.15 } };
 
 /**
  * Move `creep` toward `target` (a RoomPosition, or any game object with a `.pos`
