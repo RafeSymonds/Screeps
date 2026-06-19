@@ -1,6 +1,7 @@
 import { JobBoard } from "jobs/JobBoard";
-import { Job } from "jobs/types";
+import { Job, JobKind } from "jobs/types";
 import { World } from "world/World";
+import { WorldRoom } from "world/WorldRoom";
 import { canPerform } from "matching/capability";
 import { score } from "matching/scoring";
 
@@ -13,37 +14,56 @@ export interface Matcher {
 }
 
 /**
- * Capability-based, balance-first matcher. Each idle creep is assigned to the
- * eligible open job with the FEWEST creeps already on it, breaking ties by
- * priority and then by proximity (score).
+ * Capability + NEED matcher. A creep is matched to a job only if it both *can*
+ * do it (`canPerform`) and the job is actually *needed* right now (`jobNeeded`).
+ * Among eligible jobs it picks the least-staffed, then highest-priority, then
+ * nearest.
  *
- * Why least-staffed and not pure priority: creeps spawn one at a time and hold
- * their job stickily, so each match call usually sees a single idle creep. A
- * pure highest-priority rule then pours every trickled creep into harvest (6
- * slots) + haul (2) + build (2) before upgrade's slots are ever reached, so the
- * controller is never staffed until population tops ~10. Balancing by current
- * staffing instead spreads one creep to each job first — harvest, harvest, haul,
- * build, upgrade — so building and upgrading start at low population while the
- * top-priority job is still filled first when everything is empty.
+ * Need is what makes mining a last resort: a creep with CARRY can grab energy
+ * that already exists (dropped/containers/storage), so for it `harvest` is
+ * "needed" only when there is nothing to collect — at bootstrap that's true
+ * (nobody's mined yet, so it mines and feeds the spawn); once miners produce
+ * piles it becomes false and flex creeps move to hauling/upgrading. Symmetrically,
+ * `haul` is only "needed" when there is energy to move. A pure miner (no CARRY)
+ * can only mine, so harvest is always needed by it — this never gates it.
+ *
+ * Need is read from the BODY (does it have CARRY?), not the `spawnRole` tag, per
+ * the capability-based-assignment guardrail.
  */
 export class GreedyMatcher implements Matcher {
-    public assign(creeps: Creep[], board: JobBoard, _world: World): void {
+    public assign(creeps: Creep[], board: JobBoard, world: World): void {
         const jobs = board.all();
         for (const creep of creeps) {
-            const candidate = bestJobFor(creep, jobs, board);
-            if (!candidate) {
+            const candidate = bestJobFor(creep, jobs, board, world);
+            const current = creep.memory.jobId ? board.get(creep.memory.jobId) : undefined;
+
+            if (!current) {
+                // No (valid) job: take the best one if there is one.
+                if (candidate) {
+                    board.assign(creep.name, candidate.id);
+                }
                 continue;
             }
-            const current = creep.memory.jobId ? board.get(creep.memory.jobId) : undefined;
-            if (!current) {
-                // First assignment (or the old job vanished): just take the best job.
-                board.assign(creep.name, candidate.id);
-            } else if (candidate.id !== current.id && candidate.assigned.length < current.assigned.length) {
-                // Re-decide at the cycle boundary: move only to a strictly LESS-staffed
-                // job. Below full coverage this rotates a freed creep onto whatever job
-                // is currently uncovered (so upgrade/build get worked); at or above
-                // coverage every job is level, nothing is strictly less, so creeps stay
-                // put and there is no churn.
+
+            // Drop a job the creep should no longer be doing (capability lost, or
+            // the work is no longer needed — e.g. mining once energy is available).
+            const currentOk = jobEligible(creep, current, world);
+            if (!candidate) {
+                if (!currentOk) {
+                    board.unassignCreep(creep.name);
+                }
+                continue;
+            }
+            if (candidate.id === current.id) {
+                continue;
+            }
+
+            // Switch when the current job is no longer a fit, or to a strictly
+            // less-staffed job — counting the current job WITHOUT this creep, so a
+            // creep never ping-pongs between two equally-empty jobs (the self count
+            // would otherwise always make "the other" look one lighter).
+            const move = !currentOk || candidate.assigned.length < current.assigned.length - 1;
+            if (move) {
                 board.unassignCreep(creep.name);
                 board.assign(creep.name, candidate.id);
             }
@@ -55,13 +75,13 @@ export class GreedyMatcher implements Matcher {
  * Pick the eligible open job for `creep` minimizing current staffing, then
  * maximizing priority, then proximity. Returns undefined if none fits.
  */
-function bestJobFor(creep: Creep, jobs: Job[], board: JobBoard): Job | undefined {
+function bestJobFor(creep: Creep, jobs: Job[], board: JobBoard, world: World): Job | undefined {
     let best: Job | undefined;
     let bestLevel = Infinity;
     let bestPriority = -Infinity;
     let bestScore = -Infinity;
     for (const job of jobs) {
-        if (!board.hasOpenSlot(job) || !canPerform(creep, job)) {
+        if (!board.hasOpenSlot(job) || !jobEligible(creep, job, world)) {
             continue;
         }
         const level = job.assigned.length;
@@ -80,14 +100,50 @@ function bestJobFor(creep: Creep, jobs: Job[], board: JobBoard): Job | undefined
     return best;
 }
 
+/** A creep may take a job only if it can perform it AND the job is needed now. */
+function jobEligible(creep: Creep, job: Job, world: World): boolean {
+    return canPerform(creep, job) && jobNeeded(creep, job, world);
+}
+
 /**
- * Economy creeps eligible for (re)matching this tick. A creep is considered when
- * it is not commanded by a subsystem controller AND either:
- *   - it has no valid job assignment (new creep, or its job was pruned), or
- *   - it just finished a work cycle, i.e. it ran out of energy (`working` but the
- *     store is empty). This is the natural re-decision point: rather than holding
- *     one job for life or re-evaluating every tick, a creep reconsiders what work
- *     is most needed each time it empties out and is about to gather again.
+ * Whether `job` is worth doing for `creep` given current room state — the "need"
+ * half of matching. Most kinds are always needed (build/repair only exist while
+ * there is work; upgrade is the elastic sink). The exceptions encode "don't mine
+ * when you could just collect":
+ *   - Harvest: a creep that can collect (has CARRY) mines only when there is no
+ *     collectable energy; a pure miner (no CARRY) always mines.
+ *   - Haul: only needed when there is energy to move.
+ */
+function jobNeeded(creep: Creep, job: Job, world: World): boolean {
+    if (job.kind !== JobKind.Harvest && job.kind !== JobKind.Haul) {
+        return true;
+    }
+    const room = world.getRoom(job.roomName);
+    if (!room) {
+        return true; // stale room — don't second-guess
+    }
+    const collectable = hasCollectableEnergy(room);
+    if (job.kind === JobKind.Harvest) {
+        // A pure miner (no CARRY) can only mine; a creep with CARRY should collect
+        // existing energy first and mine only as a last resort.
+        return creep.getActiveBodyparts(CARRY) === 0 || !collectable;
+    }
+    // Haul
+    return collectable;
+}
+
+/** Energy a creep could pick up instead of mining: dropped, containers, storage. */
+function hasCollectableEnergy(room: WorldRoom): boolean {
+    return room.droppedEnergy.length > 0 || room.energyStores().length > 0;
+}
+
+/**
+ * Economy creeps eligible for (re)matching this tick: those not commanded by a
+ * subsystem controller that either have no valid job, or are EMPTY. An empty
+ * creep is about to gather, so it is the natural point to reconsider what is most
+ * needed (e.g. a generalist that was mining can switch to collecting once energy
+ * has appeared). Creeps carrying energy keep their job until delivered, so this
+ * does not interrupt work in progress. The matcher's switch rule keeps churn low.
  */
 export function economyCreepsToMatch(world: World, board: JobBoard): Creep[] {
     return world.creeps.filter(creep => {
@@ -98,11 +154,6 @@ export function economyCreepsToMatch(world: World, board: JobBoard): Creep[] {
         if (!jobId || board.get(jobId) === undefined) {
             return true;
         }
-        return finishedWorkCycle(creep);
+        return creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0;
     });
-}
-
-/** True the tick a creep empties out at the end of its work phase. */
-function finishedWorkCycle(creep: Creep): boolean {
-    return creep.memory.working === true && creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0;
 }

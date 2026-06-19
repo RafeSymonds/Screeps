@@ -54,8 +54,11 @@ Two contracts connect everything:
 - `capability.ts`: `canPerform(creep, job)` — required parts per job kind. The only thing that gates
   whether a creep can do a job. No behavioral role.
 - `scoring.ts`: `score(creep, job)` — priority minus range/away-from-home penalties (swappable).
-- `Matcher.ts`: `GreedyMatcher` assigns idle creeps to best-scoring open jobs; `idleEconomyCreeps`
-  selects who is eligible (sticky: not controller-owned, no valid job).
+- `Matcher.ts`: `GreedyMatcher` assigns creeps by **capability + need** — `jobNeeded` makes mining a
+  last resort (a creep with CARRY mines only when nothing is collectable; haul counts only when there
+  is energy to move), then least-staffed/priority/proximity. `economyCreepsToMatch` re-includes EMPTY
+  creeps so they re-decide as need changes; the switch rule (move only when the current job is no
+  longer needed or a job is strictly less-staffed excluding self) keeps churn low.
 
 ### `src/actions`
 - `primitives.ts`: atomic intents (move/harvest/transfer/withdraw/pickup/upgrade/build/repair) +

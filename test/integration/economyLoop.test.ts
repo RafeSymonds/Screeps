@@ -8,8 +8,16 @@ import { makeCreep } from "../helpers/mock";
 /**
  * Exercises the jobs + matching + memory layers together: open jobs on the
  * board, idle creeps in the world, and the greedy matcher pairing them by
- * priority and capability while respecting capacity and stickiness.
+ * capability + need while respecting capacity. An empty room (no collectable
+ * energy) makes the harvest job genuinely needed, so flex creeps may take it.
  */
+function emptyRoomWorld(creeps: Creep[]): World {
+    return {
+        creeps,
+        getRoom: () => ({ droppedEnergy: [], energyStores: () => [] })
+    } as unknown as World;
+}
+
 describe("integration: jobs + matching + memory", () => {
     it("assigns capable idle creeps to the highest-priority open jobs", () => {
         const board = new JobBoard();
@@ -42,7 +50,7 @@ describe("integration: jobs + matching + memory", () => {
         Memory.creeps["a"] = a.memory;
         Memory.creeps["b"] = b.memory;
 
-        const world = { creeps: [a, b] } as unknown as World;
+        const world = emptyRoomWorld([a, b]);
         const matcher = new GreedyMatcher();
         matcher.assign(economyCreepsToMatch(world, board), board, world);
 
@@ -51,9 +59,11 @@ describe("integration: jobs + matching + memory", () => {
         expect(board.get("harvest:s1")?.assigned.length).to.equal(1);
         expect(board.get("upgrade:W1N1")?.assigned.length).to.equal(1);
 
-        // Sticky: a second pass leaves the already-assigned creeps alone.
-        const stillIdle = economyCreepsToMatch(world, board);
-        expect(stillIdle.length).to.equal(0);
+        // Empty creeps reconsider each tick, but with both jobs full there is no
+        // better-staffed option, so a second pass leaves assignments unchanged.
+        const before = [a.memory.jobId, b.memory.jobId];
+        matcher.assign(economyCreepsToMatch(world, board), board, world);
+        expect([a.memory.jobId, b.memory.jobId]).to.deep.equal(before);
     });
 
     it("does not starve a low-priority job when higher jobs have spare capacity", () => {
@@ -88,10 +98,10 @@ describe("integration: jobs + matching + memory", () => {
         Memory.creeps["a"] = a.memory;
         Memory.creeps["b"] = b.memory;
 
-        const world = { creeps: [a, b] } as unknown as World;
+        const world = emptyRoomWorld([a, b]);
         new GreedyMatcher().assign(economyCreepsToMatch(world, board), board, world);
 
-        // Round-robin by priority: harvest takes the first creep, upgrade the second.
+        // Least-staffed spread: harvest takes the first creep, upgrade the second.
         expect(board.get("harvest:s1")?.assigned.length).to.equal(1);
         expect(board.get("upgrade:W1N1")?.assigned.length).to.equal(1);
     });

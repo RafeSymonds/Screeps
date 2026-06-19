@@ -66,8 +66,13 @@ SpawnManager are untouched.
 ## Key decisions
 
 - **Persistent jobs**, deterministic ids, self-healing via `reconcile`/`prune`.
-- **Sticky matching** — a creep keeps its job until done/invalid; only idle
-  creeps enter matching. Strategy is swappable (`src/matching/Matcher.ts`).
+- **Capability + need matching** — a creep takes a job only if it *can* do it
+  (body parts) AND the job is *needed* now. Need is what makes mining a last
+  resort: a creep with CARRY mines only when there is no energy to collect
+  (dropped/containers/storage); hauling counts as work only when there is energy
+  to move. Creeps re-decide whenever they empty out (not once-for-life), so they
+  follow changing need; a small switch rule keeps churn low. Swappable
+  (`src/matching/Matcher.ts`).
 - **Energy-flow-driven spawning + floor** — population is an *output* of a
   per-room flow model ([EnergyModel](../../src/economy/EnergyModel.ts)): targets
   for income (saturate sources), logistics (carry sized to income × distance),
@@ -76,7 +81,8 @@ SpawnManager are untouched.
   recovers via a guaranteed generalist. Full design:
   [ENERGY_FLOW_SPAWNING](ENERGY_FLOW_SPAWNING.md).
 - **Capability-based assignment** — `CreepMemory` carries no behavioral role;
-  `spawnRole` is a body/population tag only.
+  `spawnRole` is a body/population tag only. Even the "mine as a last resort"
+  rule keys off the body (has CARRY?), not the role tag.
 - **Single-action execution now; task chaining later** — insertion point is
   documented in `src/actions/executors/index.ts` (`runCreep`), seam in
   `src/tasks/Task.ts`.
