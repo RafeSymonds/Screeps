@@ -1,5 +1,6 @@
 import { repair, toggleWorking, upgrade } from "actions/primitives";
 import { Job } from "jobs/types";
+import { LogisticsLedger } from "actions/ledger";
 import { WorldRoom } from "world/WorldRoom";
 import { acquireEnergy } from "actions/energy";
 
@@ -9,10 +10,10 @@ import { acquireEnergy } from "actions/energy";
  * this tick (race before prune), fall back to upgrading so the creep never
  * wastes a tick.
  */
-export function runRepair(creep: Creep, _job: Job, worldRoom: WorldRoom): void {
+export function runRepair(creep: Creep, _job: Job, worldRoom: WorldRoom, ledger: LogisticsLedger): void {
     toggleWorking(creep);
     if (!creep.memory.working) {
-        acquireEnergy(creep, worldRoom);
+        acquireEnergy(creep, worldRoom, ledger);
         return;
     }
 

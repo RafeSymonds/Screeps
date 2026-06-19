@@ -1,15 +1,17 @@
 import { harvest, toggleWorking, transfer } from "actions/primitives";
 import { Job } from "jobs/types";
+import { LogisticsLedger } from "actions/ledger";
 import { WorldRoom } from "world/WorldRoom";
-import { pickEnergySink } from "actions/logistics";
+import { resolveEnergySink } from "actions/logistics";
 
 /**
  * Harvest executor. A pure miner (no CARRY) just mines — energy drops where it
  * stands, or into a container beneath it. A creep with CARRY mines until full,
- * then delivers to an adjacent container (static mining), else the nearest sink
- * (the bootstrap miner-hauler pattern), else drops for haulers.
+ * then delivers to an adjacent container (static mining), else the best sink via
+ * the reservation-aware policy (the bootstrap miner-hauler pattern), else drops
+ * for haulers.
  */
-export function runHarvest(creep: Creep, job: Job, worldRoom: WorldRoom): void {
+export function runHarvest(creep: Creep, job: Job, worldRoom: WorldRoom, ledger: LogisticsLedger): void {
     const source = job.targetId ? Game.getObjectById(job.targetId as Id<Source>) : null;
     if (!source) {
         return;
@@ -38,7 +40,7 @@ export function runHarvest(creep: Creep, job: Job, worldRoom: WorldRoom): void {
         return;
     }
 
-    const sink = pickEnergySink(creep, worldRoom);
+    const sink = resolveEnergySink(creep, worldRoom, ledger);
     if (sink) {
         transfer(creep, sink);
         return;

@@ -18,6 +18,14 @@ function emptyRoomWorld(creeps: Creep[]): World {
     } as unknown as World;
 }
 
+/** A room that has collectable energy lying around (a dropped pile). */
+function collectableRoomWorld(creeps: Creep[]): World {
+    return {
+        creeps,
+        getRoom: () => ({ droppedEnergy: [{ amount: 50 }], energyStores: () => [] })
+    } as unknown as World;
+}
+
 describe("integration: jobs + matching + memory", () => {
     it("assigns capable idle creeps to the highest-priority open jobs", () => {
         const board = new JobBoard();
@@ -104,5 +112,54 @@ describe("integration: jobs + matching + memory", () => {
         // Least-staffed spread: harvest takes the first creep, upgrade the second.
         expect(board.get("harvest:s1")?.assigned.length).to.equal(1);
         expect(board.get("upgrade:W1N1")?.assigned.length).to.equal(1);
+    });
+
+    it("never strands a capable creep idle when only harvest work is open", () => {
+        const board = new JobBoard();
+        board.rehydrate();
+        // Harvest has an open slot; haul + upgrade are already full. The room has
+        // collectable energy, which (pre-fix) made harvest "not needed" for a
+        // carrier — leaving it with NO eligible job and standing idle while a
+        // perfectly good source sits open.
+        board.upsert({
+            id: "harvest:s1",
+            kind: JobKind.Harvest,
+            roomName: "W1N1",
+            targetId: "s1",
+            capacity: 1,
+            assigned: [],
+            priority: 80,
+            demand: { work: 2, carry: 1 }
+        });
+        board.upsert({
+            id: "haul:W1N1",
+            kind: JobKind.Haul,
+            roomName: "W1N1",
+            capacity: 1,
+            assigned: ["hauler"],
+            priority: 70,
+            demand: { work: 0, carry: 4 }
+        });
+        board.upsert({
+            id: "upgrade:W1N1",
+            kind: JobKind.Upgrade,
+            roomName: "W1N1",
+            targetId: "c1",
+            capacity: 1,
+            assigned: ["upper"],
+            priority: 40,
+            demand: { work: 1, carry: 1 }
+        });
+
+        const flex = makeCreep({ name: "flex", body: [WORK, CARRY, MOVE], memory: { home: "W1N1" } });
+        Game.creeps["flex"] = flex;
+        Memory.creeps["flex"] = flex.memory;
+
+        const world = collectableRoomWorld([flex]);
+        new GreedyMatcher().assign(economyCreepsToMatch(world, board), board, world);
+
+        // It must take the open harvest work rather than stand idle with no job.
+        expect(flex.memory.jobId).to.equal("harvest:s1");
+        expect(board.get("harvest:s1")?.assigned.length).to.equal(1);
     });
 });

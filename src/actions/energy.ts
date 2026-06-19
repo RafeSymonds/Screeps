@@ -1,16 +1,18 @@
 import { harvest, pickup, withdraw } from "actions/primitives";
+import { LogisticsLedger } from "actions/ledger";
 import { WorldRoom } from "world/WorldRoom";
-import { EnergySourceKind, pickEnergySource } from "actions/logistics";
+import { EnergySourceKind, resolveEnergySource } from "actions/logistics";
 
 /**
  * Shared energy gathering for the sink executors (build/upgrade/repair) and
- * bootstrap generalists. Delegates source selection to the scored logistics
- * policy (dropped/containers/storage), then falls back to harvesting a source
- * directly when nothing is staged — the path a fresh room relies on. Spenders
- * may always draw from storage; the scorer's storage gate is for haulers only.
+ * bootstrap generalists. Delegates source selection to the sticky, reservation-
+ * aware logistics policy (dropped/containers/storage), then falls back to
+ * harvesting a source directly when nothing is staged — the path a fresh room
+ * relies on. Spenders may always draw from storage; the scorer's storage gate is
+ * for haulers only.
  */
-export function acquireEnergy(creep: Creep, worldRoom: WorldRoom): void {
-    const staged = pickEnergySource(creep, worldRoom);
+export function acquireEnergy(creep: Creep, worldRoom: WorldRoom, ledger: LogisticsLedger): void {
+    const staged = resolveEnergySource(creep, worldRoom, ledger);
     if (staged) {
         if (staged.kind === EnergySourceKind.Pickup) {
             pickup(creep, staged.target);

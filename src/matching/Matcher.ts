@@ -14,18 +14,19 @@ export interface Matcher {
 }
 
 /**
- * Capability + NEED matcher. A creep is matched to a job only if it both *can*
- * do it (`canPerform`) and the job is actually *needed* right now (`jobNeeded`).
- * Among eligible jobs it picks the least-staffed, then highest-priority, then
- * nearest.
+ * Capability-gated, need-preferring matcher. Capability (`canPerform`) is the
+ * ONLY hard gate: a creep is always allowed to do any open job its body supports,
+ * so it is never left idle while work it can do sits open. "Need" (`jobNeeded`)
+ * is a soft *preference* layered on top of staffing/priority/proximity — it ranks
+ * the most useful work first without ever forbidding the rest.
  *
  * Need is what makes mining a last resort: a creep with CARRY can grab energy
  * that already exists (dropped/containers/storage), so for it `harvest` is
- * "needed" only when there is nothing to collect — at bootstrap that's true
- * (nobody's mined yet, so it mines and feeds the spawn); once miners produce
- * piles it becomes false and flex creeps move to hauling/upgrading. Symmetrically,
- * `haul` is only "needed" when there is energy to move. A pure miner (no CARRY)
- * can only mine, so harvest is always needed by it — this never gates it.
+ * "needed" only when there is nothing to collect; once piles appear it prefers
+ * hauling/upgrading. Symmetrically `haul` is preferred only when there is energy
+ * to move. A pure miner (no CARRY) can only mine, so harvest is always needed by
+ * it. Crucially this is a tiebreak, not a veto: when collection slots are full a
+ * carrier still takes an open harvest job and mines rather than standing idle.
  *
  * Need is read from the BODY (does it have CARRY?), not the `spawnRole` tag, per
  * the capability-based-assignment guardrail.
@@ -45,11 +46,12 @@ export class GreedyMatcher implements Matcher {
                 continue;
             }
 
-            // Drop a job the creep should no longer be doing (capability lost, or
-            // the work is no longer needed — e.g. mining once energy is available).
-            const currentOk = jobEligible(creep, current, world);
+            // Keep the current job unless the creep can no longer perform it. Never
+            // drop a doable job to nothing just because it is momentarily un-preferred
+            // (that is the idle bug): without an alternative, staying and working beats
+            // standing still.
             if (!candidate) {
-                if (!currentOk) {
+                if (!canPerform(creep, current)) {
                     board.unassignCreep(creep.name);
                 }
                 continue;
@@ -58,12 +60,7 @@ export class GreedyMatcher implements Matcher {
                 continue;
             }
 
-            // Switch when the current job is no longer a fit, or to a strictly
-            // less-staffed job — counting the current job WITHOUT this creep, so a
-            // creep never ping-pongs between two equally-empty jobs (the self count
-            // would otherwise always make "the other" look one lighter).
-            const move = !currentOk || candidate.assigned.length < current.assigned.length - 1;
-            if (move) {
+            if (shouldSwitch(creep, current, candidate, world)) {
                 board.unassignCreep(creep.name);
                 board.assign(creep.name, candidate.id);
             }
@@ -72,37 +69,59 @@ export class GreedyMatcher implements Matcher {
 }
 
 /**
- * Pick the eligible open job for `creep` minimizing current staffing, then
- * maximizing priority, then proximity. Returns undefined if none fits.
+ * Whether `creep` should move off `current` onto `candidate`. Move when: the
+ * creep can no longer perform the current job; or the candidate is needed work
+ * while the current job no longer is (leave mining for collection, etc.); or, at
+ * equal need, the candidate is strictly less-staffed — counting the current job
+ * WITHOUT this creep so a creep never ping-pongs between two equally-empty jobs.
+ * Never leave needed work for un-needed work.
+ */
+function shouldSwitch(creep: Creep, current: Job, candidate: Job, world: World): boolean {
+    if (!canPerform(creep, current)) {
+        return true;
+    }
+    const currentNeeded = jobNeeded(creep, current, world);
+    const candidateNeeded = jobNeeded(creep, candidate, world);
+    if (candidateNeeded !== currentNeeded) {
+        return candidateNeeded;
+    }
+    return candidate.assigned.length < current.assigned.length - 1;
+}
+
+/**
+ * Pick the best open job `creep` can perform. Capability is the only hard gate;
+ * among the jobs it can do, rank by: needed-first (the soft preference), then
+ * fewest creeps already on it, then highest priority, then proximity. Returns
+ * undefined only when there is no open job the creep is capable of at all.
  */
 function bestJobFor(creep: Creep, jobs: Job[], board: JobBoard, world: World): Job | undefined {
     let best: Job | undefined;
+    let bestNeeded = -1;
     let bestLevel = Infinity;
     let bestPriority = -Infinity;
     let bestScore = -Infinity;
     for (const job of jobs) {
-        if (!board.hasOpenSlot(job) || !jobEligible(creep, job, world)) {
+        if (!board.hasOpenSlot(job) || !canPerform(creep, job)) {
             continue;
         }
+        const needed = jobNeeded(creep, job, world) ? 1 : 0;
         const level = job.assigned.length;
         const value = score(creep, job);
         const better =
-            level < bestLevel ||
-            (level === bestLevel && job.priority > bestPriority) ||
-            (level === bestLevel && job.priority === bestPriority && value > bestScore);
+            needed > bestNeeded ||
+            (needed === bestNeeded &&
+                (level < bestLevel ||
+                    (level === bestLevel && job.priority > bestPriority) ||
+                    (level === bestLevel && job.priority === bestPriority && value > bestScore)));
         if (better) {
             best = job;
+            bestNeeded = needed;
             bestLevel = level;
             bestPriority = job.priority;
             bestScore = value;
         }
     }
     return best;
-}
-
-/** A creep may take a job only if it can perform it AND the job is needed now. */
-function jobEligible(creep: Creep, job: Job, world: World): boolean {
-    return canPerform(creep, job) && jobNeeded(creep, job, world);
 }
 
 /**

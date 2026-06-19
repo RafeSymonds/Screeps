@@ -1,5 +1,6 @@
 import { build, toggleWorking, upgrade } from "actions/primitives";
 import { Job } from "jobs/types";
+import { LogisticsLedger } from "actions/ledger";
 import { WorldRoom } from "world/WorldRoom";
 import { acquireEnergy } from "actions/energy";
 import { pickBuildSite } from "actions/logistics";
@@ -10,10 +11,10 @@ import { pickBuildSite } from "actions/logistics";
  * tick (race before prune), fall back to upgrading so the creep never wastes a
  * tick.
  */
-export function runBuild(creep: Creep, _job: Job, worldRoom: WorldRoom): void {
+export function runBuild(creep: Creep, _job: Job, worldRoom: WorldRoom, ledger: LogisticsLedger): void {
     toggleWorking(creep);
     if (!creep.memory.working) {
-        acquireEnergy(creep, worldRoom);
+        acquireEnergy(creep, worldRoom, ledger);
         return;
     }
 

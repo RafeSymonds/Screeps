@@ -1,5 +1,5 @@
 import { ErrorMapper } from "utils/ErrorMapper";
-import { bootstrapMemory, cleanDeadCreeps } from "memory/bootstrap";
+import { bootstrapMemory, cleanDeadCreeps, ensureCreepMemory } from "memory/bootstrap";
 import { World } from "world/World";
 import { JobBoard } from "jobs/JobBoard";
 import { generateJobs } from "jobs/generators";
@@ -7,6 +7,7 @@ import { GreedyMatcher, economyCreepsToMatch } from "matching/Matcher";
 import { SpawnManager } from "spawn/SpawnManager";
 import { SpawnRequestQueue } from "spawn/queue";
 import { runCreep } from "actions/executors";
+import { buildLedger } from "actions/ledger";
 import { senseEconomy } from "economy/EnergyModel";
 import { EconomyMemory } from "economy/types";
 import { assessDefense } from "defense/Defense";
@@ -44,6 +45,10 @@ declare global {
         working: boolean;
         /** Current sticky job assignment (economy creeps). */
         jobId?: string;
+        /** Committed energy SOURCE (sticky logistics target) while gathering. */
+        srcTargetId?: string;
+        /** Committed energy SINK (sticky logistics target) while delivering. */
+        sinkTargetId?: string;
         /** If set, a subsystem controller commands this creep and matching skips it. */
         controller?: string;
     }
@@ -87,6 +92,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
     const board = new JobBoard();
     board.rehydrate();
     cleanDeadCreeps();
+    ensureCreepMemory();
 
     // 3. World read model.
     const world = new World();
@@ -120,14 +126,17 @@ export const loop = ErrorMapper.wrapLoop(() => {
     // 8. Matching (idle creeps + those that just finished a work cycle).
     guard(Phase.Match, () => matcher.assign(economyCreepsToMatch(world, board), board, world));
 
-    // 9. Tactical execution.
+    // 9. Tactical execution. The logistics ledger (energy reservations) is built
+    // from current creep commitments so each executor routes around work already
+    // claimed by others; re-picking creeps add their claim as the loop proceeds.
     guard(Phase.Towers, () => runTowers(world));
     guard(Phase.Controllers, () => commandControllerCreeps(world));
+    const ledger = buildLedger(world);
     for (const creep of world.creeps) {
         if (creep.spawning || creep.memory.controller) {
             continue;
         }
-        guard(`${Phase.Run}:${creep.name}`, () => runCreep(creep, board, world));
+        guard(`${Phase.Run}:${creep.name}`, () => runCreep(creep, board, world, ledger));
     }
 
     // 10. Persist jobs.

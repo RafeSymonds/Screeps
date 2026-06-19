@@ -50,7 +50,7 @@ SpawnManager are untouched.
 ## Tick pipeline (`src/main.ts`)
 
 1. Memory bootstrap + migrations
-2. Clean dead creeps
+2. Clean dead creeps + `ensureCreepMemory()` (self-heal missing creep memory)
 3. Build `World`
 4. Scouting (throttled)
 5. Strategy: `assessDefense`, `generateJobs`, `planBase` (throttled),
@@ -59,7 +59,8 @@ SpawnManager are untouched.
 6.5 `senseEconomy()` — update each room's storage EMA/trend integrator
 7. `SpawnManager.run()` (energy-flow demand + requests + floor)
 8. `Matcher.assign()` (sticky: idle economy creeps only)
-9. Tactical: `runTowers`, `commandControllerCreeps`, per-creep `runCreep`
+9. Tactical: `runTowers`, `commandControllerCreeps`, `buildLedger()` (energy reservations),
+   per-creep `runCreep(…, ledger)`
 10. `JobBoard.persist()`
 11. Opportunistic pixel generation
 
@@ -103,8 +104,10 @@ SpawnManager are untouched.
 ## Status
 
 Built now: foundations, jobs (harvest/haul/upgrade/build/repair), matching,
-actions, **scored energy logistics** (source/sink/build selection by blended
-value-vs-distance, `src/actions/logistics.ts`), **energy-flow-driven spawning**
+actions, **coordinated energy logistics** (deliverable-weighted source/sink/build
+selection with sticky targets and a per-tick reservation ledger so creeps spread
+instead of herding, `src/actions/logistics.ts` + `src/actions/ledger.ts`, see
+[LOGISTICS_ROUTING](LOGISTICS_ROUTING.md)), **energy-flow-driven spawning**
 (`src/economy/EnergyModel.ts`, see [ENERGY_FLOW_SPAWNING](ENERGY_FLOW_SPAWNING.md)),
 defense (towers + threat/safe-mode), base planning (containers + extensions +
 storage at RCL4 + roads on hauling lanes), passive scouting.

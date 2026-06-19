@@ -104,21 +104,26 @@ export const LOGISTICS_DIST_WEIGHT = 4;
 
 // Source values (where a creep draws energy). Containers are buffers meant to be
 // drained; storage is the strategic reserve (last resort); spawns/extensions are
-// never sources. Dropped energy decays, so it gets an amount-scaled bonus
-// (bigger/older piles are more urgent to clear), capped so it can't dominate.
+// never sources. The type base is now only a small decay-urgency nudge (dropped >
+// container > storage); what dominates is the DELIVERABLE LOAD — how much this
+// creep can actually take after other creeps' reservations are netted out (see
+// LogisticsLedger). SOURCE_AMOUNT_WEIGHT is value-points per unit of deliverable
+// energy, tuned so filling a creep outweighs several tiles of travel.
 export const LOGISTICS_SOURCE_DROPPED = 100;
 export const LOGISTICS_SOURCE_CONTAINER = 80;
 export const LOGISTICS_SOURCE_STORAGE = 20;
-export const LOGISTICS_DROPPED_AMOUNT_WEIGHT = 0.02;
-export const LOGISTICS_DROPPED_AMOUNT_CAP = 30;
+export const LOGISTICS_SOURCE_AMOUNT_WEIGHT = 0.5;
 
 // Sink values (where a creep delivers). An empty spawn blocks spawning; an empty
 // tower is a defense hole (urgent while hostiles are present); extensions matter
 // only in aggregate. FILL_URGENCY scales each by how empty it is (free/capacity).
+// SINK_AMOUNT_WEIGHT rewards the deliverable DEPOSIT (how much of the creep's load
+// the sink can take after reservations), so two creeps don't pile onto one sink.
 export const LOGISTICS_SINK_SPAWN = 90;
 export const LOGISTICS_SINK_TOWER = 60;
 export const LOGISTICS_SINK_EXTENSION = 50;
 export const LOGISTICS_SINK_FILL_URGENCY = 40;
+export const LOGISTICS_SINK_AMOUNT_WEIGHT = 0.5;
 export const LOGISTICS_TOWER_COMBAT_MULT = 3;
 
 // Build target values. Type dominates (finish economy/defense before roads), then
