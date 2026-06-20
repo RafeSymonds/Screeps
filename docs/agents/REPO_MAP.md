@@ -56,15 +56,19 @@ Two contracts connect everything:
 - `capability.ts`: `canPerform(creep, job)` — required parts per job kind. The only thing that gates
   whether a creep can do a job. No behavioral role.
 - `scoring.ts`: `score(creep, job)` — priority minus range/away-from-home penalties (swappable).
-- `Matcher.ts`: `GreedyMatcher` assigns creeps by **capability (hard gate) + need (soft preference)**.
+- `Matcher.ts`: `GreedyMatcher` assigns creeps by **capability (hard gate) + need + priority ladder**.
   Capability is the only veto, so a capable creep is **never left idle while open work it can do
   exists**. Among doable jobs it ranks needed-first — `jobNeeded` makes mining a last resort (a creep
-  with CARRY prefers collecting to mining; haul is preferred only when there is energy to move) — then
-  least-staffed/priority/proximity. Crucially "need" is a tiebreak, not a gate: when collection slots
-  are full a carrier still takes an open harvest job rather than standing idle. `economyCreepsToMatch`
-  re-includes EMPTY creeps so they re-decide as need changes; the switch rule (`shouldSwitch`: move only
-  when capability is lost, needed work opens while the current job is no longer needed, or a job of equal
-  need is strictly less-staffed excluding self) keeps churn low.
+  with CARRY prefers collecting to mining; haul is preferred only when there is energy to move) — then by
+  the **priority ladder** (harvest > haul > build > repair > upgrade) *ahead of* least-staffed/proximity.
+  Because priority beats staffing, the bounded needs fill to capacity before anyone drops to the bottom
+  rung — `upgrade`, whose capacity is sized to the whole room (`UpgradeJobGenerator`), making it the
+  **residual sink**: only labor nothing higher needs ends up upgrading. "Need" is a tiebreak, not a gate:
+  when collection slots are full a carrier still takes an open harvest job rather than standing idle.
+  `economyCreepsToMatch` re-includes EMPTY creeps so they re-decide as need changes; the switch rule
+  (`shouldSwitch`: move only when capability is lost, needed work opens while the current job is no longer
+  needed, the candidate is higher on the priority ladder, or — same priority — it is strictly less-staffed
+  excluding self) keeps churn low.
 
 ### `src/actions`
 - `primitives.ts`: atomic intents (move/harvest/transfer/withdraw/pickup/upgrade/build/repair) +
@@ -88,8 +92,12 @@ Two contracts connect everything:
 
 ### `src/economy`
 - `EnergyModel.ts`: the energy-flow spawn controller. `senseEconomy` (per-tick storage EMA/trend),
-  `roomDemand` (income / logistics / consumption targets vs supply), `pickDeficitRole` (spawn the
-  largest deficit). See [../architecture/ENERGY_FLOW_SPAWNING.md](../architecture/ENERGY_FLOW_SPAWNING.md).
+  `roomDemand` (income / logistics / consumption targets vs supply), `pickDeficitRole` (fund the
+  inelastic infrastructure — income then logistics — before the elastic upgrade consumer; a starved
+  consumer rejoins so the controller never downgrades). Supply is gauged by `laborByKind` from **body
+  shape** (WORK-only = income, CARRY-only = logistics, WORK+CARRY = consumption only), so a worker never
+  counts as income even though it can mine. See
+  [../architecture/ENERGY_FLOW_SPAWNING.md](../architecture/ENERGY_FLOW_SPAWNING.md).
 - `types.ts`: `EconomyMemory`, `LaborKind`, `RoomDemand`.
 
 ### `src/spawn`
@@ -108,11 +116,22 @@ Two contracts connect everything:
   (capped per run). Emits construction sites; the build generator turns them into jobs.
 
 ### `src/intel`
-- `Scouting.ts`: passive — write `RoomIntel` for every visible room.
+- `Scouting.ts`: `recordRoomIntel`/`updateIntel` — enriched `RoomIntel` (source ids+positions,
+  controller reservation, owner, invader-core/SK flags) for every visible room.
+- `adjacency.ts`: `describeExits`/`roomLinearDistance` — the room graph (works without vision).
+- `scout.ts`: `commandScout` — drives a scout creep round-robin over a home room's neighbors.
+
+### `src/empire`
+- `Empire.ts`: the cross-room allocation broker (see [../architecture/EMPIRE.md](../architecture/EMPIRE.md)).
+  `planEmpire` assigns adjacent unowned rooms to owned rooms as remotes (nearest-owner, hysteresis,
+  per-owner cap), refreshes threat/abandon every tick, and returns scout/reserver `SpawnRequest`s;
+  `pickRemoteDeficit`/`remoteHeadroom` (in `economy/EnergyModel`) size remote labor. Remote harvest/haul
+  jobs are emitted by `jobs/generators/RemoteJobGenerator.ts`; no new `JobKind`.
+- `reserve.ts`: `commandReserver` — drives a CLAIM creep to hold a remote's controller.
 
 ### `src/controllers`, `src/expansion`, `src/combat`, `src/tasks`
-- Seams. `controllers/index.ts` dispatches controller-commanded creeps to their subsystem.
-  `expansion`/`combat` are no-op stubs that will post `SpawnRequest`s and command creeps. `tasks/Task.ts`
+- `controllers/index.ts` dispatches controller-commanded creeps by `owner` prefix
+  (`scout`/`remote-reserve` are live for remote mining; `combat`/`expansion` remain stubs). `tasks/Task.ts`
   reserves the task-chaining layer.
 
 ## Important Data Contracts

@@ -12,6 +12,7 @@ export enum Phase {
     Defense = "defense",
     Jobs = "jobs",
     Base = "base",
+    Empire = "empire",
     Expansion = "expansion",
     Combat = "combat",
     Reconcile = "reconcile",

@@ -1,4 +1,4 @@
-import { MAX_ROOM_POPULATION, MIN_MINER_ENERGY, MIN_SPAWN_ENERGY } from "config/constants";
+import { MAX_ROOM_POPULATION, MIN_SPAWN_ENERGY, SPECIALIZE_ENERGY } from "config/constants";
 import { JobBoard } from "jobs/JobBoard";
 import { SpawnRequest, SpawnRole } from "spawn/types";
 import { bodyCost, buildBody } from "spawn/bodies";
@@ -6,13 +6,20 @@ import { World } from "world/World";
 import { WorldRoom } from "world/WorldRoom";
 import { SpawnRequestQueue } from "spawn/queue";
 import { LaborKind } from "economy/types";
-import { pickDeficitRole, roomDemand } from "economy/EnergyModel";
+import { pickRoomLabor, remoteHeadroom } from "economy/EnergyModel";
 import { warn } from "utils/logger";
+
+/** An economy role choice plus, for remote-mining creeps, the room they work in. */
+interface RoleChoice {
+    role: SpawnRole;
+    targetRoom?: string;
+}
 
 interface SpawnDecision {
     role: SpawnRole;
     body: BodyPartConstant[];
     owner?: string;
+    targetRoom?: string;
 }
 
 /**
@@ -46,7 +53,8 @@ export class SpawnManager {
             spawnRole: decision.role,
             home: roomName,
             working: false,
-            controller: decision.owner
+            controller: decision.owner,
+            targetRoom: decision.targetRoom
         };
         const result = spawn.spawnCreep(decision.body, name, { memory });
         if (result !== OK && result !== ERR_NOT_ENOUGH_ENERGY && result !== ERR_BUSY) {
@@ -68,27 +76,30 @@ export class SpawnManager {
         return {
             role: request.role,
             body: request.body ?? buildBody(request.role, worldRoom.energyAvailable),
-            owner: request.owner
+            owner: request.owner,
+            targetRoom: request.targetRoom
         };
     }
 
     private decideEconomy(worldRoom: WorldRoom, world: World): SpawnDecision | null {
         const population = world.creepsForRoom(worldRoom.name);
+        const homePopulation = population.filter(creep => !creep.memory.targetRoom);
         const energyNow = worldRoom.energyAvailable;
 
-        // Floor: a room with no working labor must always recover, using whatever
-        // energy is on hand right now.
-        const hasWorker = population.some(creep => creep.getActiveBodyparts(WORK) > 0);
-        if (population.length === 0 || !hasWorker) {
-            return { role: SpawnRole.Generalist, body: buildBody(SpawnRole.Generalist, Math.max(energyNow, 200)) };
+        // Floor keys off HOME labor only: a room whose only WORK creeps are away in
+        // remotes still needs a local worker to keep its own economy alive.
+        const hasWorker = homePopulation.some(creep => creep.getActiveBodyparts(WORK) > 0);
+        if (homePopulation.length === 0 || !hasWorker) {
+            return { role: SpawnRole.Worker, body: buildBody(SpawnRole.Worker, Math.max(energyNow, 200)) };
         }
 
-        if (population.length >= MAX_ROOM_POPULATION) {
+        // Total population (home + remote) is capped, with extra headroom per remote.
+        if (population.length >= MAX_ROOM_POPULATION + remoteHeadroom(worldRoom.name)) {
             return null;
         }
 
-        const role = this.chooseRole(worldRoom, world);
-        if (!role) {
+        const pick = this.chooseRole(worldRoom, world);
+        if (!pick) {
             return null;
         }
 
@@ -101,30 +112,32 @@ export class SpawnManager {
             return null;
         }
 
-        return { role, body: buildBody(role, energyNow) };
+        return { role: pick.role, body: buildBody(pick.role, energyNow), targetRoom: pick.targetRoom };
     }
 
     /**
-     * Pick the next body from the energy-flow model: spawn whichever flow stage is
-     * most under-supplied. Below the dedicated-body affordability floor, every gap
-     * is filled by a generalist (which serves all three stages). Returns null when
-     * all targets are met — the room is staffed and surplus banks into storage.
+     * Map the energy-flow model's next-labor decision to a body. `pickRoomLabor`
+     * ranks home AND remote infrastructure together by deficit (consumer last), so
+     * a remote stage comes back with the room to tag the creep with. Below the
+     * specialize threshold every gap is a `Worker` (the universal WORK+CARRY body
+     * that can mine, haul, and upgrade); remotes are RCL3+, above this. Returns null
+     * when everything is staffed.
      */
-    private chooseRole(worldRoom: WorldRoom, world: World): SpawnRole | null {
-        const kind = pickDeficitRole(roomDemand(worldRoom, world));
-        if (!kind) {
+    private chooseRole(worldRoom: WorldRoom, world: World): RoleChoice | null {
+        const labor = pickRoomLabor(worldRoom, world);
+        if (!labor) {
             return null;
         }
-        if (worldRoom.energyCapacityAvailable < MIN_MINER_ENERGY) {
-            return SpawnRole.Generalist;
+        if (worldRoom.energyCapacityAvailable < SPECIALIZE_ENERGY) {
+            return { role: SpawnRole.Worker };
         }
-        switch (kind) {
+        switch (labor.kind) {
             case LaborKind.Miner:
-                return SpawnRole.Miner;
+                return { role: SpawnRole.Miner, targetRoom: labor.roomName };
             case LaborKind.Hauler:
-                return SpawnRole.Hauler;
+                return { role: SpawnRole.Hauler, targetRoom: labor.roomName };
             case LaborKind.Consumer:
-                return SpawnRole.Worker;
+                return { role: SpawnRole.Worker };
             default:
                 return null;
         }

@@ -17,7 +17,7 @@ describe("ensureCreepMemory (self-healing creep memory)", () => {
         ensureCreepMemory();
 
         expect(mem.home).to.equal("W1N1");
-        expect(mem.spawnRole).to.equal(SpawnRole.Generalist);
+        expect(mem.spawnRole).to.equal(SpawnRole.Worker);
         expect(mem.working).to.equal(false);
     });
 

@@ -36,6 +36,16 @@ function miner(work: number): Creep {
     return makeCreep({ body, memory: { spawnRole: SpawnRole.Miner } as CreepMemory });
 }
 
+/** A WORK+CARRY worker — capability-able to mine, but must never count as income. */
+function worker(work: number, carry = 1): Creep {
+    const body: BodyPartConstant[] = [
+        ...Array.from({ length: work }, () => WORK),
+        ...Array.from({ length: carry }, () => CARRY),
+        MOVE
+    ];
+    return makeCreep({ body, memory: { spawnRole: SpawnRole.Worker } as CreepMemory });
+}
+
 function source(x: number, y: number): { pos: RoomPosition } {
     return { pos: makePos(x, y) };
 }
@@ -67,6 +77,20 @@ describe("roomDemand — income", () => {
         // Over-mining (extra WORK) cannot exceed the ceiling.
         const d2 = roomDemand(fakeRoom({ sources: [source(10, 25)] }), fakeWorld([miner(5), miner(5)]));
         expect(d2.income).to.equal(10);
+    });
+
+    it("counts only WORK-only bodies as miner supply — a worker (WORK+CARRY) is never income", () => {
+        const r = fakeRoom({ sources: [source(20, 25)] });
+        // A 5-WORK worker could physically mine, but it must not register as income,
+        // so the model keeps wanting a real miner ("workers never mine unless needed").
+        const dw = roomDemand(r, fakeWorld([worker(5)]));
+        expect(dw.miner.supply).to.equal(0);
+        expect(dw.income).to.equal(0);
+        expect(dw.consumer.supply).to.equal(5); // it counts as consumption instead
+        // A dedicated WORK-only miner does register.
+        const dm = roomDemand(r, fakeWorld([miner(5)]));
+        expect(dm.miner.supply).to.equal(5);
+        expect(dm.income).to.equal(10);
     });
 });
 
@@ -146,6 +170,48 @@ describe("pickDeficitRole", () => {
                     miner: { target: 10, supply: 10 },
                     hauler: { target: 6, supply: 6 },
                     consumer: { target: 17, supply: 2 }
+                })
+            )
+        ).to.equal(LaborKind.Consumer);
+    });
+
+    it("keeps funding miners while sources are unsaturated, even though the elastic consumer is more behind", () => {
+        // The bug: a partly-staffed income stage (deficit 0.3) loses to the
+        // consumer's income-derived, cap-bound, never-reachable deficit (0.8) when
+        // ranked flat — so sources stall at ~2 WORK/source forever. Income is
+        // inelastic infrastructure and must win here.
+        expect(
+            pickDeficitRole(
+                demand({
+                    miner: { target: 10, supply: 7 }, // 0.3 deficit — still under-saturated
+                    hauler: { target: 6, supply: 6 }, // satisfied
+                    consumer: { target: 30, supply: 6 } // 0.8 deficit — but elastic
+                })
+            )
+        ).to.equal(LaborKind.Miner);
+    });
+
+    it("funds logistics over the elastic consumer when the room is under-hauled", () => {
+        expect(
+            pickDeficitRole(
+                demand({
+                    miner: { target: 10, supply: 10 }, // saturated
+                    hauler: { target: 8, supply: 3 }, // 0.625 deficit — backlog building
+                    consumer: { target: 30, supply: 6 } // 0.8 deficit — but elastic
+                })
+            )
+        ).to.equal(LaborKind.Hauler);
+    });
+
+    it("lets a starved consumer rejoin so the controller can never downgrade", () => {
+        // Zero upgrade presence is the one case the consumer outranks unfinished
+        // income: a single upgrader is cheap insurance against a controller
+        // downgrade, and once supply ≥ the floor the consumer drops back to last.
+        expect(
+            pickDeficitRole(
+                demand({
+                    miner: { target: 10, supply: 3 }, // 0.7 deficit
+                    consumer: { target: 17, supply: 0 } // 1.0 deficit AND below the floor
                 })
             )
         ).to.equal(LaborKind.Consumer);

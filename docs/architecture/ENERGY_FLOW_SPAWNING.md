@@ -69,35 +69,65 @@ EMA of the storage level and its per-tick trend in `RoomMemory.economy`. Acting 
 and trend — not the instantaneous value — is what keeps the controller from oscillating against the
 spawn-cycle sawtooth. The EMA tolerates throttled/skipped ticks via the elapsed-tick delta.
 
-## The scheduler: largest deficit wins
+## The scheduler: infrastructure before the elastic consumer
 
-`pickDeficitRole(demand)` returns the stage with the largest positive deficit ratio
-`(target − supply)/target`, or `null` when all are met (the room is staffed; surplus banks into
-storage). Ties break toward upstream stages (mine → haul → spend) by listing order.
+`pickDeficitRole(demand)` measures each stage's deficit ratio `(target − supply)/target` and picks what
+to fund next, or `null` when all are met (the room is staffed; surplus banks into storage). It does **not**
+rank the three stages flat. Income and logistics are **inelastic infrastructure** — a room needs exactly
+enough `WORK` to drain its sources and enough `CARRY` to move that income, and no more is useful. The
+consumer (upgrade) is the **elastic overflow**, sized to burn whatever surplus the infrastructure
+delivers. So:
 
-There is deliberately **no hard "income first" gate.** The hauler and consumer targets are themselves
-income-derived, so when income is low their targets — and deficits — are small and the large miner
-deficit wins naturally; as income rises, the downstream deficits grow and get funded. A hard parts-based
-gate instead *starves* logistics and consumption whenever miners are energy-limited (a low-RCL miner
-carries only ~2 WORK, so a `minerWork`-based gate never clears) — this was a real bug caught in sim.
+1. **Infrastructure first.** Miner and hauler compete by deficit ratio (ties break upstream — mine before
+   haul). Whichever is more behind is funded.
+2. **Consumer last.** Only once income and logistics are both satisfied is the consumer funded, with the
+   surplus it exists to absorb.
+3. **Downgrade safety valve.** If upgrade presence has collapsed below `ECONOMY_MIN_CONSUMER_WORK`, the
+   consumer rejoins step 1's ranking so the controller can never be left to downgrade.
+
+**Why subordinate, not rank flat.** The consumer target is income-derived and capped high
+(`ECONOMY_MAX_CONSUMER_WORK`), so it is routinely unreachable within `MAX_ROOM_POPULATION` and shows a
+near-permanent deficit. Ranked flat, that deficit outranks the *finite* miner deficit — so the moment
+minimal mining exists, every remaining spawn slot becomes an upgrader and the sources never finish
+saturating. The symptom (caught from live play): a fleet that scales workers and haulers fine but stays
+stuck at ~2 `WORK`/source while plainly income-limited. Subordinating the consumer fixes this **without** a
+hard parts-based "income first" gate — that older fear was about starving *logistics*, but logistics stays
+infra-tier here, so it is never starved.
 
 `SpawnManager` maps the chosen stage to a body (`Miner`/`Hauler`/`Worker`), keeping the existing
-**population floor** (a wiped or WORK-less room always gets a generalist) and the energy-capacity floor
-(below `MIN_MINER_ENERGY` every gap is filled by a generalist, which serves all three stages).
+**population floor** (a wiped or WORK-less room always gets a `Worker`) and the **specialize gate**: below
+`SPECIALIZE_ENERGY` (≈ RCL1, before a source-saturating 5-`WORK` miner is affordable) every gap is filled
+by a `Worker` — the universal WORK+CARRY body. That gate is also what makes consumer subordination
+deadlock-free at bootstrap — until the room can field a real miner, the worker mines *and* upgrades, so
+the controller still climbs.
 
 ## How supply is counted
 
-`laborByKind` buckets live parts by the stage each body serves: miner `WORK`, hauler `CARRY`, worker
-`WORK`. A **generalist** is the universal bootstrap body and counts toward all three. Role tags express
-*intent* — the capability matcher then routes each body to matching jobs.
+`laborByKind` buckets live parts by the stage each body serves, **gauged from body shape, not the
+`spawnRole` tag**:
 
-> **Known seam / limitation.** A `Worker` (WORK+CARRY) is *capability-eligible* for harvest/haul/upgrade/
-> build, so the `Matcher` — not this model — decides what it actually does. When creeps are few (RCL1
-> bootstrap), the least-staffed matcher can route every worker to harvest/haul and leave `upgrade`
-> unstaffed, so the controller stalls (`up=0`) even though the model correctly *spawned* a consumer. The
-> fix is to make the matcher honor flow intent, or to derive job capacities/priorities from the flow
-> targets (**Phase E**, below). Dedicated bodies (miner = WORK-only, hauler = CARRY-only) self-route via
-> the capability gate and don't have this problem.
+| Body shape | Stage it supplies |
+|---|---|
+| `WORK`, no `CARRY` | income (dedicated miner) |
+| `CARRY`, no `WORK` | logistics (dedicated hauler) |
+| `WORK` **and** `CARRY` | consumption (a worker) — **never** income |
+
+The deliberate asymmetry implements the design rule *"a worker may mine, but we'd rather it never mine
+unless needed."* A worker is capability-eligible to harvest, but it is **never counted as income**, so the
+model keeps provisioning real miners until the sources are saturated; the matcher only sends a worker to a
+source as a last resort (no energy to collect). The accepted cost: a worker that *is* gap-mining goes
+uncounted, so income is briefly under-read until a dedicated miner arrives — self-correcting.
+
+Counting by shape (not the tag) is also what lets the bootstrap body and the mature upgrader/builder
+collapse into one role: there is **no separate `Generalist`** anymore. `Worker` is the single WORK+CARRY
+body; `spawnRole` is now purely a body-template selector with no accounting meaning.
+
+> **Resolved seam (was Phase E).** The matcher used to balance by fewest-assigned, which let the
+> residual `upgrade` job steal labor from `build`, so extensions never finished and a room could wedge at
+> RCL2. The matcher now ranks by the **priority ladder** (harvest > haul > build > repair > upgrade) ahead
+> of staffing, and `upgrade` capacity is sized to the whole room — so bounded needs fill to capacity first
+> and upgrade is the true residual sink. Dedicated bodies (miner = WORK-only, hauler = CARRY-only)
+> self-route via the capability gate.
 
 ## Pipeline integration
 

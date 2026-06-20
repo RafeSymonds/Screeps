@@ -1,5 +1,7 @@
 import { commandCombatCreep } from "combat/Combat";
 import { commandExpansionCreep } from "expansion/Expansion";
+import { commandReserver } from "empire/reserve";
+import { commandScout } from "intel/scout";
 import { World } from "world/World";
 
 /**
@@ -17,6 +19,10 @@ export function commandControllerCreeps(world: World): void {
             commandCombatCreep(creep, world);
         } else if (owner.startsWith("expansion")) {
             commandExpansionCreep(creep, world);
+        } else if (owner.startsWith("scout")) {
+            commandScout(creep, world);
+        } else if (owner.startsWith("remote-reserve")) {
+            commandReserver(creep, world);
         }
     }
 }

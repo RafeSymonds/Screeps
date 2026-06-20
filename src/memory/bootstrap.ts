@@ -30,7 +30,15 @@ export function bootstrapMemory(): void {
  * Add a `if (Memory.version < N) { ...; Memory.version = N; }` block per change.
  */
 function runMigrations(): void {
-    // No historical schemas to migrate yet — this is a fresh restart.
+    // v2: RoomIntel.sources became SourceIntel[] (was a bare count). Reading the
+    // old number as an array would crash; intel is a passive snapshot that the
+    // scout sweep rebuilds within an interval, so wiping stale entries is safe.
+    if (Memory.version < 2) {
+        for (const name in Memory.rooms) {
+            delete Memory.rooms[name].intel;
+        }
+        Memory.version = 2;
+    }
     if (Memory.version < MEMORY_VERSION) {
         Memory.version = MEMORY_VERSION;
     }
@@ -56,7 +64,7 @@ export function cleanDeadCreeps(): void {
  * model (`home`/`spawnRole` drive population + labor accounting) and, with no
  * memory entry, `JobBoard.assign` silently fails to record their `jobId`, leaving
  * them idle with no log. Accessing `creep.memory` auto-creates the entry; we then
- * fill sane defaults (generalist at its current room) so matching and accounting
+ * fill sane defaults (a `Worker` at its current room) so matching and accounting
  * always have something real to read.
  */
 export function ensureCreepMemory(): void {
@@ -67,7 +75,7 @@ export function ensureCreepMemory(): void {
             mem.home = creep.room.name;
         }
         if (mem.spawnRole === undefined) {
-            mem.spawnRole = SpawnRole.Generalist;
+            mem.spawnRole = SpawnRole.Worker;
         }
         if (mem.working === undefined) {
             mem.working = false;

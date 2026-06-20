@@ -74,16 +74,19 @@ describe("integration: jobs + matching + memory", () => {
         expect([a.memory.jobId, b.memory.jobId]).to.deep.equal(before);
     });
 
-    it("does not starve a low-priority job when higher jobs have spare capacity", () => {
+    it("fills higher-priority work to capacity before dropping to the residual upgrade sink", () => {
         const board = new JobBoard();
         board.rehydrate();
-        // Harvest alone could absorb every creep (capacity 3 > population 2).
+        // One harvest seat (priority 80) and the residual upgrade (priority 40).
+        // The priority ladder, not load-balancing: both empty workers prefer the
+        // higher-priority harvest, so it fills its one seat and only the OVERFLOW
+        // creep drops to upgrade — "don't upgrade until everything else is consumed".
         board.upsert({
             id: "harvest:s1",
             kind: JobKind.Harvest,
             roomName: "W1N1",
             targetId: "s1",
-            capacity: 3,
+            capacity: 1,
             assigned: [],
             priority: 80,
             demand: { work: 2, carry: 1 }
@@ -109,9 +112,8 @@ describe("integration: jobs + matching + memory", () => {
         const world = emptyRoomWorld([a, b]);
         new GreedyMatcher().assign(economyCreepsToMatch(world, board), board, world);
 
-        // Least-staffed spread: harvest takes the first creep, upgrade the second.
-        expect(board.get("harvest:s1")?.assigned.length).to.equal(1);
-        expect(board.get("upgrade:W1N1")?.assigned.length).to.equal(1);
+        expect(board.get("harvest:s1")?.assigned.length).to.equal(1); // seat full
+        expect(board.get("upgrade:W1N1")?.assigned.length).to.equal(1); // overflow only
     });
 
     it("never strands a capable creep idle when only harvest work is open", () => {

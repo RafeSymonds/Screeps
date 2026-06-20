@@ -1,6 +1,8 @@
-import { moveTo, pickup, toggleWorking, transfer, withdraw } from "actions/primitives";
+import { moveTo, moveToRoom, pickup, toggleWorking, transfer, withdraw } from "actions/primitives";
+import { REMOTE_HAUL_PATIENCE } from "config/constants";
 import { Job } from "jobs/types";
 import { LogisticsLedger } from "actions/ledger";
+import { World } from "world/World";
 import { WorldRoom } from "world/WorldRoom";
 import { EnergySourceKind, resolveEnergySink, resolveEnergySource } from "actions/logistics";
 
@@ -50,6 +52,84 @@ export function runHaul(creep: Creep, _job: Job, worldRoom: WorldRoom, ledger: L
             creep.drop(RESOURCE_ENERGY);
         } else {
             moveTo(creep, worldRoom.controller, 3);
+        }
+    }
+}
+
+/**
+ * Cross-room haul executor (remote mining). The same gather→deliver phasing as the
+ * local hauler, but split across two rooms: gather the miner's dropped output in
+ * the remote, carry it home, deliver to the owner's storage/sinks. Routed from
+ * runCreep whenever the haul job carries `data.homeRoom`, regardless of whether the
+ * remote is currently visible — the deliver leg runs while the remote is unseen.
+ *
+ * Each phase resolves its targets in the correct room, so the sticky/ledger-aware
+ * logistics policy is reused unchanged: gathering scopes to the remote (no storage
+ * there), delivering scopes to home. `toggleWorking` flips on full/empty, so the
+ * round trip emerges without explicit travel state.
+ */
+export function runRemoteHaul(creep: Creep, job: Job, world: World, ledger: LogisticsLedger): void {
+    const remoteName = job.roomName;
+    const homeName = (job.data?.homeRoom as string | undefined) ?? creep.memory.home;
+    toggleWorking(creep);
+
+    if (!creep.memory.working) {
+        // GATHER in the remote — travel there first if not yet in (or able to see) it.
+        const remote = creep.room.name === remoteName ? world.getRoom(remoteName) : undefined;
+        if (!remote) {
+            moveToRoom(creep, remoteName);
+            return;
+        }
+        const source = resolveEnergySource(creep, remote, ledger, { allowStorage: false });
+        if (source) {
+            creep.memory.waited = 0;
+            if (source.kind === EnergySourceKind.Pickup) {
+                pickup(creep, source.target);
+            } else {
+                withdraw(creep, source.target);
+            }
+            return;
+        }
+
+        // Nothing to pick up right now. An empty hauler just waits staged near a
+        // source for the next drop. A partially-loaded one tolerates brief gaps (a
+        // live miner refills every tick) but must not idle on a dead source forever:
+        // after REMOTE_HAUL_PATIENCE barren ticks it delivers the partial load.
+        const carrying = creep.store.getUsedCapacity(RESOURCE_ENERGY);
+        const waited = (creep.memory.waited ?? 0) + 1;
+        creep.memory.waited = waited;
+        if (carrying === 0 || waited < REMOTE_HAUL_PATIENCE) {
+            if (job.pos) {
+                moveTo(creep, new RoomPosition(job.pos.x, job.pos.y, job.pos.roomName), 2);
+            }
+            return;
+        }
+        creep.memory.waited = 0;
+        creep.memory.working = true; // commit to delivering the partial load this tick
+    }
+
+    // DELIVER home — travel there first if not yet in it.
+    const home = creep.room.name === homeName ? world.getRoom(homeName) : undefined;
+    if (!home) {
+        moveToRoom(creep, homeName);
+        return;
+    }
+    const sink = resolveEnergySink(creep, home, ledger);
+    if (sink) {
+        transfer(creep, sink);
+        return;
+    }
+    if (home.storage && home.storage.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+        transfer(creep, home.storage);
+        return;
+    }
+    // No sink and no storage: drop at the controller as an upgrade buffer (mirrors
+    // the local hauler fallback) rather than parking a full load.
+    if (home.controller) {
+        if (creep.pos.inRangeTo(home.controller, 3)) {
+            creep.drop(RESOURCE_ENERGY);
+        } else {
+            moveTo(creep, home.controller, 3);
         }
     }
 }

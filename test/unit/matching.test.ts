@@ -1,9 +1,87 @@
 import { expect } from "../helpers/chai";
 import { JobBoard } from "jobs/JobBoard";
-import { JobKind } from "jobs/types";
-import { economyCreepsToMatch } from "matching/Matcher";
+import { Job, JobKind } from "jobs/types";
+import { GreedyMatcher, economyCreepsToMatch } from "matching/Matcher";
 import { World } from "world/World";
 import { makeCreep, makeStore } from "../helpers/mock";
+
+/** A board job with sensible defaults; only id/kind/capacity/priority are required. */
+function job(over: Partial<Job> & Pick<Job, "id" | "kind" | "capacity" | "priority">): Job {
+    return {
+        roomName: "W1N1",
+        assigned: [],
+        demand: { work: 1, carry: 1 },
+        ...over
+    } as Job;
+}
+
+/** A WORK+CARRY worker (capable of build, upgrade, haul, harvest). */
+function worker(name: string, memory: Partial<CreepMemory> = {}): Creep {
+    return makeCreep({ name, body: [WORK, CARRY, MOVE], memory });
+}
+
+describe("GreedyMatcher — priority ladder, upgrade as residual sink", () => {
+    // jobNeeded only special-cases harvest/haul, so build/upgrade are always "needed"
+    // here; world is unused for those kinds. The ranking under test is priority-first.
+    const noWorld = {} as unknown as World;
+
+    it("fills a higher-priority job before a less-staffed lower-priority one", () => {
+        const board = new JobBoard();
+        board.rehydrate();
+        // Build (60) already has one creep; upgrade (40) is empty. Old fewest-assigned
+        // ranking would pick upgrade; the priority ladder must pick build.
+        board.upsert(job({ id: "build:W1N1", kind: JobKind.Build, capacity: 3, priority: 60, assigned: ["a"] }));
+        board.upsert(job({ id: "upgrade:W1N1", kind: JobKind.Upgrade, capacity: 12, priority: 40, targetId: "ctrl" }));
+
+        const w = worker("w");
+        new GreedyMatcher().assign([w], board, noWorld);
+
+        expect(board.get("build:W1N1")!.assigned).to.include("w");
+        expect(board.get("upgrade:W1N1")!.assigned).to.not.include("w");
+    });
+
+    it("falls to upgrade only once the higher-priority jobs are full (residual sink)", () => {
+        const board = new JobBoard();
+        board.rehydrate();
+        board.upsert(job({ id: "build:W1N1", kind: JobKind.Build, capacity: 1, priority: 60, assigned: ["full"] }));
+        board.upsert(job({ id: "upgrade:W1N1", kind: JobKind.Upgrade, capacity: 12, priority: 40, targetId: "ctrl" }));
+
+        const w = worker("w");
+        new GreedyMatcher().assign([w], board, noWorld);
+
+        expect(board.get("upgrade:W1N1")!.assigned).to.include("w");
+    });
+});
+
+describe("GreedyMatcher — room scope (remote pinning)", () => {
+    const noWorld = {} as unknown as World;
+
+    it("a home creep only takes jobs in its home room, even a higher-priority one elsewhere", () => {
+        const board = new JobBoard();
+        board.rehydrate();
+        board.upsert(job({ id: "build:W1N1", kind: JobKind.Build, capacity: 1, priority: 60 }));
+        board.upsert(job({ id: "build:W2N1", kind: JobKind.Build, capacity: 1, priority: 99, roomName: "W2N1" }));
+
+        const w = worker("w", { home: "W1N1" });
+        new GreedyMatcher().assign([w], board, noWorld);
+
+        expect(board.get("build:W1N1")!.assigned).to.include("w");
+        expect(board.get("build:W2N1")!.assigned).to.not.include("w");
+    });
+
+    it("a remote creep (targetRoom) is pinned to its target room", () => {
+        const board = new JobBoard();
+        board.rehydrate();
+        board.upsert(job({ id: "build:W1N1", kind: JobKind.Build, capacity: 1, priority: 99 }));
+        board.upsert(job({ id: "build:W2N1", kind: JobKind.Build, capacity: 1, priority: 60, roomName: "W2N1" }));
+
+        const w = worker("w", { home: "W1N1", targetRoom: "W2N1" });
+        new GreedyMatcher().assign([w], board, noWorld);
+
+        expect(board.get("build:W2N1")!.assigned).to.include("w");
+        expect(board.get("build:W1N1")!.assigned).to.not.include("w");
+    });
+});
 
 describe("economyCreepsToMatch (re-decide when empty)", () => {
     it("includes creeps with no job and empty creeps, excludes mid-work and controller-owned", () => {

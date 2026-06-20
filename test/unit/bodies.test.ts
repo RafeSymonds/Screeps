@@ -3,11 +3,12 @@ import { bodyCost, buildBody } from "spawn/bodies";
 import { SpawnRole } from "spawn/types";
 
 describe("buildBody", () => {
-    it("scales the generalist body to the energy budget", () => {
-        const small = buildBody(SpawnRole.Generalist, 200);
-        const big = buildBody(SpawnRole.Generalist, 800);
+    it("scales the worker body to the energy budget", () => {
+        const small = buildBody(SpawnRole.Worker, 200);
+        const big = buildBody(SpawnRole.Worker, 800);
         expect(bodyCost(small)).to.be.at.most(200);
         expect(big.length).to.be.greaterThan(small.length);
+        expect(small.includes(WORK) && small.includes(CARRY)).to.equal(true);
     });
 
     it("builds haulers with carry and no work", () => {

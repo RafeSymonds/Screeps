@@ -24,6 +24,21 @@ export function moveTo(creep: Creep, target: RoomPosition | { pos: RoomPosition 
     creep.moveTo(target, { ...MOVE_OPTS, range });
 }
 
+/**
+ * Travel to another room. Used by remote/cross-room creeps (scouts, remote
+ * miners/haulers, reservers) to cross a room border before there is anything in
+ * the destination to path to precisely. Aims a few tiles inside the room center
+ * so the creep clears the exit tiles (stopping right on the border would bounce
+ * it back), then in-room logic takes over once the room is visible. No-op once
+ * already there.
+ */
+export function moveToRoom(creep: Creep, roomName: string): void {
+    if (creep.room.name === roomName) {
+        return;
+    }
+    creep.moveTo(new RoomPosition(25, 25, roomName), { ...MOVE_OPTS, range: 20 });
+}
+
 /** Flip the gather/act phase based on whether the creep is empty or full. */
 export function toggleWorking(creep: Creep): void {
     const mem = creep.memory;

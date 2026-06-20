@@ -45,6 +45,7 @@ g.FIND_STRUCTURES = 107;
 g.FIND_MY_CONSTRUCTION_SITES = 114;
 g.FIND_CONSTRUCTION_SITES = 111;
 g.FIND_DROPPED_RESOURCES = 106;
+g.FIND_HOSTILE_STRUCTURES = 109;
 
 // Structure types
 g.STRUCTURE_SPAWN = "spawn";
@@ -56,6 +57,8 @@ g.STRUCTURE_LINK = "link";
 g.STRUCTURE_ROAD = "road";
 g.STRUCTURE_WALL = "constructedWall";
 g.STRUCTURE_RAMPART = "rampart";
+g.STRUCTURE_INVADER_CORE = "invaderCore";
+g.STRUCTURE_KEEPER_LAIR = "keeperLair";
 
 // Look + terrain
 g.LOOK_STRUCTURES = "structure";

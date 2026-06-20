@@ -3,7 +3,8 @@
 This describes the AI as it exists after the June 2026 restart and is the
 authoritative design reference. The companion docs ([REPO_MAP](../agents/REPO_MAP.md),
 [SPAWN_REQUEST_CONTRACT](SPAWN_REQUEST_CONTRACT.md),
-[ENERGY_FLOW_SPAWNING](ENERGY_FLOW_SPAWNING.md), and the QA docs) all track this design.
+[ENERGY_FLOW_SPAWNING](ENERGY_FLOW_SPAWNING.md), [EMPIRE](EMPIRE.md), and the QA docs)
+all track this design.
 
 ## Goal
 
@@ -67,23 +68,33 @@ SpawnManager are untouched.
 ## Key decisions
 
 - **Persistent jobs**, deterministic ids, self-healing via `reconcile`/`prune`.
-- **Capability + need matching** — a creep takes a job only if it *can* do it
-  (body parts) AND the job is *needed* now. Need is what makes mining a last
-  resort: a creep with CARRY mines only when there is no energy to collect
-  (dropped/containers/storage); hauling counts as work only when there is energy
-  to move. Creeps re-decide whenever they empty out (not once-for-life), so they
-  follow changing need; a small switch rule keeps churn low. Swappable
-  (`src/matching/Matcher.ts`).
+- **Capability + need + priority-ladder matching** — a creep takes a job only if
+  it *can* do it (body parts) AND the job is *needed* now. Need is what makes
+  mining a last resort: a creep with CARRY mines only when there is no energy to
+  collect (dropped/containers/storage); hauling counts as work only when there is
+  energy to move. Among needed jobs the matcher ranks by the **priority ladder**
+  (harvest > haul > build > repair > upgrade) *ahead of* staffing, so the bounded
+  needs fill to capacity before anyone drops to the bottom rung — `upgrade`, whose
+  capacity is sized to the whole room, making it the **residual sink** ("don't
+  upgrade until everything else is consumed"). Creeps re-decide whenever they empty
+  out; a small switch rule keeps churn low. Swappable (`src/matching/Matcher.ts`).
 - **Energy-flow-driven spawning + floor** — population is an *output* of a
   per-room flow model ([EnergyModel](../../src/economy/EnergyModel.ts)): targets
   for income (saturate sources), logistics (carry sized to income × distance),
   and consumption (elastic upgrade, gated by a storage band) are measured each
-  tick, and `SpawnManager` spawns the largest deficit. A wiped room always
-  recovers via a guaranteed generalist. Full design:
+  tick. Income and logistics are inelastic infrastructure and are funded before
+  the elastic consumer (which only soaks the surplus they create) — otherwise the
+  consumer's high-capped target outranks the finite miner deficit and sources
+  never finish saturating. Stage supply is gauged from **body shape** (WORK-only =
+  income, CARRY-only = logistics, WORK+CARRY = consumption only) so a worker never
+  counts as income — the model keeps provisioning real miners. A wiped room always
+  recovers via a guaranteed `Worker`. Full design:
   [ENERGY_FLOW_SPAWNING](ENERGY_FLOW_SPAWNING.md).
 - **Capability-based assignment** — `CreepMemory` carries no behavioral role;
-  `spawnRole` is a body/population tag only. Even the "mine as a last resort"
-  rule keys off the body (has CARRY?), not the role tag.
+  `spawnRole` is a body-template tag only (and no longer feeds accounting — that is
+  body-shape based). `Worker` is the single WORK+CARRY body (bootstrap *and* mature
+  upgrader/builder); there is no separate `Generalist`. Even the "mine as a last
+  resort" rule keys off the body (has CARRY?), not the role tag.
 - **Single-action execution now; task chaining later** — insertion point is
   documented in `src/actions/executors/index.ts` (`runCreep`), seam in
   `src/tasks/Task.ts`.
@@ -112,5 +123,9 @@ instead of herding, `src/actions/logistics.ts` + `src/actions/ledger.ts`, see
 defense (towers + threat/safe-mode), base planning (containers + extensions +
 storage at RCL4 + roads on hauling lanes), passive scouting.
 
-Seams only: task chaining, expansion, combat (offensive), full base layout,
-defender/rampart logic, links/terminal/labs, remote mining.
+In progress: **remote mining** via the cross-room empire layer ([EMPIRE](EMPIRE.md))
+— an allocation broker above the per-room economy that extends harvest/haul to
+adjacent unowned rooms (economy-driven, no new job kind).
+
+Seams only: task chaining, expansion (room claiming), combat (offensive), full
+base layout, defender/rampart logic, links/terminal/labs.

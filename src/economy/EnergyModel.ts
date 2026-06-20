@@ -20,8 +20,10 @@
  *                    surplus/deficit signal.
  *
  * `roomDemand` produces the three targets; `pickDeficitRole` chooses which to fund
- * next (largest deficit, upstream stages first); `senseEconomy` keeps the storage
- * integrator fresh each tick. SpawnManager maps the chosen stage to a body.
+ * next — INCOME and LOGISTICS are inelastic infrastructure and are funded before
+ * the ELASTIC consumer, which only soaks the surplus they create; `senseEconomy`
+ * keeps the storage integrator fresh each tick. SpawnManager maps the chosen stage
+ * to a body.
  */
 
 import {
@@ -34,10 +36,12 @@ import {
     ECONOMY_MIN_CONSUMER_WORK,
     ECONOMY_STORAGE_FLOOR,
     ECONOMY_STORAGE_TARGET,
-    MINER_WORK_PER_SOURCE
+    MINER_WORK_PER_SOURCE,
+    REMOTE_POP_HEADROOM
 } from "config/constants";
 import { EconomyMemory, LaborKind, LaborTarget, RoomDemand } from "economy/types";
-import { SpawnRole } from "spawn/types";
+import { activeRemotesFor } from "empire/Empire";
+import { RemotePlan } from "empire/types";
 import { World } from "world/World";
 import { WorldRoom } from "world/WorldRoom";
 
@@ -79,7 +83,11 @@ export function roomDemand(worldRoom: WorldRoom, world: World): RoomDemand {
     const regenPerSource = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME; // 10 e/tick
     const ceiling = sources * regenPerSource;
 
-    const supply = laborByKind(world.creepsForRoom(worldRoom.name));
+    // Home labor only: creeps tagged for a remote (targetRoom) serve that remote's
+    // sources, not this room's, and are accounted by remoteDemand instead — so a
+    // remote miner's WORK is never miscounted as home income.
+    const homeCreeps = world.creepsForRoom(worldRoom.name).filter(creep => !creep.memory.targetRoom);
+    const supply = laborByKind(homeCreeps);
 
     // 1. Income: actual mining (capped at regen), and the WORK to saturate sources.
     const income = Math.min(supply.minerWork * HARVEST_POWER, ceiling);
@@ -109,23 +117,163 @@ export function roomDemand(worldRoom: WorldRoom, world: World): RoomDemand {
 }
 
 /**
- * Choose which flow stage to fund next, or null if all targets are met. The
- * largest positive deficit (ratio) wins; ties break toward upstream stages (mine
- * before haul before spend) via the listing order below.
+ * Choose which flow stage to fund next, or null if all targets are met.
  *
- * Note this self-orders WITHOUT a hard "income first" gate: the hauler and
- * consumer targets are themselves income-derived, so when income is low their
- * targets — and thus their deficits — are small and the large miner deficit
- * wins; as income rises the downstream deficits grow and get funded. A hard gate
- * here instead starves logistics/consumption whenever miners are energy-limited
- * (low-RCL miners carry few WORK, so a parts-based gate never clears).
+ * Income and logistics are INELASTIC infrastructure: a room needs exactly enough
+ * WORK to drain its sources and enough CARRY to move that income — no more is
+ * useful. The consumer (upgrade) is the ELASTIC overflow, sized to burn whatever
+ * surplus the infrastructure delivers. So infrastructure is funded FIRST (the two
+ * stages compete by deficit ratio, ties breaking upstream — mine before haul);
+ * the consumer is funded only once both are satisfied, with the surplus it is
+ * meant to absorb.
+ *
+ * Why subordinate rather than rank all three flat: the consumer target is
+ * income-derived and capped high (ECONOMY_MAX_CONSUMER_WORK), so it is routinely
+ * unreachable within the population cap and shows a near-permanent deficit. Ranked
+ * flat, that deficit outranks the *finite* miner deficit — so the moment minimal
+ * mining exists, every remaining spawn slot becomes an upgrader and the sources
+ * never finish saturating (observed: a fleet that scales workers/haulers but stays
+ * stuck at ~2 WORK/source while income-limited). Subordinating the consumer fixes
+ * that without a parts-based "income first" gate that would instead starve
+ * LOGISTICS — the failure the old flat ranking guarded against. Logistics stays
+ * infra-tier, so it is never starved.
+ *
+ * Safety valve: if upgrade presence has collapsed below the floor, the consumer
+ * rejoins the ranking so the controller can never be left to downgrade.
  */
 export function pickDeficitRole(demand: RoomDemand): LaborKind | null {
-    const ranked: Array<[LaborKind, number]> = [
+    const consumerDeficit = deficit(demand.consumer);
+    const infrastructure: Array<[LaborKind, number]> = [
         [LaborKind.Miner, deficit(demand.miner)],
-        [LaborKind.Hauler, deficit(demand.hauler)],
-        [LaborKind.Consumer, deficit(demand.consumer)]
+        [LaborKind.Hauler, deficit(demand.hauler)]
     ];
+    if (demand.consumer.supply < ECONOMY_MIN_CONSUMER_WORK) {
+        infrastructure.push([LaborKind.Consumer, consumerDeficit]);
+    }
+
+    const best = pickLargestDeficit(infrastructure);
+    if (best) {
+        return best;
+    }
+    // Infrastructure met: spend the remaining surplus on the elastic consumer.
+    return consumerDeficit > 0 ? LaborKind.Consumer : null;
+}
+
+// --- Remote mining (the empire's economy reach) ---------------------------------
+//
+// Each assigned remote is sized like a miniature income+logistics flow funded by
+// its owner: WORK to saturate its sources, CARRY for the round trip to the owner's
+// storage. Remote infrastructure is ranked by DEFICIT alongside home infrastructure
+// (see pickRoomLabor) and ahead of the elastic consumer, so a brand-new unstaffed
+// remote (deficit 1.0) is funded once home is mostly served — not gated behind home
+// being perfectly saturated, which a chronically near-met home never clears. "How
+// much remote mining" stays an OUTPUT that self-limits: a far remote needs so much
+// CARRY it loses spawn slots, and the per-room population cap bounds the total. See
+// docs/architecture/EMPIRE.md.
+
+/** A remote's labor targets and live supply, sized separately from its owner room. */
+export interface RemoteDemand {
+    roomName: string;
+    minerWork: LaborTarget;
+    haulerCarry: LaborTarget;
+}
+
+/**
+ * Size one remote. Supply is the owner's creeps tagged for THIS remote (by body
+ * shape), so remote miners/haulers are counted here and never in the home room.
+ * Hauler demand is income-derived, so it stays 0 until a miner is actually
+ * producing — the economy funds the miner first and never spawns idle haulers.
+ */
+export function remoteDemand(remote: RemotePlan, world: World): RemoteDemand {
+    const sourceCount = remote.sources.length;
+    const ceiling = sourceCount * (SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME);
+
+    const creeps = world.creepsForRoom(remote.owner).filter(creep => creep.memory.targetRoom === remote.roomName);
+    const supply = laborByKind(creeps);
+
+    const income = Math.min(supply.minerWork * HARVEST_POWER, ceiling);
+    const carry = (income * ECONOMY_HAUL_TRIP_FACTOR * remote.distance) / CARRY_CAPACITY;
+
+    return {
+        roomName: remote.roomName,
+        minerWork: { target: sourceCount * MINER_WORK_PER_SOURCE, supply: supply.minerWork },
+        haulerCarry: { target: Math.ceil(carry), supply: supply.haulerCarry }
+    };
+}
+
+/**
+ * The most under-supplied remote stage for `home` and its deficit ratio, or null if
+ * every assigned remote is staffed. Within a remote, income (miner) is considered
+ * before logistics (hauler); across remotes, the largest deficit wins. The caller
+ * ranks this against home infrastructure.
+ */
+export function pickRemoteDeficit(
+    home: string,
+    world: World
+): { kind: LaborKind; roomName: string; deficit: number } | null {
+    let best: { kind: LaborKind; roomName: string; deficit: number } | null = null;
+    for (const remote of activeRemotesFor(home)) {
+        const demand = remoteDemand(remote, world);
+        const minerDeficit = deficit(demand.minerWork);
+        const candidate =
+            minerDeficit > 0
+                ? { kind: LaborKind.Miner, roomName: remote.roomName, deficit: minerDeficit }
+                : { kind: LaborKind.Hauler, roomName: remote.roomName, deficit: deficit(demand.haulerCarry) };
+        if (candidate.deficit > (best?.deficit ?? 0)) {
+            best = candidate;
+        }
+    }
+    return best;
+}
+
+/**
+ * The next labor a room should fund, across home AND remote infrastructure, with the
+ * elastic consumer subordinated. Home income, home logistics, and each remote's
+ * income/logistics are inelastic and ranked together by deficit ratio (ties break to
+ * home, which is listed first). The consumer is funded only once all infrastructure
+ * is met — except the safety valve (upgrade presence below the floor rejoins the
+ * ranking so the controller can never downgrade). `roomName` is set only for remote
+ * stages (the room to tag the creep with); undefined means home. This is the single
+ * economy decision SpawnManager maps to a body.
+ */
+export function pickRoomLabor(worldRoom: WorldRoom, world: World): { kind: LaborKind; roomName?: string } | null {
+    const demand = roomDemand(worldRoom, world);
+    const consumerDeficit = deficit(demand.consumer);
+
+    const candidates: Array<{ kind: LaborKind; roomName?: string; deficit: number }> = [
+        { kind: LaborKind.Miner, deficit: deficit(demand.miner) },
+        { kind: LaborKind.Hauler, deficit: deficit(demand.hauler) }
+    ];
+    const remote = pickRemoteDeficit(worldRoom.name, world);
+    if (remote) {
+        candidates.push(remote);
+    }
+    if (demand.consumer.supply < ECONOMY_MIN_CONSUMER_WORK) {
+        candidates.push({ kind: LaborKind.Consumer, deficit: consumerDeficit });
+    }
+
+    let best: { kind: LaborKind; roomName?: string } | null = null;
+    let bestDeficit = 0;
+    for (const candidate of candidates) {
+        if (candidate.deficit > bestDeficit) {
+            bestDeficit = candidate.deficit;
+            best = { kind: candidate.kind, roomName: candidate.roomName };
+        }
+    }
+    if (best) {
+        return best;
+    }
+    // All infrastructure met: spend the surplus on the elastic consumer.
+    return consumerDeficit > 0 ? { kind: LaborKind.Consumer } : null;
+}
+
+/** Extra population a room is allowed for its active remotes, above the base cap. */
+export function remoteHeadroom(home: string): number {
+    return activeRemotesFor(home).length * REMOTE_POP_HEADROOM;
+}
+
+/** Largest strictly-positive deficit, ties breaking toward the earliest listed. */
+function pickLargestDeficit(ranked: Array<[LaborKind, number]>): LaborKind | null {
     let best: LaborKind | null = null;
     let bestDeficit = 0; // a strictly positive deficit is required to spawn anything
     for (const [kind, value] of ranked) {
@@ -181,26 +329,33 @@ function consumerWorkTarget(worldRoom: WorldRoom, income: number, storageLevel: 
 }
 
 /**
- * Bucket live body parts by the stage they serve. Dedicated bodies serve one
- * stage (miner = WORK, hauler = CARRY, worker = consumer WORK); a generalist is
- * the universal bootstrap body and counts toward all three. Role tags express
- * intent — the capability matcher then routes each body to matching jobs.
+ * Bucket live body parts by the stage they serve, gauged from the BODY SHAPE, not
+ * the `spawnRole` tag:
+ *   - WORK, no CARRY → a dedicated miner — income.
+ *   - CARRY, no WORK → a dedicated hauler — logistics.
+ *   - WORK and CARRY → a worker — consumption ONLY.
+ *
+ * The deliberate asymmetry: a worker (WORK+CARRY) is capability-eligible to mine,
+ * but it is NEVER counted as income here. So the model keeps provisioning real
+ * miners until sources are saturated, and workers only mine as a matcher last
+ * resort (no energy to collect) — "we'd rather a worker never mine unless needed."
+ * The cost is a known, accepted approximation: a worker that *is* gap-filling on a
+ * source goes uncounted, so income is briefly under-read; this self-corrects as
+ * dedicated miners arrive. Counting by shape (not the role tag) is also what lets
+ * the bootstrap and upgrade bodies collapse into one `Worker` — the tag no longer
+ * carries accounting meaning.
  */
 function laborByKind(creeps: Creep[]): LaborByKind {
     const labor: LaborByKind = { minerWork: 0, haulerCarry: 0, consumerWork: 0 };
     for (const creep of creeps) {
         const work = creep.getActiveBodyparts(WORK);
         const carry = creep.getActiveBodyparts(CARRY);
-        const role = creep.memory.spawnRole;
-        const generalist = role === SpawnRole.Generalist;
-        if (generalist || role === SpawnRole.Miner) {
-            labor.minerWork += work;
-        }
-        if (generalist || role === SpawnRole.Hauler) {
-            labor.haulerCarry += carry;
-        }
-        if (generalist || role === SpawnRole.Worker) {
-            labor.consumerWork += work;
+        if (work > 0 && carry === 0) {
+            labor.minerWork += work; // dedicated miner
+        } else if (carry > 0 && work === 0) {
+            labor.haulerCarry += carry; // dedicated hauler
+        } else if (work > 0 && carry > 0) {
+            labor.consumerWork += work; // worker — consumption only, never income
         }
     }
     return labor;

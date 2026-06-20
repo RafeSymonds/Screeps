@@ -6,7 +6,9 @@
 import { JobKind } from "jobs/types";
 
 // --- Memory ---
-export const MEMORY_VERSION = 1;
+// v2: RoomIntel.sources changed from a bare count to SourceIntel[] (stale entries
+// are wiped on migration; they regenerate within a scout interval).
+export const MEMORY_VERSION = 2;
 
 // --- CPU bucket tiers ---
 export const CPU_BUCKET_CRITICAL = 1000;
@@ -33,17 +35,53 @@ export const DEFENSE_REQUEST_PRIORITY = 200;
 // --- Spawning ---
 export const MAX_ROOM_POPULATION = 12;
 export const BODY_MAX_PARTS = 50;
-// Below this energy capacity we stay on cheap generalists; above it we may specialize.
+// Energy capacity below which economy spawns stay on cheap generalists (serve all
+// three flow stages); at/above it the room can afford a source-saturating 5-WORK
+// miner, so SpawnManager specializes (miner/hauler/worker). 550 ≈ RCL2 with its
+// extensions built. Used by SpawnManager.chooseRole.
 export const SPECIALIZE_ENERGY = 550;
-// Energy capacity at which a dedicated static miner becomes worthwhile (affords a
-// ~[WORK,WORK,MOVE] miner). Drop-mining needs no container, so we specialize this
-// early and let speed/income come first; containers are an optimization later.
-export const MIN_MINER_ENERGY = 250;
 // WORK+CARRY flex workers kept for build/upgrade — pure miners (no CARRY) and
 // haulers (no WORK) can do neither, so the base composition must include these.
 export const FLEX_WORKERS = 2;
 // Minimum energy to bank before spawning a non-emergency economy creep.
 export const MIN_SPAWN_ENERGY = 300;
+
+// --- Empire / remote mining ---
+// See docs/architecture/EMPIRE.md. The empire layer assigns adjacent unowned
+// rooms to owned rooms as remote energy farms (economy-driven; no new job kind).
+// Allocation recompute cadence (ticks) — the selection is throttled like base planning.
+export const EMPIRE_INTERVAL = 50;
+// Only established rooms reach out: minimum RCL and live (non-controller) population
+// before a room requests scouts/reservers or is assigned remotes. The population
+// gate keeps empire SpawnRequests from ever competing with the recovery floor.
+export const REMOTE_MIN_RCL = 3;
+export const REMOTE_MIN_POP = 4;
+// Max remotes a single owned room will mine (bounds CPU and spawn pressure in v1).
+export const MAX_REMOTES_PER_ROOM = 2;
+// Extra population a room is allowed per active remote, above MAX_ROOM_POPULATION
+// (≈ 1 miner + a few haulers) so remote labor doesn't crowd out the home economy.
+export const REMOTE_POP_HEADROOM = 5;
+// Intel older than this (ticks) is too stale to assign a remote from.
+export const REMOTE_INTEL_TTL = 20000;
+// Re-scout a neighbor whose intel is older than this (ticks).
+export const SCOUT_STALE_TICKS = 3000;
+// Coarse tiles-per-room-hop estimate for hauler sizing (a v1 proxy for a path
+// search; the backlog bonus corrects any under-haul). Adjacent remote ≈ 50 tiles.
+export const REMOTE_DISTANCE_PER_ROOM = 50;
+// Owner won't flip to a marginally-closer home room unless it beats the current
+// owner by this many tiles — resists ownership flapping as rooms are claimed.
+export const REMOTE_HYSTERESIS = 25;
+// Reservation: top up when remaining reservation ticks fall below this.
+export const REMOTE_RESERVE_MIN_TICKS = 2500;
+// Remote-haul patience: a partially-loaded hauler tolerates this many consecutive
+// gather ticks with nothing to pick up (a live miner refills every tick, so this
+// only trips when production has actually stopped) before delivering the partial
+// load home instead of idling at a dead source.
+export const REMOTE_HAUL_PATIENCE = 15;
+// Empire SpawnRequest priorities. Below DEFENSE_REQUEST_PRIORITY (200) so defense
+// always wins; reservers outrank scouts (holding income beats exploration).
+export const RESERVER_REQUEST_PRIORITY = 30;
+export const SCOUT_REQUEST_PRIORITY = 10;
 
 // --- Economy: energy-flow-driven spawning ---
 // Population is an OUTPUT of a per-room flow model, not a fixed composition. See

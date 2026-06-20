@@ -14,6 +14,7 @@ import { assessDefense } from "defense/Defense";
 import { runTowers } from "defense/Towers";
 import { planBase } from "base/BasePlanner";
 import { updateIntel } from "intel/Scouting";
+import { planEmpire } from "empire/Empire";
 import { planExpansion } from "expansion/Expansion";
 import { planCombat } from "combat/Combat";
 import { commandControllerCreeps } from "controllers";
@@ -24,6 +25,7 @@ import { Phase } from "config/phases";
 import { Job } from "jobs/types";
 import { SpawnRole } from "spawn/types";
 import { RoomIntel } from "intel/types";
+import { EmpireMemory } from "empire/types";
 import { BasePlan } from "base/types";
 import { DefenseState } from "defense/types";
 import { warn } from "utils/logger";
@@ -33,14 +35,17 @@ declare global {
         version: number;
         jobs: Record<string, Job>;
         planRuns: Record<string, number>;
-        empire?: unknown;
+        empire?: EmpireMemory;
     }
 
     interface CreepMemory {
         /** Body/population tag set at spawn. NOT behavioral — matching is capability-based. */
         spawnRole: SpawnRole;
-        /** Home room this creep belongs to. */
+        /** Home room this creep belongs to (spawned it; counts it in population). */
         home: string;
+        /** Room this creep works in if different from home — set for cross-room
+         *  (remote-mining) creeps. Undefined means it operates in `home`. */
+        targetRoom?: string;
         /** Gather (false) vs act (true) phase used by sink executors. */
         working: boolean;
         /** Current sticky job assignment (economy creeps). */
@@ -49,6 +54,9 @@ declare global {
         srcTargetId?: string;
         /** Committed energy SINK (sticky logistics target) while delivering. */
         sinkTargetId?: string;
+        /** Remote-haul patience: consecutive gather ticks with nothing to pick up.
+         *  Past a threshold a partially-loaded hauler delivers rather than idling. */
+        waited?: number;
         /** If set, a subsystem controller commands this creep and matching skips it. */
         controller?: string;
     }
@@ -102,8 +110,10 @@ export const loop = ErrorMapper.wrapLoop(() => {
         guard(Phase.Scout, () => updateIntel(world));
     }
 
-    // 5. Strategy: planners post jobs and spawn requests.
+    // 5. Strategy: planners post jobs and spawn requests. Empire planning runs
+    //    first so job generation sees a fresh remote allocation (Memory.empire).
     const spawnQueue = new SpawnRequestQueue();
+    guard(Phase.Empire, () => spawnQueue.pushAll(planEmpire(world)));
     guard(Phase.Defense, () => spawnQueue.pushAll(assessDefense(world)));
     guard(Phase.Jobs, () => generateJobs(world, board));
     if (shouldRun(Phase.Base, BASE_INTERVAL)) {

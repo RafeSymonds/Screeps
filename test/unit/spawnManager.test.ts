@@ -31,7 +31,7 @@ function fakeRoom(capture: SpawnCapture, energy = 300): WorldRoom {
 }
 
 describe("SpawnManager", () => {
-    it("spawns a generalist via the floor when the room has no creeps", () => {
+    it("spawns a worker via the floor when the room has no creeps", () => {
         const capture: SpawnCapture = {};
         const worldRoom = fakeRoom(capture);
         const world = { myRooms: [worldRoom], creepsForRoom: () => [] } as unknown as World;
@@ -41,7 +41,7 @@ describe("SpawnManager", () => {
         new SpawnManager().run(world, board, new SpawnRequestQueue());
 
         expect(capture.body, "should have spawned").to.not.equal(undefined);
-        expect(capture.memory?.spawnRole).to.equal(SpawnRole.Generalist);
+        expect(capture.memory?.spawnRole).to.equal(SpawnRole.Worker);
         expect(capture.memory?.home).to.equal("W1N1");
         expect(capture.memory?.working).to.equal(false);
     });

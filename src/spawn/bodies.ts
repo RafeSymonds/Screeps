@@ -17,6 +17,22 @@ export function repeatBody(pattern: BodyPartConstant[], energy: number, maxParts
     return body;
 }
 
+/**
+ * Reserver body: 1–2 CLAIM+MOVE pairs scaled to energy. One CLAIM only holds a
+ * reservation steady (reserve 1/tick vs 1/tick decay); two CLAIM grow it toward the
+ * 5000 cap so the reserver can build a buffer and die without the room un-reserving.
+ * Capped at 2 — more CLAIM is wasted (the cap is reached quickly).
+ */
+function claimerBody(energy: number): BodyPartConstant[] {
+    const pairCost = BODYPART_COST[CLAIM] + BODYPART_COST[MOVE];
+    const pairs = Math.max(1, Math.min(2, Math.floor(energy / pairCost)));
+    const body: BodyPartConstant[] = [];
+    for (let i = 0; i < pairs; i++) {
+        body.push(CLAIM, MOVE);
+    }
+    return body;
+}
+
 /** Static-mining body: up to 5 WORK plus a MOVE, scaled to available energy. */
 function minerBody(energy: number): BodyPartConstant[] {
     const workParts = Math.min(5, Math.max(1, Math.floor((energy - BODYPART_COST[MOVE]) / BODYPART_COST[WORK])));
@@ -40,9 +56,10 @@ export function buildBody(role: SpawnRole, energy: number): BodyPartConstant[] {
         case SpawnRole.Soldier:
             return repeatBody([ATTACK, MOVE], energy);
         case SpawnRole.Claimer:
-            return [CLAIM, MOVE];
+            return claimerBody(energy);
+        case SpawnRole.Scout:
+            return [MOVE];
         case SpawnRole.Worker:
-        case SpawnRole.Generalist:
         default:
             return repeatBody([WORK, CARRY, MOVE], energy);
     }

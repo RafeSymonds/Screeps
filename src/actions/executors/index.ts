@@ -3,9 +3,10 @@ import { JobBoard } from "jobs/JobBoard";
 import { World } from "world/World";
 import { WorldRoom } from "world/WorldRoom";
 import { LogisticsLedger } from "actions/ledger";
+import { moveToRoom } from "actions/primitives";
 import { runBuild } from "actions/executors/build";
 import { runHarvest } from "actions/executors/harvest";
-import { runHaul } from "actions/executors/haul";
+import { runHaul, runRemoteHaul } from "actions/executors/haul";
 import { runRepair } from "actions/executors/repair";
 import { runUpgrade } from "actions/executors/upgrade";
 
@@ -38,8 +39,20 @@ export function runCreep(creep: Creep, board: JobBoard, world: World, ledger: Lo
         delete creep.memory.jobId;
         return;
     }
+    // Cross-room (remote) haul operates in two rooms and must run even while the
+    // remote (job.roomName) is unseen — it owns its own travel — so it is routed
+    // before the single-room visibility gate below.
+    if (job.kind === JobKind.Haul && job.data?.homeRoom) {
+        runRemoteHaul(creep, job, world, ledger);
+        return;
+    }
     const worldRoom = world.getRoom(job.roomName);
     if (!worldRoom) {
+        // The job's room isn't visible — a remote we haven't reached yet. Travel
+        // there to gain vision; the executor takes over once the room is in the
+        // world model. (Cross-room haul, which operates while the remote is unseen,
+        // is routed before this gate in a later stage.)
+        moveToRoom(creep, job.roomName);
         return;
     }
     EXECUTORS[job.kind](creep, job, worldRoom, ledger);
