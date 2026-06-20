@@ -51,13 +51,24 @@ export const MIN_SPAWN_ENERGY = 300;
 // rooms to owned rooms as remote energy farms (economy-driven; no new job kind).
 // Allocation recompute cadence (ticks) — the selection is throttled like base planning.
 export const EMPIRE_INTERVAL = 50;
-// Only established rooms reach out: minimum RCL and live (non-controller) population
-// before a room requests scouts/reservers or is assigned remotes. The population
-// gate keeps empire SpawnRequests from ever competing with the recovery floor.
-export const REMOTE_MIN_RCL = 3;
-export const REMOTE_MIN_POP = 4;
+// Remote mining + scouting start as early as possible — they are high-value from
+// the beginning. RCL 1 is allowed; the economy itself decides "how much" (home
+// infrastructure is always funded first, and the room can only afford a worthwhile
+// remote miner once it can field dedicated miners, ~RCL2). The small population gate
+// just keeps empire SpawnRequests (scout/reserver) from competing with the recovery
+// floor, which only fires when a room has no working creep at all.
+export const REMOTE_MIN_RCL = 1;
+export const REMOTE_MIN_POP = 2;
 // Max remotes a single owned room will mine (bounds CPU and spawn pressure in v1).
 export const MAX_REMOTES_PER_ROOM = 2;
+// How much home WORK (per home source) must exist before a room funds remote labor.
+// Measured in total home WORK parts — workers included — so the threshold is
+// reachable at bootstrap (the flow model counts only dedicated miners, which a fresh
+// room has none of). LOWER it to reach out to remotes sooner (more aggressive early
+// remoting, at the cost of leaving some home income unmined); RAISE it toward
+// MINER_WORK_PER_SOURCE to fully saturate home first. Home logistics always comes
+// first regardless.
+export const REMOTE_HOME_COVER_WORK = 3;
 // Extra population a room is allowed per active remote, above MAX_ROOM_POPULATION
 // (≈ 1 miner + a few haulers) so remote labor doesn't crowd out the home economy.
 export const REMOTE_POP_HEADROOM = 5;
@@ -71,6 +82,10 @@ export const REMOTE_DISTANCE_PER_ROOM = 50;
 // Owner won't flip to a marginally-closer home room unless it beats the current
 // owner by this many tiles — resists ownership flapping as rooms are claimed.
 export const REMOTE_HYSTERESIS = 25;
+// Reservation is a mid-game optimization, not an early one: a CLAIM creep is
+// expensive and only pays off once a remote is established and the owner can sustain
+// the upkeep. Don't reserve until the owner reaches this RCL (storage-era). Tunable.
+export const RESERVE_MIN_RCL = 4;
 // Reservation: top up when remaining reservation ticks fall below this.
 export const REMOTE_RESERVE_MIN_TICKS = 2500;
 // Remote-haul patience: a partially-loaded hauler tolerates this many consecutive

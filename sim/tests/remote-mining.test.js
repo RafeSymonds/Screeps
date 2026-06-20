@@ -11,11 +11,11 @@ const { runScenario, seriesOf, finalOf } = require("../lib/harness");
 // 550 ticks because the ramp is genuinely long: a single scout round-robins all
 // four neighbors before reaching the remote, then the home economy has to be
 // staffed before remote labor is funded. See docs/architecture/EMPIRE.md.
-describe("sim: remote mining (remote-mining, 550 ticks)", function () {
-  this.timeout(12 * 60 * 1000);
+describe("sim: remote mining (remote-mining, 700 ticks)", function () {
+  this.timeout(14 * 60 * 1000);
   let res;
   before(async () => {
-    res = await runScenario({ scenario: "remote-mining", ticks: 550, every: 25 });
+    res = await runScenario({ scenario: "remote-mining", ticks: 700, every: 25 });
   });
 
   it("never raises an engine-level or bot error", () => {

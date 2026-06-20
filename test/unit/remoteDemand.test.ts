@@ -1,8 +1,10 @@
 import { expect } from "../helpers/chai";
-import { pickRemoteDeficit, remoteDemand, remoteHeadroom } from "economy/EnergyModel";
+import { pickRemoteDeficit, pickRoomLabor, remoteDemand, remoteHeadroom } from "economy/EnergyModel";
 import { LaborKind } from "economy/types";
 import { RemotePlan } from "empire/types";
 import { World } from "world/World";
+import { WorldRoom } from "world/WorldRoom";
+import { makePos } from "../helpers/mock";
 
 function remote(over: Partial<RemotePlan> = {}): RemotePlan {
     return {
@@ -77,6 +79,45 @@ describe("pickRemoteDeficit", () => {
     it("ignores remotes owned by another room", () => {
         Memory.empire = { remotes: { W2N1: remote({ owner: "W9N9" }) } };
         expect(pickRemoteDeficit("W1N1", world([]))).to.equal(null);
+    });
+});
+
+describe("pickRoomLabor — home-first", () => {
+    function homeRoom(): WorldRoom {
+        return {
+            name: "W1N1",
+            sources: [{ pos: makePos(10, 25) }],
+            storage: { pos: makePos(25, 25) },
+            spawns: [{ pos: makePos(25, 25) }],
+            storageEnergy: () => 0,
+            backlogEnergy: () => 0
+        } as unknown as WorldRoom;
+    }
+
+    it("funds same-room mining before an unstaffed remote (no remote queue-jumping)", () => {
+        Memory.empire = { remotes: { W2N1: remote() } }; // active remote owned by W1N1
+        Memory.rooms = {};
+
+        const pick = pickRoomLabor(homeRoom(), world([]));
+
+        expect(pick?.kind).to.equal(LaborKind.Miner);
+        expect(pick?.roomName).to.equal(undefined); // the HOME miner, not the remote
+    });
+
+    it("reaches out to the remote once home mining is covered", () => {
+        Memory.empire = { remotes: { W2N1: remote() } };
+        Memory.rooms = {};
+        // 1 source × REMOTE_HOME_COVER_WORK(3) = 3 home WORK needed; three workers meet it.
+        const homeWorkers = [
+            bodyCreep([WORK, CARRY, MOVE], undefined as unknown as string),
+            bodyCreep([WORK, CARRY, MOVE], undefined as unknown as string),
+            bodyCreep([WORK, CARRY, MOVE], undefined as unknown as string)
+        ];
+
+        const pick = pickRoomLabor(homeRoom(), world(homeWorkers));
+
+        expect(pick?.kind).to.equal(LaborKind.Miner);
+        expect(pick?.roomName).to.equal("W2N1"); // now the REMOTE miner
     });
 });
 

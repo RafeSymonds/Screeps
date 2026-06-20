@@ -29,8 +29,15 @@ export function runHaul(creep: Creep, _job: Job, worldRoom: WorldRoom, ledger: L
             } else {
                 withdraw(creep, source.target);
             }
+            return;
         }
-        return;
+        // Nothing to gather right now. A carrying hauler must not idle on a partial
+        // load (the source dried up mid-fill) — deliver what it has; only a truly
+        // empty hauler waits for the next pickup.
+        if (creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
+            return;
+        }
+        creep.memory.working = true; // fall through to the deliver phase
     }
 
     const sink = resolveEnergySink(creep, worldRoom, ledger);

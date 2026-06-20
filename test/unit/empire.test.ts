@@ -83,13 +83,13 @@ describe("planEmpire — allocation", () => {
         expect(activeRemotesFor("W1N1")).to.deep.equal([]);
     });
 
-    it("does not assign remotes to a sub-RCL3 room", () => {
+    it("assigns remotes from RCL1 (remote mining starts early)", () => {
         stubMap({ W1N1: ["W2N1"] });
         Memory.rooms = { W2N1: { intel: intel() } };
 
-        planEmpire(fakeWorld([owner("W1N1", 2)]));
+        planEmpire(fakeWorld([owner("W1N1", 1)]));
 
-        expect(allRemotes()).to.deep.equal([]);
+        expect(Memory.empire!.remotes.W2N1?.owner).to.equal("W1N1");
     });
 
     it("caps each owner at its two closest remotes", () => {
@@ -144,7 +144,7 @@ describe("planEmpire — scout requests", () => {
         stubMap({ W1N1: ["UNSEEN"] });
         Memory.rooms = {};
 
-        const requests = planEmpire(fakeWorld([owner("W1N1")], { W1N1: workers(2) }));
+        const requests = planEmpire(fakeWorld([owner("W1N1")], { W1N1: workers(1) }));
 
         expect(requests).to.deep.equal([]);
     });
@@ -155,11 +155,11 @@ describe("planEmpire — reserver requests", () => {
         return requests.find(r => r.role === "claimer");
     }
 
-    it("requests a reserver for an active remote with a low reservation", () => {
+    it("requests a reserver for an active remote with a low reservation (mid-game RCL)", () => {
         stubMap({ W1N1: ["W2N1"] }); // W2N1 has fresh intel, so no scout is needed
         Memory.rooms = { W2N1: { intel: intel() } };
 
-        const reserver = reserverOf(planEmpire(fakeWorld([owner("W1N1")], { W1N1: workers(4) })));
+        const reserver = reserverOf(planEmpire(fakeWorld([owner("W1N1", 4)], { W1N1: workers(4) })));
 
         expect(reserver).to.not.equal(undefined);
         expect(reserver!.owner).to.equal("remote-reserve:W2N1");
@@ -167,11 +167,19 @@ describe("planEmpire — reserver requests", () => {
         expect(reserver!.roomName).to.equal("W1N1"); // spawned by the owner
     });
 
+    it("does not reserve early — no claim until the owner reaches the reserve RCL", () => {
+        stubMap({ W1N1: ["W2N1"] });
+        Memory.rooms = { W2N1: { intel: intel() } };
+
+        // Same setup as above but a low-RCL owner: reservation is deferred.
+        expect(reserverOf(planEmpire(fakeWorld([owner("W1N1", 2)], { W1N1: workers(4) })))).to.equal(undefined);
+    });
+
     it("does not request a reserver when the reservation is still high", () => {
         stubMap({ W1N1: ["W2N1"] });
         Memory.rooms = { W2N1: { intel: intel({ reservation: { username: "bot", ticks: 4000 } }) } };
 
-        expect(reserverOf(planEmpire(fakeWorld([owner("W1N1")], { W1N1: workers(4) })))).to.equal(undefined);
+        expect(reserverOf(planEmpire(fakeWorld([owner("W1N1", 4)], { W1N1: workers(4) })))).to.equal(undefined);
     });
 
     it("does not reserve an invader-core remote (it is inactive)", () => {

@@ -7,6 +7,7 @@ import {
     REMOTE_MIN_POP,
     REMOTE_MIN_RCL,
     REMOTE_RESERVE_MIN_TICKS,
+    RESERVE_MIN_RCL,
     RESERVER_REQUEST_PRIORITY,
     SCOUT_REQUEST_PRIORITY,
     SCOUT_STALE_TICKS
@@ -226,7 +227,7 @@ function empireRequests(world: World): SpawnRequest[] {
             requests.push(scout);
         }
         for (const remote of activeRemotesFor(ownerRoom.name)) {
-            const reserver = reserverRequest(world, remote);
+            const reserver = reserverRequest(ownerRoom, world, remote);
             if (reserver) {
                 requests.push(reserver);
             }
@@ -241,8 +242,10 @@ function empireRequests(world: World): SpawnRequest[] {
  * `targetRoom` tells it which remote to reserve. Invader-core rooms can't be
  * reserved, so they are skipped.
  */
-function reserverRequest(world: World, remote: RemotePlan): SpawnRequest | undefined {
-    if (!remote.reserve) {
+function reserverRequest(ownerRoom: WorldRoom, world: World, remote: RemotePlan): SpawnRequest | undefined {
+    // Reservation is a mid-game optimization (see RESERVE_MIN_RCL): a CLAIM creep is
+    // expensive and only pays off once the owner is established — no claim early.
+    if (!remote.reserve || ownerRoom.rcl < RESERVE_MIN_RCL) {
         return undefined;
     }
     const intel = Memory.rooms[remote.roomName]?.intel;
