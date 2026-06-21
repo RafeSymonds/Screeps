@@ -35,6 +35,13 @@ describe("sim: remote mining (remote-mining, 700 ticks)", function () {
     expect(finalOf(res.timeline, "W2N1", "bot").roles.miner || 0).to.be.greaterThan(0);
   });
 
+  it("still staffs DEDICATED home miners (home specializes before remotes)", () => {
+    // Guards the regression where a remote diverted the home's dedicated-miner slots,
+    // leaving the home running on workers with zero miners.
+    const homeMiners = seriesOf(res.timeline, "W1N1", "bot", "roles").map(r => r.miner || 0);
+    expect(Math.max(...homeMiners)).to.be.greaterThan(0);
+  });
+
   it("keeps CPU within budget across the multi-room workload", () => {
     expect(Math.max(...seriesOf(res.timeline, "W1N1", "bot", "cpu"))).to.be.lessThan(50);
   });

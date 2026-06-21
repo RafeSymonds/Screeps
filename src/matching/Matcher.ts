@@ -156,7 +156,10 @@ function bestJobFor(creep: Creep, jobs: Job[], board: JobBoard, world: World): J
  * there is work; upgrade is the elastic sink). The exceptions encode "don't mine
  * when you could just collect":
  *   - Harvest: a creep that can collect (has CARRY) mines only when there is no
- *     collectable energy; a pure miner (no CARRY) always mines.
+ *     collectable energy; a pure miner (no CARRY) always mines. So once dedicated
+ *     miners are dropping energy, workers stop preferring harvest and the miners hold
+ *     the seats (capacity is sized to the source's seats, so a worker on one slot
+ *     never crowds a miner off another).
  *   - Haul: only needed when there is energy to move.
  */
 function jobNeeded(creep: Creep, job: Job, world: World): boolean {

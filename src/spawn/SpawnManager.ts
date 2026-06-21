@@ -129,14 +129,9 @@ export class SpawnManager {
             return null;
         }
         if (worldRoom.energyCapacityAvailable < SPECIALIZE_ENERGY) {
-            // Bootstrap: a home gap is filled by the universal WORK+CARRY `Worker`.
-            // A remote gap still uses a small dedicated miner/hauler pair (sized to
-            // energy by buildBody) so the drop-mine + cross-room-haul executors carry
-            // energy home even before the room can specialize.
-            if (labor.roomName) {
-                const role = labor.kind === LaborKind.Hauler ? SpawnRole.Hauler : SpawnRole.Miner;
-                return { role, targetRoom: labor.roomName };
-            }
+            // Below the specialize threshold every gap is a universal WORK+CARRY
+            // `Worker` (it can mine, haul, and upgrade). Remotes wait until the room
+            // can field a dedicated miner — see the note in pickRoomLabor.
             return { role: SpawnRole.Worker };
         }
         switch (labor.kind) {

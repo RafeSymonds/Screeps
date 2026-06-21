@@ -81,10 +81,15 @@ export function runRemoteHaul(creep: Creep, job: Job, world: World, ledger: Logi
     toggleWorking(creep);
 
     if (!creep.memory.working) {
-        // GATHER in the remote — travel there first if not yet in (or able to see) it.
+        // GATHER in the remote. Travel to the room cheaply (short cross-room path);
+        // once inside, clear any exit tile so border ambiguity can't bounce us, then
+        // the in-room logic moves to the actual energy.
         const remote = creep.room.name === remoteName ? world.getRoom(remoteName) : undefined;
         if (!remote) {
             moveToRoom(creep, remoteName);
+            return;
+        }
+        if (clearExitTile(creep)) {
             return;
         }
         const source = resolveEnergySource(creep, remote, ledger, { allowStorage: false });
@@ -115,10 +120,14 @@ export function runRemoteHaul(creep: Creep, job: Job, world: World, ledger: Logi
         creep.memory.working = true; // commit to delivering the partial load this tick
     }
 
-    // DELIVER home — travel there first if not yet in it.
+    // DELIVER home. Travel to the room cheaply, then clear any exit tile before the
+    // in-room delivery logic runs.
     const home = creep.room.name === homeName ? world.getRoom(homeName) : undefined;
     if (!home) {
         moveToRoom(creep, homeName);
+        return;
+    }
+    if (clearExitTile(creep)) {
         return;
     }
     const sink = resolveEnergySink(creep, home, ledger);
@@ -139,4 +148,27 @@ export function runRemoteHaul(creep: Creep, job: Job, world: World, ledger: Logi
             moveTo(creep, home.controller, 3);
         }
     }
+}
+
+/**
+ * If the creep is sitting on a room-edge (exit) tile, step one tile inward with a
+ * cheap directional move (no PathFinder) and report it. A cross-room hauler that has
+ * just arrived lingers on the exit otherwise, where border ambiguity bounces it back
+ * and forth between the two rooms; nudging it off the edge lets the in-room logic
+ * take over cleanly. O(1), so it never costs the CPU a per-tick cross-room repath would.
+ */
+function clearExitTile(creep: Creep): boolean {
+    const { x, y } = creep.pos;
+    if (x === 0) {
+        creep.move(RIGHT);
+    } else if (x === 49) {
+        creep.move(LEFT);
+    } else if (y === 0) {
+        creep.move(BOTTOM);
+    } else if (y === 49) {
+        creep.move(TOP);
+    } else {
+        return false;
+    }
+    return true;
 }

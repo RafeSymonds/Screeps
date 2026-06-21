@@ -61,14 +61,6 @@ export const REMOTE_MIN_RCL = 1;
 export const REMOTE_MIN_POP = 2;
 // Max remotes a single owned room will mine (bounds CPU and spawn pressure in v1).
 export const MAX_REMOTES_PER_ROOM = 2;
-// How much home WORK (per home source) must exist before a room funds remote labor.
-// Measured in total home WORK parts — workers included — so the threshold is
-// reachable at bootstrap (the flow model counts only dedicated miners, which a fresh
-// room has none of). LOWER it to reach out to remotes sooner (more aggressive early
-// remoting, at the cost of leaving some home income unmined); RAISE it toward
-// MINER_WORK_PER_SOURCE to fully saturate home first. Home logistics always comes
-// first regardless.
-export const REMOTE_HOME_COVER_WORK = 3;
 // Extra population a room is allowed per active remote, above MAX_ROOM_POPULATION
 // (≈ 1 miner + a few haulers) so remote labor doesn't crowd out the home economy.
 export const REMOTE_POP_HEADROOM = 5;

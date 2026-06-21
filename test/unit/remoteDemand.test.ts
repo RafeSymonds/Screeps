@@ -104,10 +104,11 @@ describe("pickRoomLabor — home-first", () => {
         expect(pick?.roomName).to.equal(undefined); // the HOME miner, not the remote
     });
 
-    it("reaches out to the remote once home mining is covered", () => {
+    it("keeps funding home miners while the room is unsaturated, even with a remote assigned", () => {
         Memory.empire = { remotes: { W2N1: remote() } };
         Memory.rooms = {};
-        // 1 source × REMOTE_HOME_COVER_WORK(3) = 3 home WORK needed; three workers meet it.
+        // A worker-heavy room is NOT "covered": dedicated-miner supply is still 0, so
+        // the home keeps specializing rather than diverting the slot to the remote.
         const homeWorkers = [
             bodyCreep([WORK, CARRY, MOVE], undefined as unknown as string),
             bodyCreep([WORK, CARRY, MOVE], undefined as unknown as string),
@@ -117,7 +118,7 @@ describe("pickRoomLabor — home-first", () => {
         const pick = pickRoomLabor(homeRoom(), world(homeWorkers));
 
         expect(pick?.kind).to.equal(LaborKind.Miner);
-        expect(pick?.roomName).to.equal("W2N1"); // now the REMOTE miner
+        expect(pick?.roomName).to.equal(undefined); // still the HOME miner
     });
 });
 

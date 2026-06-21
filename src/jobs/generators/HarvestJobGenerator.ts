@@ -1,4 +1,4 @@
-import { JOB_PRIORITY } from "config/constants";
+import { JOB_PRIORITY, MINER_WORK_PER_SOURCE } from "config/constants";
 import { JobBoard } from "jobs/JobBoard";
 import { JobKind } from "jobs/types";
 import { WorldRoom } from "world/WorldRoom";
@@ -26,19 +26,17 @@ export function countOpenSeats(source: Source): number {
 }
 
 /**
- * One harvest job per source, its capacity set to the source's walkable seats — the
- * physical limit on how many creeps can mine it at once. Capacity is the single
- * source of truth for "how many openings", so the matcher fills the closest source
- * that still has a free seat and spreads the rest across the others (its
- * least-staffed tiebreak) instead of piling every miner onto one. A fully-walled
- * source (no seat) gets no job.
+ * One harvest job per source. Capacity is bounded by BOTH conditions: the source's
+ * walkable seats (the physical limit on simultaneous miners) and the WORK needed to
+ * saturate it (MINER_WORK_PER_SOURCE = 5, since one 5-WORK miner drains a source's 10
+ * e/tick). So a multi-seat source can hold several smaller miners up to 5 WORK, while
+ * a single grown miner fills it in one slot — the spawn model never provisions more
+ * than 5 WORK/source, so spare slots stay empty rather than over-mining.
  *
- * This does not cause redundant mining: a grown WORK+CARRY worker only treats harvest
- * as "needed" when there is nothing to collect (see the matcher's jobNeeded), so once
- * dedicated miners are dropping energy the spare seats stay empty and workers go
- * build/upgrade. The extra capacity matters at bootstrap, when every creep is a
- * worker and there is no dropped energy yet — then they fill the seats across both
- * sources rather than herding on the nearest one.
+ * Harvest is reserved for DEDICATED miners: a worker (WORK+CARRY) does not treat it
+ * as needed (see the matcher's jobNeeded) and mines directly via acquireEnergy only
+ * as a last resort, so a WORK-only miner is never crowded out of its slot. A
+ * fully-walled source (no seat) gets no job.
  */
 export function generateHarvestJobs(worldRoom: WorldRoom, board: JobBoard): void {
     for (const source of worldRoom.sources) {
@@ -51,7 +49,7 @@ export function generateHarvestJobs(worldRoom: WorldRoom, board: JobBoard): void
             kind: JobKind.Harvest,
             roomName: worldRoom.name,
             targetId: source.id,
-            capacity: seats,
+            capacity: Math.min(seats, MINER_WORK_PER_SOURCE),
             assigned: [],
             priority: JOB_PRIORITY[JobKind.Harvest],
             demand: { work: 2, carry: 1 }

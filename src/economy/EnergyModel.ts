@@ -37,7 +37,6 @@ import {
     ECONOMY_STORAGE_FLOOR,
     ECONOMY_STORAGE_TARGET,
     MINER_WORK_PER_SOURCE,
-    REMOTE_HOME_COVER_WORK,
     REMOTE_POP_HEADROOM
 } from "config/constants";
 import { EconomyMemory, LaborKind, LaborTarget, RoomDemand } from "economy/types";
@@ -246,45 +245,25 @@ export function pickRoomLabor(worldRoom: WorldRoom, world: World): { kind: Labor
     const demand = roomDemand(worldRoom, world);
     const homeKind = pickDeficitRole(demand);
 
-    // Home logistics always first — move what we already mine before reaching out.
-    if (homeKind === LaborKind.Hauler) {
-        return { kind: LaborKind.Hauler };
-    }
-    // Home income first, but only until the home sources are COVERED — measured in
-    // total home WORK (workers included, via homeWorkParts) so the threshold is
-    // reachable at bootstrap, where the flow model (dedicated miners only) is never
-    // satisfied. Past coverage, finishing home saturation has diminishing returns, so
-    // a remote competes (REMOTE_HOME_COVER_WORK tunes how soon).
-    const covered = homeWorkParts(worldRoom.name, world) >= worldRoom.sources.length * REMOTE_HOME_COVER_WORK;
-    if (homeKind === LaborKind.Miner && !covered) {
-        return { kind: LaborKind.Miner };
+    // Home infrastructure (income then logistics) takes every slot it needs first.
+    // "Home income" is dedicated-miner supply, so a room finishes SPECIALIZING — it
+    // builds its real miners — before any slot goes to a remote. (Counting workers as
+    // coverage was a mistake: a worker-heavy room read as "covered" and the
+    // dedicated-miner slots were diverted to remotes, so the home never specialized.)
+    if (homeKind === LaborKind.Miner || homeKind === LaborKind.Hauler) {
+        return { kind: homeKind };
     }
     // Safety valve: an upgrader to stop a controller downgrade outranks remotes.
     if (homeKind === LaborKind.Consumer && demand.consumer.supply < ECONOMY_MIN_CONSUMER_WORK) {
         return { kind: LaborKind.Consumer };
     }
-    // Home covered → extend to remotes (growing income) before finishing home
-    // saturation or feeding the elastic consumer.
+    // Home is satisfied → extend to remotes (growing income) before the consumer.
     const remote = pickRemoteDeficit(worldRoom.name, world);
     if (remote) {
         return { kind: remote.kind, roomName: remote.roomName };
     }
-    // No remote work left: finish home saturation, else the elastic consumer.
-    if (homeKind === LaborKind.Miner) {
-        return { kind: LaborKind.Miner };
-    }
+    // Otherwise the elastic consumer soaks the surplus.
     return homeKind === LaborKind.Consumer ? { kind: LaborKind.Consumer } : null;
-}
-
-/** Total WORK parts of a room's HOME creeps (excludes creeps tagged for a remote). */
-function homeWorkParts(roomName: string, world: World): number {
-    let work = 0;
-    for (const creep of world.creepsForRoom(roomName)) {
-        if (!creep.memory.targetRoom) {
-            work += creep.getActiveBodyparts(WORK);
-        }
-    }
-    return work;
 }
 
 /** Extra population a room is allowed for its active remotes, above the base cap. */
