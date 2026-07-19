@@ -3,36 +3,111 @@
 This repository is a Screeps AI written in TypeScript, **being rebuilt from scratch (July 2026)**.
 The previous bot and its design docs live on the `backup/pre-rebuild-2026-07-19` branch (pushed to
 origin); [src/main.ts](src/main.ts) on `main` is reset to the starter kit's default loop, with the
-starter's `utils/ErrorMapper.ts` for source-mapped stack traces. The build/deploy/test/sim infrastructure
-is fully working — new design decisions should be documented as they are made, not assumed from the
-old bot.
+starter's `utils/ErrorMapper.ts` for source-mapped stack traces. The build/deploy/test/sim
+infrastructure is fully working.
 
-## Start Here
+## What Screeps Is
 
-1. Read [README.md](README.md) — what exists, commands, local setup.
-2. Read [docs/agents/SCREEPS_PRIMER.md](docs/agents/SCREEPS_PRIMER.md) — Screeps rules that shape
-   any bot design.
-3. Inspect [src/main.ts](src/main.ts) — the entry point the engine calls each tick.
+Screeps is an MMO programming game: you don't play it directly — your code does. The JavaScript
+you upload runs on the game server in an endless loop, once per **game tick** (a few real seconds
+each), even while you're offline. Your code commands **creeps** (units assembled from body parts)
+to harvest energy, build structures, upgrade your **room controller** (RCL — gates what you're
+allowed to build), defend territory, and expand across a persistent world of 50×50-tile rooms
+shared with other players.
 
-## Screeps-Specific Constraints
+The rules that shape everything:
 
--   The runtime is the Screeps game loop: code is re-evaluated each tick, with persistent `Memory`
-    and ephemeral globals. Module-level caches must tolerate global resets.
--   CPU matters. Avoid per-tick allocations, repeated global scans, and noisy logging in hot paths.
--   Creep body design is constrained by spawn energy, fatigue, carry throughput, and lifetime.
--   Many bugs only appear over multiple ticks. When changing scheduling, spawning, or memory
-    ownership, reason across several ticks.
--   Modern JS runs natively (optional chaining, nullish coalescing, `Array.at`/`findLast`/`toSorted`,
-    `Object.hasOwn`/`groupBy`, `String.replaceAll`). Host-only Node APIs (`fs`, `process`, `crypto`,
-    real timers) are unavailable inside the isolated-vm sandbox.
+-   Each tick the server calls your exported `loop`. The **JS global environment can be reset at
+    any time**; the only durable state is the `Memory` object (JSON-serialized between ticks).
+-   You have a **CPU budget per tick** plus a bucket that absorbs bursts. Inefficient code doesn't
+    just run slowly — when you exceed the budget, your bot stops mid-tick and skips actions.
+-   Creep actions are **intents**, all resolved together at tick end; a creep gets one action of a
+    given type per tick.
+-   Creeps expire (1500-tick lifetime), so an economy must perpetually respawn its own labor or it
+    collapses.
+
+Read [docs/agents/SCREEPS_PRIMER.md](docs/agents/SCREEPS_PRIMER.md) for the condensed rules that
+matter when designing bot logic.
+
+## Where The Screeps API Docs Are
+
+-   **Local mirror (use this first): [docs/screeps-api/](docs/screeps-api/index.md)** — the
+    official API reference and gameplay guides, offline. `api-*.md` files cover the API surface
+    (`Game`, `Creep`, `Room`, structures, `Memory`/`PathFinder`/constants); `guide-*.md` files
+    cover game concepts (control, creeps, defense, CPU, market, …). Start at
+    [docs/screeps-api/index.md](docs/screeps-api/index.md).
+-   **Official online docs**: https://docs.screeps.com/api/ (API reference) and
+    https://docs.screeps.com/ (guides) — for anything the mirror lacks.
+-   **Types**: `@types/screeps` provides the typed API surface; if the types and the docs disagree,
+    verify against the docs.
+
+## Development Process: Design → Spec → Build → Test
+
+**We always design before we build.** No non-trivial feature or subsystem starts as code.
+
+1.  **Write a design doc first** in `docs/design/<feature>.md` (create the directory with the first
+    doc). Small fixes and mechanical changes don't need one; anything with a new Memory schema, a
+    new subsystem, or cross-tick behavior does.
+2.  **Spec it fully.** A design doc is done when it answers:
+    -   **Goal** — what problem this solves and how we'll know it works.
+    -   **Interface** — the contract it exposes and the contracts it consumes (types first).
+    -   **Memory schema** — exact fields, who owns them, and how stale/missing data is handled.
+    -   **Tick flow** — what runs each tick, in what order, and what is throttled or skipped when
+        CPU is tight.
+    -   **Edge cases** — global reset mid-operation, lost room visibility, creeps dying mid-task,
+        empty/wiped rooms.
+    -   **Test plan** — which logic gets unit tests, and which sim scenario(s) prove the behavior.
+3.  **Build to the spec.** If implementation reveals the spec is wrong, update the spec first, then
+    the code. Design docs are living documents — behavior changes and doc changes land together.
+4.  **Test at both levels** (see Testing Strategy).
+
+## Build With Abstractions
+
+The core rule for this codebase: **separate deciding from doing, and hide the game API behind
+narrow seams.**
+
+-   **Pure core, thin shell.** Decision logic — what to build, which creep does what, how many to
+    spawn, where to expand — is written as pure functions over plain data: no `Game`/`Memory`
+    globals, no live game objects. A thin adapter layer reads game state into plain structures on
+    the way in and turns decisions into game intents on the way out. This is what makes the logic
+    unit-testable on the host, and it's the default shape for every new subsystem.
+-   **Subsystems communicate through explicit contracts.** When two subsystems interact, define the
+    shared types in one place and depend on those — never on each other's internals. Any subsystem
+    should be reimplementable without touching its consumers.
+-   **Wrap expensive queries once.** `room.find`, pathfinding, and other per-tick scans go behind a
+    shared read-model/caching layer rather than being called ad hoc, so CPU cost is centralized,
+    cached, and visible.
+-   **Each subsystem owns its `Memory` slice.** Ambient interface extensions are declared in
+    [src/main.ts](src/main.ts); one owner writes a given slice, everyone else treats it as
+    read-only. Schema changes update the ambient types and handle old persisted data.
 -   **Prefer enums over bare string literals.** Named string sets — including discriminated-union
     tags (e.g. `kind` fields) and other categorical values — should be backed by a string enum, not
     loose `"..."` literals scattered across producers and consumers.
+
+## Testing Strategy
+
+-   **Everything gets unit tests.** All decision logic must be unit-tested via `npm run test`
+    (mocha + chai, mocked Screeps globals in `test/helpers/`). If a piece of logic can't be unit
+    tested because it's tangled with live game objects, that is a design smell — extract the pure
+    core rather than skipping the test.
+-   **Bigger components get sim tests.** Multi-tick, emergent behavior — economy bootstrap, spawn
+    cadence, construction, defense reaction, wipe recovery — is verified in the real engine with
+    `bin/sim test` (`sim/tests/`, asserting on tick timelines) against worlds in `sim/scenarios/`.
+    When a new subsystem-level capability lands, add or extend a scenario and a sim suite for it.
+-   `bin/sim run` is for watching and debugging real behavior; it is not a substitute for asserted
+    tests.
 
 ## Baseline (current)
 
 -   Runtime: Screeps is **Node.js 24 (V8 13.6)**; the build targets **`es2024`** via
     `@rollup/plugin-typescript`. Local toolchain needs Node `>=24`.
+-   Modern JS runs natively (optional chaining, nullish coalescing, `Array.at`/`findLast`/`toSorted`,
+    `Object.hasOwn`/`groupBy`, `String.replaceAll`). Host-only Node APIs (`fs`, `process`, `crypto`,
+    real timers) are unavailable inside the isolated-vm sandbox.
+-   CPU matters. Avoid per-tick allocations, repeated global scans, and noisy logging in hot paths.
+    Creep body design is constrained by spawn energy, fatigue, carry throughput, and lifetime.
+-   Many bugs only appear over multiple ticks. When changing scheduling, spawning, or memory
+    ownership, reason across several ticks.
 -   `npm run lint` is **broken repo-wide**: `Invalid value for lib provided: es2024` — the installed
     `@typescript-eslint` parser predates es2024 and fails on every file (including untouched ones).
     This is toolchain debt, not a code regression; build + tests are the gates.
@@ -45,7 +120,7 @@ old bot.
 -   `npm run push-main`: upload using the `main` target from `screeps.json`.
 -   `npm run privateServer`: deploy to the local path controlled by `SCREEPS_LOCAL_PATH`.
 -   `npm run test`: unit and integration tests (mocha + chai, mocked Screeps globals in
-    `test/helpers/`; currently placeholder harness tests).
+    `test/helpers/`).
 -   `npm run lint` / `npm run lint:fix`: ESLint on `src/**/*.ts` (see baseline note above).
 -   `bin/sim run [ticks]`: run the real bot in the real Screeps engine **headless** (Node 24,
     in Docker) and print live per-tick room state — economy, spawns, CPU. Not unit tests;
@@ -88,6 +163,6 @@ changes; keep `npm run test` for pure logic. Full details and rationale:
 
 ## Known Sharp Edges
 
--   Upstream docs in `docs/getting-started`, `docs/in-depth`, and `docs/screeps-api` are generic
-    starter / API references, not descriptions of this bot.
+-   Upstream docs in `docs/getting-started` and `docs/in-depth` are generic starter references,
+    not descriptions of this bot.
 -   `npm test` runs integration tests alongside unit tests.
