@@ -1,6 +1,6 @@
 ---
 name: sim
-description: Run THIS Screeps bot in a real, headless Screeps engine (Node 24, in Docker) and watch how it actually behaves over many ticks — economy bootstrap, spawning, RCL/upgrade progress, construction, CPU. Use when the user wants to "test live", "simulate", "run it headless", "see how it works for real", watch the bot play, reproduce a multi-tick behavior, or sanity-check a spawning/scheduling/jobs/matching/memory change against the genuine engine. NOT for pure-logic checks (use `npm run test`) and NOT the generic app-runner — this is the project's headless game-engine simulation via `bin/sim`.
+description: Run THIS Screeps bot in a real, headless Screeps engine (Node 24, in Docker) and watch how it actually behaves over many ticks — economy bootstrap, spawning, RCL/upgrade progress, construction, CPU. Use when the user wants to "test live", "simulate", "run it headless", "see how it works for real", watch the bot play, reproduce a multi-tick behavior, or sanity-check a spawning/scheduling/memory change against the genuine engine. NOT for pure-logic checks (use `npm run test`) and NOT the generic app-runner — this is the project's headless game-engine simulation via `bin/sim`.
 allowed-tools: Bash Read Write Edit
 argument-hint: [ticks] [--every N] [--scenario NAME] [--verbose]
 ---
@@ -13,7 +13,7 @@ assertions. Reference: [sim/README.md](../../../sim/README.md), wrapper: [bin/si
 
 ## When to use vs. not
 - **Use** when the user wants to watch real behavior, reproduce a multi-tick issue, or validate a
-  change to spawning, scheduling (`src/cpu`), jobs/matching, actions, defense, or memory ownership.
+  change to spawning, scheduling, defense, or memory ownership.
 - **Don't use** for pure logic — that's `npm run test`. Don't reach for the generic `run`/`verify`
   skills here; this project's "run it for real" path is `bin/sim`.
 
@@ -31,8 +31,8 @@ assertions. Reference: [sim/README.md](../../../sim/README.md), wrapper: [bin/si
    `RCL<level>(up=<progress>)`, `spawn=`/`ext=`/`cont=`/`stor=` energy, `towers=`, `sites=` (open
    construction sites), `src=` (source energy left), `cpu=` (that tick's CPU). Lines prefixed
    `[bot ENGINE]` are engine-level errors (e.g. the main module failed to load) — treat as failures.
-4. **Interpret, don't just dump.** Report what the bot *did*: did the population grow to the spawn
-   floor? did RCL progress climb? did construction sites get built? is CPU sane? Call out anything
+4. **Interpret, don't just dump.** Report what the bot *did*: did the population grow?
+   did RCL progress climb? did construction sites get built? is CPU sane? Call out anything
    that stalls (e.g. workers refilling spawn but never upgrading/building).
 
 ## Regression tests

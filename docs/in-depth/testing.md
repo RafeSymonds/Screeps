@@ -1,16 +1,17 @@
 # Testing
 
-Automated testing in this repository is currently in a **legacy state**. While the structure for unit and integration testing exists, the standard `npm test` command is known to fail under current environment assumptions.
+The repository has two test layers:
 
-## Current Test Status
+- **`npm run test`**: host-side mocha + chai suites compiled via `tsconfig.test.json`. Unit tests
+  live in `test/unit/**/*.test.ts`, integration tests in `test/integration/**/*.test.ts`. The
+  Screeps globals (game constants, fresh `Game`/`Memory` mocks per test) are provided by
+  `test/helpers/setup.ts`. Currently these are placeholder harness tests — the bot is being
+  rebuilt from scratch — so add real suites alongside new bot logic.
+- **`bin/sim test`**: behavioral regression tests (`sim/tests/`) that run the real bundled bot in
+  the real Screeps engine (Node 24, in Docker) for many ticks and assert on the timeline. Much
+  slower; use for multi-tick behavior that host-side mocks can't surface. See `sim/README.md`.
 
-- **`npm run test`**: Runs both unit and integration tests. Expect failures due to legacy Mocha/TypeScript harness mismatches.
-- **Unit Testing**: Tests core logic in isolation. These are generally faster but may require updates to match the current world-model behavior.
-- **Integration Testing**: Designed to run against a mock Screeps server. These tests are currently scaffolded but not fully integrated into the development loop.
-
-### Running Legacy Tests
-
-If you need to run tests for reference or to reproduce specific logic issues, use these commands:
+## Running Subsets
 
 ```bash
 # Run unit tests only
@@ -18,18 +19,7 @@ npm run test-unit
 
 # Run integration tests only
 npm run test-integration
+
+# Run one sim suite
+bin/sim test -- --grep smoke
 ```
-
-For more details on why tests might be failing, check [AGENTS.md](../../AGENTS.md).
-
-## Future Directions
-
-Improving the test harness is a known backlog item. New features should ideally include unit tests, but be aware that you may need to fix or bypass pre-existing harness issues in `tsconfig.test.json` or the `test/helpers` setup.
-
-### Unit Testing Strategy
-
-Unit tests are located in `test/unit/**/*.test.ts`. They use `mocha` and `chai` for assertions.
-
-### Integration Testing Strategy
-
-Integration tests are located in `test/integration/**/*.ts`. They utilize `screeps-server-mockup` to simulate a live game environment. Note that these tests are significantly slower than unit tests.

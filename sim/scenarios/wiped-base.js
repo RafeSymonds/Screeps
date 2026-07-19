@@ -5,11 +5,10 @@
  * ZERO creeps alive. This is the "recovered from a raid / global reset that
  * killed everyone" state.
  *
- * Use this to test the population *floor* and wipe recovery (SpawnManager: a room
- * with no working labor must always respawn from whatever energy is on hand). The
- * bot should spawn a generalist immediately, rebuild a specialized economy from
- * the stored energy, and resume upgrading the controller — none of which a
- * scenario that starts with a healthy workforce exercises.
+ * Use this to test wipe recovery: a room with no working labor must respawn from
+ * whatever energy is on hand, rebuild its economy from the stored energy, and
+ * resume upgrading the controller — none of which a scenario that starts with a
+ * healthy workforce exercises.
  */
 const W = require("./_world");
 

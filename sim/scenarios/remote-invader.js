@@ -2,16 +2,12 @@
 /*
  * Remote mining under threat: the remote-mining layout (built-out RCL4 home W1N1,
  * neutral 2-source W2N1 to adopt) but with hostile creeps camped in the remote that
- * EXPIRE (ageTime) partway through the run. Exercises the empire threat loop:
+ * EXPIRE (ageTime) partway through the run — useful for testing that a bot notices
+ * the threat, holds off on the remote, and resumes once it clears.
  *
- *   scout W2N1 -> intel records hostiles -> remote allocated but PAUSED (active:false,
- *   no jobs, no remote creeps march in) -> hostiles age out -> scout re-verifies on a
- *   later sweep -> remote reactivates -> miner/hauler spawn and mining begins.
- *
- * The hostiles are static (no driver code) — they don't chase the scout; they exist
+ * The hostiles are static (no driver code) — they don't chase anything; they exist
  * to be seen. Their ageTime kills them around tick ~250 so a ~900-tick run covers
- * pause AND resume. See docs/architecture/EMPIRE.md (threat/abandon) and
- * sim/tests/remote-invader.test.js for the assertions.
+ * both the threatened and cleared phases.
  */
 const W = require("./_world");
 

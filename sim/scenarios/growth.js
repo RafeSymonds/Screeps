@@ -3,14 +3,13 @@
  * A mid-game RCL3 room that still has its base to build out. Unlike `full-base`
  * (everything already placed), this hands the bot an empty footprint at the RCL
  * where the interesting construction unlocks: extensions (10 allowed at RCL3),
- * source containers (CONTAINER_MIN_RCL=3), and roads (ROAD_PLAN_MIN_RCL=3).
+ * source containers, and roads.
  *
  * Use this to watch the *construction + logistics* loop the bootstrap scenario
- * can't reach in a reasonable tick budget: BasePlanner places sites, the Build
- * job staffs workers onto them, extensions get built and filled, miners sit on
- * the new source containers, and the economy specializes — all while the
- * controller keeps climbing. Starts with a small generalist workforce so the
- * build loop has labor on tick 1 instead of waiting out a spawn ramp.
+ * can't reach in a reasonable tick budget: sites get placed and built, extensions
+ * filled, and the economy specializes — all while the controller keeps climbing.
+ * Starts with a small generalist workforce so the build loop has labor on tick 1
+ * instead of waiting out a spawn ramp.
  */
 const W = require("./_world");
 
@@ -30,7 +29,7 @@ module.exports.setup = async (server, { modules }) => {
   // but leave the base unbuilt — no extensions, no containers, no roads.
   await W.setController(server, room, bot.id, 3);
 
-  // A few generalists so the Build/Harvest/Haul/Upgrade jobs have labor at once.
+  // A few generalists so construction, hauling, and upgrading have labor at once.
   const C = server.constants;
   const body = [C.WORK, C.CARRY, C.MOVE];
   const spots = [

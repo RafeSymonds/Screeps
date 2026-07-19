@@ -1,21 +1,15 @@
 "use strict";
 /*
- * Remote mining: a built-out RCL4 home room next to a neutral room the bot should
- * adopt as a remote energy farm. Exercises the whole empire-layer loop end to end
- * (see docs/architecture/EMPIRE.md):
+ * Remote mining: a built-out RCL4 home room next to a neutral room the bot could
+ * adopt as a remote energy farm.
  *
- *   scout W2N1 -> record intel -> empire assigns it to W1N1 -> spawn a remote miner
- *   (travels, drop-mines) -> spawn a remote hauler (ferries the output back to W1N1
- *   storage) -> spawn a reserver (holds the controller at 10 e/tick).
+ * Home W1N1 is fully built (extensions + storage filled) with a starting workforce
+ * so it is immediately healthy and can fund remote labor from tick 1 instead of
+ * waiting out a bootstrap ramp. The neighbor W2N1 is the WEST exit of W1N1
+ * (adjacent), unowned, with two sources.
  *
- * Home is fully built (extensions + storage filled) with a starting workforce so it
- * is immediately "healthy" (past the population floor) and can fund remote labor and
- * a reserver from tick 1 instead of waiting out a bootstrap ramp. The neighbor W2N1
- * is the WEST exit of W1N1 (adjacent), unowned, with two sources.
- *
- * Watch for: a `scout`/`miner`/`hauler`/`claimer` appearing, W1N1 storage energy
- * climbing faster than its two local sources alone could supply, and (with --verbose)
- * Memory.empire.remotes["W2N1"] = { owner:"W1N1", active:true, reserve:true }.
+ * Watch for: remote workers appearing in W2N1 and W1N1 storage energy climbing
+ * faster than its two local sources alone could supply.
  */
 const W = require("./_world");
 

@@ -9,20 +9,9 @@
 - [Authenticating with Screeps](getting-started/authenticating.md)
 - [Deploying](getting-started/deploying.md)
 
-## Architecture
+## Reference
 
-- [Modular Architecture](architecture/MODULAR_ARCHITECTURE.md)
-- [State & Roadmap](architecture/STATE_AND_ROADMAP.md)
-- [Repository Map](agents/REPO_MAP.md)
-- [Spawn Request Contract](architecture/SPAWN_REQUEST_CONTRACT.md)
 - [Screeps Primer](agents/SCREEPS_PRIMER.md)
-
-## QA & Regression
-
-- [Review Checklist](qa/REVIEW_CHECKLIST.md)
-- [Regression Checklist](qa/REGRESSION_CHECKLIST.md)
-- [Memory Migrations](qa/MEMORY_MIGRATIONS.md)
-- [Cross-Tick State Boundaries](qa/CROSS_TICK_BOUNDARIES.md)
 
 ## In-Depth
 

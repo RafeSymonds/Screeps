@@ -7,7 +7,7 @@
  *   - addBot() claims the controller (RCL1) and drops Spawn1 with 300 energy
  *
  * This is the canonical "can the bot bootstrap an economy from scratch?" world:
- * watch it spawn its floor of workers, harvest, fill the spawn, and upgrade.
+ * watch it spawn workers, harvest, fill the spawn, and upgrade.
  *
  * A scenario exports `setup(server, { TerrainMatrix, modules })` and returns
  * `{ rooms: string[], bots: { <name>: <UserEmitter> } }`.

@@ -1,19 +1,11 @@
 # Introduction
 
-This repository contains a modular Screeps AI built on top of `screeps-typescript-starter` and rebuilt
-from scratch (June 2026) around clean layer boundaries so every subsystem can be improved in isolation.
+This repository contains a Screeps AI built on top of `screeps-typescript-starter`. The bot is
+being rebuilt from scratch (July 2026); the repo currently provides the build, deploy, test, and
+headless-simulation infrastructure around the starter kit's default game loop.
 
-For a technical overview, see [AGENTS.md](../../AGENTS.md),
-[Modular Architecture](../architecture/MODULAR_ARCHITECTURE.md), the [Repo Map](../agents/REPO_MAP.md),
-and the [Screeps Primer](../agents/SCREEPS_PRIMER.md).
-
-## Key Components
-
-- **World model**: per-tick read view of rooms, structures, and creeps.
-- **Jobs**: persistent units of work in `Memory.jobs`, produced by generators.
-- **Matching**: sticky, capability-based assignment of creeps to jobs.
-- **Spawning**: demand-driven body production with a population floor.
-- **Defense / base planning / scouting**: strategy passes that post work and keep the room safe.
+For a technical overview, see [CLAUDE.md](../../CLAUDE.md) and the
+[Screeps Primer](../agents/SCREEPS_PRIMER.md).
 
 ## Getting Started
 
