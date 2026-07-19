@@ -9,12 +9,12 @@ import {
     REMOTE_RESERVE_MIN_TICKS,
     RESERVE_MIN_RCL,
     RESERVER_REQUEST_PRIORITY,
-    SCOUT_REQUEST_PRIORITY,
-    SCOUT_STALE_TICKS
+    SCOUT_REQUEST_PRIORITY
 } from "config/constants";
 import { EmpireMemory, RemotePlan } from "empire/types";
 import { SpawnRequest, SpawnRole } from "spawn/types";
 import { describeExits, roomLinearDistance } from "intel/adjacency";
+import { scoutDue } from "intel/scout";
 import { Phase } from "config/phases";
 import { RoomIntel } from "intel/types";
 import { World } from "world/World";
@@ -76,6 +76,14 @@ function updateRemoteThreat(world: World): void {
     for (const remote of Object.values(Memory.empire.remotes)) {
         const visible = world.getRoom(remote.roomName);
         const intel = Memory.rooms[remote.roomName]?.intel;
+        // Unknown is not safe: with neither vision nor intel (e.g. after a memory
+        // wipe) pause the remote until a scout re-establishes what is in there,
+        // instead of generating jobs and marching creeps in blind.
+        if (!visible && !intel) {
+            remote.active = false;
+            remote.reserve = false;
+            continue;
+        }
         const hostiles = visible ? visible.hostiles.length : intel?.hostiles ?? 0;
         const safe = hostiles === 0 && intel?.invaderCore !== true;
         remote.active = safe;
@@ -284,12 +292,13 @@ function isHealthy(world: World, room: WorldRoom): boolean {
     return economyPop >= REMOTE_MIN_POP;
 }
 
-/** Request one scout while any neighbor is unseen or stale and none is alive yet. */
+/**
+ * Request one scout while any neighbor is due for scouting and none is alive yet.
+ * `scoutDue` applies the danger-aware staleness windows, so a neighbor a scout
+ * can't survive (player-owned, keeper) doesn't demand a fresh scout every sweep.
+ */
 function scoutRequest(world: World, ownerRoom: WorldRoom): SpawnRequest | undefined {
-    const needsScout = describeExits(ownerRoom.name).some(name => {
-        const intel = Memory.rooms[name]?.intel;
-        return !intel || Game.time - intel.lastSeen > SCOUT_STALE_TICKS;
-    });
+    const needsScout = describeExits(ownerRoom.name).some(scoutDue);
     if (!needsScout) {
         return undefined;
     }

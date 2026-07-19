@@ -115,4 +115,38 @@ describe("stalestNeighbor", () => {
         };
         expect(stalestNeighbor("W1N1")).to.equal("OLD");
     });
+
+    it("skips known-dangerous neighbors (owned / source keeper) on the sweep", () => {
+        // OWNED and SK are the stalest, but a MOVE-only scout dies in both; the
+        // sweep must rotate through the safe neighbor instead (the death loop fix).
+        (Game as { time: number }).time = 10000;
+        stubMap({ describeExits: { "1": "OWNED", "3": "SK", "5": "SAFE" } });
+        Memory.rooms = {
+            OWNED: { intel: { lastSeen: 100, sources: [], hostiles: 0, owner: "enemy" } },
+            SK: { intel: { lastSeen: 200, sources: [], hostiles: 0, sourceKeeper: true } },
+            SAFE: { intel: { lastSeen: 9000, sources: [], hostiles: 0 } }
+        };
+        expect(stalestNeighbor("W1N1")).to.equal("SAFE");
+    });
+
+    it("re-checks a dangerous neighbor once its long danger window elapses", () => {
+        (Game as { time: number }).time = 100000;
+        stubMap({ describeExits: { "1": "OWNED", "3": "SAFE" } });
+        Memory.rooms = {
+            // 40000 ticks stale — past SCOUT_STALE_TICKS * SCOUT_DANGER_STALE_MULT.
+            OWNED: { intel: { lastSeen: 60000, sources: [], hostiles: 0, owner: "enemy" } },
+            SAFE: { intel: { lastSeen: 99000, sources: [], hostiles: 0 } }
+        };
+        expect(stalestNeighbor("W1N1")).to.equal("OWNED");
+    });
+
+    it("still sweeps rooms with mere hostile creeps (invaders expire; remotes need re-verifying)", () => {
+        (Game as { time: number }).time = 10000;
+        stubMap({ describeExits: { "1": "HOSTILE", "3": "SAFE" } });
+        Memory.rooms = {
+            HOSTILE: { intel: { lastSeen: 100, sources: [], hostiles: 3 } },
+            SAFE: { intel: { lastSeen: 9000, sources: [], hostiles: 0 } }
+        };
+        expect(stalestNeighbor("W1N1")).to.equal("HOSTILE");
+    });
 });

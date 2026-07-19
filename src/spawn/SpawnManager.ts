@@ -63,12 +63,29 @@ export class SpawnManager {
     }
 
     private decide(worldRoom: WorldRoom, world: World, queue: SpawnRequestQueue): SpawnDecision | null {
-        // 1) Controller requests (defense/combat/expansion) outrank economy.
-        const requests = queue.forRoom(worldRoom.name);
-        if (requests.length > 0) {
-            return this.fromRequest(requests[0], worldRoom);
+        // 0) The recovery floor outranks everything, requests included: a room with
+        //    no working creep has no income, so banking toward a request would
+        //    deadlock the room (the request stays unaffordable forever).
+        const floor = this.floorDecision(worldRoom, world);
+        if (floor) {
+            return floor;
         }
-        // 2) Economy: floor + energy-flow demand.
+        // 1) Controller requests (defense/combat/expansion) outrank economy — but an
+        //    unaffordable request must not freeze the room. Take the highest-priority
+        //    request the room can pay for RIGHT NOW; requests re-post every tick, so a
+        //    skipped one wins the moment banked energy reaches its cost (economy banks
+        //    to full capacity before spending, so it can't starve the request).
+        for (const request of queue.forRoom(worldRoom.name)) {
+            const decision = this.fromRequest(request, worldRoom);
+            const cost = bodyCost(decision.body);
+            if (cost <= worldRoom.energyAvailable) {
+                return decision;
+            }
+            if (cost > worldRoom.energyCapacityAvailable && Game.time % 100 === 0) {
+                warn(`spawn request ${request.key} needs ${cost} energy but ${worldRoom.name} caps at ${worldRoom.energyCapacityAvailable}`);
+            }
+        }
+        // 2) Economy: energy-flow demand.
         return this.decideEconomy(worldRoom, world);
     }
 
@@ -81,17 +98,23 @@ export class SpawnManager {
         };
     }
 
-    private decideEconomy(worldRoom: WorldRoom, world: World): SpawnDecision | null {
-        const population = world.creepsForRoom(worldRoom.name);
-        const homePopulation = population.filter(creep => !creep.memory.targetRoom);
-        const energyNow = worldRoom.energyAvailable;
-
-        // Floor keys off HOME labor only: a room whose only WORK creeps are away in
-        // remotes still needs a local worker to keep its own economy alive.
+    /**
+     * The population floor: a `Worker` whenever the room has no home creep with
+     * WORK. Keys off HOME labor only — a room whose only WORK creeps are away in
+     * remotes still needs a local worker to keep its own economy alive.
+     */
+    private floorDecision(worldRoom: WorldRoom, world: World): SpawnDecision | null {
+        const homePopulation = world.creepsForRoom(worldRoom.name).filter(creep => !creep.memory.targetRoom);
         const hasWorker = homePopulation.some(creep => creep.getActiveBodyparts(WORK) > 0);
         if (homePopulation.length === 0 || !hasWorker) {
-            return { role: SpawnRole.Worker, body: buildBody(SpawnRole.Worker, Math.max(energyNow, 200)) };
+            return { role: SpawnRole.Worker, body: buildBody(SpawnRole.Worker, Math.max(worldRoom.energyAvailable, 200)) };
         }
+        return null;
+    }
+
+    private decideEconomy(worldRoom: WorldRoom, world: World): SpawnDecision | null {
+        const population = world.creepsForRoom(worldRoom.name);
+        const energyNow = worldRoom.energyAvailable;
 
         // Total population (home + remote) is capped, with extra headroom per remote.
         if (population.length >= MAX_ROOM_POPULATION + remoteHeadroom(worldRoom.name)) {
@@ -112,7 +135,11 @@ export class SpawnManager {
             return null;
         }
 
-        return { role: pick.role, body: buildBody(pick.role, energyNow), targetRoom: pick.targetRoom };
+        return {
+            role: pick.role,
+            body: buildBody(pick.role, energyNow, { remote: pick.targetRoom !== undefined }),
+            targetRoom: pick.targetRoom
+        };
     }
 
     /**

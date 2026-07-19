@@ -43,7 +43,12 @@ export function generateRemoteJobs(world: World, board: JobBoard): void {
                     roomName: remote.roomName,
                     targetId: sourceId,
                     pos,
-                    capacity: 1,
+                    // Two seats, not one: a low-energy room fields undersized (<5 WORK)
+                    // remote miners, and the demand model tops the source up with a
+                    // second one — which needs a seat, or it is scope-locked idle. The
+                    // spare seat is unused once a single full miner meets demand, and
+                    // the matcher scope gate keeps home creeps from ever taking it.
+                    capacity: 2,
                     assigned: [],
                     priority: JOB_PRIORITY[JobKind.Harvest],
                     // A pure (drop-mining) miner; haulers ferry the output home.

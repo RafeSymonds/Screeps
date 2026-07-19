@@ -44,11 +44,27 @@ function minerBody(energy: number): BodyPartConstant[] {
     return body;
 }
 
+/**
+ * Traveling variant of the static miner: one MOVE per WORK so it crosses rooms at
+ * full speed on plains. A home miner walks to its source once and parks, so a single
+ * MOVE is the right trade there — but a remote miner with 1 MOVE crawls one tile per
+ * five ticks and burns a big slice of its life in transit before mining anything.
+ */
+function remoteMinerBody(energy: number): BodyPartConstant[] {
+    return repeatBody([WORK, MOVE], energy, 10);
+}
+
+/** Extra sizing context for roles whose right body depends on where they work. */
+export interface BodyOptions {
+    /** The creep will work in a room other than its home (remote-mining creeps). */
+    remote?: boolean;
+}
+
 /** Build a body for a spawn role sized to the energy budget. */
-export function buildBody(role: SpawnRole, energy: number): BodyPartConstant[] {
+export function buildBody(role: SpawnRole, energy: number, options?: BodyOptions): BodyPartConstant[] {
     switch (role) {
         case SpawnRole.Miner:
-            return minerBody(energy);
+            return options?.remote ? remoteMinerBody(energy) : minerBody(energy);
         case SpawnRole.Hauler:
             return repeatBody([CARRY, MOVE], energy);
         case SpawnRole.Defender:

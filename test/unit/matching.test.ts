@@ -81,6 +81,51 @@ describe("GreedyMatcher — room scope (remote pinning)", () => {
         expect(board.get("build:W2N1")!.assigned).to.include("w");
         expect(board.get("build:W1N1")!.assigned).to.not.include("w");
     });
+
+    it("a jobless remote creep with no eligible remote job falls back to home work", () => {
+        // The scope-lock idle bug: an active remote briefly loses its jobs (intel gap)
+        // or has every slot taken — its pinned creeps must take home work, not idle.
+        const board = new JobBoard();
+        board.rehydrate();
+        board.upsert(job({ id: "build:W1N1", kind: JobKind.Build, capacity: 1, priority: 60 }));
+
+        const w = worker("w", { home: "W1N1", targetRoom: "W2N1" });
+        new GreedyMatcher().assign([w], board, noWorld);
+
+        expect(board.get("build:W1N1")!.assigned).to.include("w");
+    });
+
+    it("a remote creep holding its remote job is never poached onto home work", () => {
+        // The fallback fires only for creeps holding NOTHING: an assigned remote
+        // creep whose job has no open slots elsewhere stays put (the pin).
+        const board = new JobBoard();
+        board.rehydrate();
+        board.upsert(job({ id: "build:W1N1", kind: JobKind.Build, capacity: 1, priority: 99 }));
+        board.upsert(job({ id: "build:W2N1", kind: JobKind.Build, capacity: 1, priority: 60, roomName: "W2N1", assigned: ["w"] }));
+
+        const w = worker("w", { home: "W1N1", targetRoom: "W2N1", jobId: "build:W2N1" });
+        new GreedyMatcher().assign([w], board, noWorld);
+
+        expect(board.get("build:W2N1")!.assigned).to.include("w");
+        expect(board.get("build:W1N1")!.assigned).to.not.include("w");
+    });
+
+    it("a fallback-assigned creep is pulled back the moment a remote job opens", () => {
+        // While on home work the held job is out of the creep's strict scope, so a
+        // reappearing remote job wins immediately.
+        const board = new JobBoard();
+        board.rehydrate();
+        board.upsert(job({ id: "build:W1N1", kind: JobKind.Build, capacity: 1, priority: 99, assigned: ["w"] }));
+        board.upsert(job({ id: "build:W2N1", kind: JobKind.Build, capacity: 1, priority: 60, roomName: "W2N1" }));
+
+        const w = worker("w", { home: "W1N1", targetRoom: "W2N1", jobId: "build:W1N1" });
+        // In production creep.memory IS Memory.creeps[name]; unassign reads it there.
+        Memory.creeps.w = w.memory;
+        new GreedyMatcher().assign([w], board, noWorld);
+
+        expect(board.get("build:W2N1")!.assigned).to.include("w");
+        expect(board.get("build:W1N1")!.assigned).to.not.include("w");
+    });
 });
 
 describe("economyCreepsToMatch (re-decide when empty)", () => {

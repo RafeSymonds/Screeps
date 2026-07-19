@@ -92,6 +92,22 @@ describe("planEmpire — allocation", () => {
         expect(Memory.empire!.remotes.W2N1?.owner).to.equal("W1N1");
     });
 
+    it("pauses a remote whose intel has vanished — unknown is not safe", () => {
+        stubMap({ W1N1: ["W2N1"] });
+        Memory.rooms = { W2N1: { intel: intel() } };
+
+        planEmpire(fakeWorld([owner("W1N1")]));
+        expect(Memory.empire!.remotes.W2N1.active).to.equal(true);
+
+        // Intel wiped (e.g. memory migration); no vision either. The remote must
+        // pause rather than keep generating jobs and demand blind.
+        Memory.rooms = {};
+        planEmpire(fakeWorld([owner("W1N1")]));
+
+        expect(Memory.empire!.remotes.W2N1.active).to.equal(false);
+        expect(Memory.empire!.remotes.W2N1.reserve).to.equal(false);
+    });
+
     it("caps each owner at its two closest remotes", () => {
         const dist: DistFn = (_a, b) => ({ A: 1, B: 2, C: 3 })[b] ?? 9;
         stubMap({ W1N1: ["A", "B", "C"] }, dist);
@@ -145,6 +161,20 @@ describe("planEmpire — scout requests", () => {
         Memory.rooms = {};
 
         const requests = planEmpire(fakeWorld([owner("W1N1")], { W1N1: workers(1) }));
+
+        expect(requests).to.deep.equal([]);
+    });
+
+    it("does not burn scouts on a stale but dangerous neighbor (scout death loop)", () => {
+        // A player-owned neighbor kills every scout sent in; its intel going stale
+        // must not re-demand a scout each sweep — only the long danger window does.
+        stubMap({ W1N1: ["OWNED"] });
+        (Game as { time: number }).time = 10000;
+        Memory.rooms = {
+            OWNED: { intel: intel({ owner: "enemy", lastSeen: 5000 }) } // 5000 stale > SCOUT_STALE_TICKS
+        };
+
+        const requests = planEmpire(fakeWorld([owner("W1N1")], { W1N1: workers(4) }));
 
         expect(requests).to.deep.equal([]);
     });

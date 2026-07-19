@@ -68,6 +68,10 @@ export const REMOTE_POP_HEADROOM = 5;
 export const REMOTE_INTEL_TTL = 20000;
 // Re-scout a neighbor whose intel is older than this (ticks).
 export const SCOUT_STALE_TICKS = 3000;
+// Known-dangerous neighbors (player-owned, source keepers) kill MOVE-only scouts
+// and rarely change character; re-verify them this many times LESS often instead
+// of feeding a scout into towers every sweep (the scout death loop).
+export const SCOUT_DANGER_STALE_MULT = 10;
 // Coarse tiles-per-room-hop estimate for hauler sizing (a v1 proxy for a path
 // search; the backlog bonus corrects any under-haul). Adjacent remote ≈ 50 tiles.
 export const REMOTE_DISTANCE_PER_ROOM = 50;

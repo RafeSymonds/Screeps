@@ -8,14 +8,16 @@ const { runScenario, seriesOf, finalOf } = require("../lib/harness");
 // allocation, the matcher scope gate, cross-room haul, remote spawn sizing,
 // reservation) and against crashes/CPU blowups from multi-room work.
 //
-// 550 ticks because the ramp is genuinely long: a single scout round-robins all
-// four neighbors before reaching the remote, then the home economy has to be
-// staffed before remote labor is funded. See docs/architecture/EMPIRE.md.
-describe("sim: remote mining (remote-mining, 700 ticks)", function () {
-  this.timeout(14 * 60 * 1000);
+// 900 ticks because the ramp is genuinely long: a single scout round-robins all
+// four neighbors before reaching the remote, the home economy has to be staffed
+// before remote labor is funded, and the remote HAULER comes after remote income
+// exists (miners first) — a 26-part hauler alone takes ~78 ticks to spawn and it
+// reaches the remote around tick ~800. See docs/architecture/EMPIRE.md.
+describe("sim: remote mining (remote-mining, 900 ticks)", function () {
+  this.timeout(16 * 60 * 1000);
   let res;
   before(async () => {
-    res = await runScenario({ scenario: "remote-mining", ticks: 700, every: 25 });
+    res = await runScenario({ scenario: "remote-mining", ticks: 900, every: 25 });
   });
 
   it("never raises an engine-level or bot error", () => {
@@ -33,6 +35,13 @@ describe("sim: remote mining (remote-mining, 700 ticks)", function () {
 
   it("mines the remote (a remote miner reaches it)", () => {
     expect(finalOf(res.timeline, "W2N1", "bot").roles.miner || 0).to.be.greaterThan(0);
+  });
+
+  it("hauls the remote (a hauler reaches it — the cross-room energy leg is staffed)", () => {
+    // Guards the previously-untested haul leg: a CARRY-only creep must be spawned
+    // for the remote, matched to its haul job, and actually travel there.
+    const haulers = seriesOf(res.timeline, "W2N1", "bot", "roles").map((r) => r.hauler || 0);
+    expect(Math.max(...haulers)).to.be.greaterThan(0);
   });
 
   it("still staffs DEDICATED home miners (home specializes before remotes)", () => {

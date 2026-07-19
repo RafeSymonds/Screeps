@@ -38,8 +38,18 @@ export class GreedyMatcher implements Matcher {
     public assign(creeps: Creep[], board: JobBoard, world: World): void {
         const jobs = board.all();
         for (const creep of creeps) {
-            const candidate = bestJobFor(creep, jobs, board, world);
+            let candidate = bestJobFor(creep, jobs, board, world);
             const current = creep.memory.jobId ? board.get(creep.memory.jobId) : undefined;
+
+            // Scope fallback: a remote-pinned creep with NO job and nothing eligible
+            // in its remote (a transient intel gap dropped the jobs, or every slot is
+            // taken) takes HOME work instead of idling to death. Only when it holds
+            // nothing — a creep on a remote job is never poached (the pin). The held
+            // home job reads as out-of-scope to shouldSwitch, so the moment a remote
+            // job is eligible again the creep is pulled back to it.
+            if (!candidate && !current && creep.memory.targetRoom) {
+                candidate = bestJobFor(creep, jobs, board, world, creep.memory.home);
+            }
 
             if (!current) {
                 // No (valid) job: take the best one if there is one.
@@ -120,14 +130,14 @@ function shouldSwitch(creep: Creep, current: Job, candidate: Job, world: World):
  * finished and the room never reached the specialize threshold.) Returns undefined
  * only when there is no open job the creep is capable of at all.
  */
-function bestJobFor(creep: Creep, jobs: Job[], board: JobBoard, world: World): Job | undefined {
+function bestJobFor(creep: Creep, jobs: Job[], board: JobBoard, world: World, scopeOverride?: string): Job | undefined {
     let best: Job | undefined;
     let bestNeeded = -1;
     let bestPriority = -Infinity;
     let bestLevel = Infinity;
     let bestScore = -Infinity;
     for (const job of jobs) {
-        if (!board.hasOpenSlot(job) || !canPerform(creep, job) || !jobInScope(creep, job)) {
+        if (!board.hasOpenSlot(job) || !canPerform(creep, job) || !jobInScope(creep, job, scopeOverride)) {
             continue;
         }
         const needed = jobNeeded(creep, job, world) ? 1 : 0;
@@ -194,8 +204,8 @@ function hasCollectableEnergy(room: WorldRoom): boolean {
  * undefined), since unit-test creeps omit them and production creeps always carry
  * a `home` via ensureCreepMemory.
  */
-function jobInScope(creep: Creep, job: Job): boolean {
-    const scope = creep.memory.targetRoom ?? creep.memory.home;
+function jobInScope(creep: Creep, job: Job, scopeOverride?: string): boolean {
+    const scope = scopeOverride ?? creep.memory.targetRoom ?? creep.memory.home;
     return scope === undefined || job.roomName === scope;
 }
 

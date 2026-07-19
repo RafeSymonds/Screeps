@@ -12,6 +12,7 @@
 ## Architecture
 
 - [Modular Architecture](architecture/MODULAR_ARCHITECTURE.md)
+- [State & Roadmap](architecture/STATE_AND_ROADMAP.md)
 - [Repository Map](agents/REPO_MAP.md)
 - [Spawn Request Contract](architecture/SPAWN_REQUEST_CONTRACT.md)
 - [Screeps Primer](agents/SCREEPS_PRIMER.md)

@@ -86,9 +86,12 @@ bin/sim test                  # run all
 bin/sim test -- --grep defense  # only matching
 ```
 
-The files run with `mocha --parallel` (each boots its own engine on a unique port), so the
-suite's wall time is roughly the slowest single file, not the sum. Keep each scenario's tick
-count to the minimum that proves the behavior — engine ticks are ~the only cost (~0.25s each).
+The files run **serially**: the suite has multiple long tests (remote-mining and
+remote-invader each tick ~900 times), and two concurrent engines degrade each other ~3x on a
+typical Docker Desktop allotment — enough to blow per-test timeouts (this bit us in July 2026;
+`mocha --parallel` was removed then). Iterate on one test with `-- --grep <name>`. Keep each
+scenario's tick count to the minimum that proves the behavior — engine ticks are ~the only
+cost (~0.5s each).
 
 Tests use the shared `lib/harness.js`:
 
