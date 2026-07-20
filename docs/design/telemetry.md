@@ -107,9 +107,10 @@ Missing or version-mismatched `Memory.stats` reinitializes fresh (stats are evid
 state — losing them is always acceptable, corrupting the tick over them never is).
 
 Provisional constants in `src/telemetry/config.ts` (one named config; revised from real
-data): `FLUSH_INTERVAL: 100`, `RING_SIZE: 50` (≈ 5000 ticks ≈ 4–7 hours at MMO tick
-rates), `RECENT_RESETS: 5`, `ALERT_DEDUPE_TICKS: 1000`, `ALERT_GROUP_MINUTES: 30`, alert
-thresholds below.
+data): `FLUSH_INTERVAL: 100`, `RING_SIZE: 30` (≈ 3000 ticks ≈ 2–4 hours at MMO tick
+rates; sized to keep the worst-case ring under the 10 KB budget — the size test trips as
+`SubsystemId` grows, forcing a conscious rebalance), `RECENT_RESETS: 5`,
+`ALERT_DEDUPE_TICKS: 1000`, `ALERT_GROUP_MINUTES: 30`, alert thresholds below.
 
 ## Tick Flow
 
@@ -135,6 +136,9 @@ condition plus a reset loop yields one email per dedupe window, not one per rese
 
 - `ErrorBurst`: window errors > threshold (provisional: 10/window). Evaluated at endTick.
 - `CpuCeiling`: window avgCpu > 90% of `limit`. Evaluated at endTick.
+- Both endTick alerts only evaluate once the window holds ≥ `ALERT_MIN_WINDOW_TICKS`
+  (provisional: 10) ticks, so a single post-reset spike tick can't trip a whole-window
+  threshold on its own.
 - `ResetLoop`: evaluated **inside `countReset`**, not from window data — a crash loop
   kills windows before they flush, so window-based detection can structurally never see
   it. `countReset(time)` pushes `time` onto `recentResets` (bounded to `RECENT_RESETS`),

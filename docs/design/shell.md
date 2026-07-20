@@ -122,6 +122,9 @@ hours). Cases, checked each tick after bootstrap:
   a room we remember (old-world slices for that room are stale artifacts of a previous
   life, not context worth keeping). Selective reset: every slice except `KEEP_ON_RESET`,
   wipe all `CreepMemory`, reset `Memory.shell` to the new world, `alert(Discontinuity)`.
+  A useful consequence: the same trigger fires on a **remembered world the shell never
+  saw** — e.g. deploying this bot over a previous bot's leftover Memory — so foreign
+  room slices are cleared (intel kept) instead of being trusted.
 
 New slices are reset by default on both reset paths unless deliberately added to
 `KEEP_ON_RESET` — one named list in one file.

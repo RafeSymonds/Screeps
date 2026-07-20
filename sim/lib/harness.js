@@ -36,7 +36,9 @@ function readBotModules(botMain, botMap) {
  * @param {function} [opts.setup]   inline setup(server, { TerrainMatrix, modules })
  * @param {number} [opts.ticks=100]
  * @param {number} [opts.every=1]   snapshot cadence
- * @returns {Promise<{timeline, consoleLines, engineErrors}>}
+ * @returns {Promise<{timeline, consoleLines, engineErrors, botErrors, memories}>}
+ *          memories = each bot's final parsed Memory (null if unreadable), so
+ *          tests can assert on persisted state (versioning, telemetry ring, …).
  */
 async function runScenario(opts = {}) {
   const { scenario, setup, ticks = 100, every = 1 } = opts;
@@ -72,6 +74,7 @@ async function runScenario(opts = {}) {
   await server.start();
 
   const timeline = [];
+  const memories = {};
   try {
     for (let i = 1; i <= ticks; i++) {
       await server.tick();
@@ -96,6 +99,14 @@ async function runScenario(opts = {}) {
         timeline.push(snap);
       }
     }
+
+    for (const [name, bot] of botList) {
+      try {
+        memories[name] = JSON.parse(await bot.memory);
+      } catch (_) {
+        memories[name] = null;
+      }
+    }
   } finally {
     try {
       server.stop();
@@ -107,7 +118,7 @@ async function runScenario(opts = {}) {
   // Exceptions the bot caught itself surface as ErrorMapper red-span console lines.
   const botErrors = consoleLines.filter((c) => typeof c.line === "string" && c.line.includes("color:red"));
 
-  return { timeline, consoleLines, engineErrors, botErrors };
+  return { timeline, consoleLines, engineErrors, botErrors, memories };
 }
 
 /** timeline -> array of one stat field over time, for a given room/bot. */

@@ -1,29 +1,20 @@
 import { ErrorMapper } from "utils/ErrorMapper";
+import * as shell from "shell/index";
+import type { ShellMemory } from "shell/memory";
+import type { StatsMemory } from "telemetry/index";
 
 declare global {
     /*
-      Example types, expand on these or remove them and add your own.
-      Note: Values, properties defined here do no fully *exist* by this type definition alone.
-            You must also give them an implementation if you would like to use them. (ex. actually setting a `role` property in a Creeps memory)
-
-      Types added in this `global` block are in an ambient, global context. This is needed because `main.ts` is a module file (uses import or export).
-      Interfaces matching on name from @types/screeps will be merged. This is how you can extend the 'built-in' interfaces from @types/screeps.
-    */
-    // Memory extension samples
-    interface Memory {}
-
-    interface CreepMemory {}
-
-    // Syntax for adding proprties to `global` (ex "global.log")
-    namespace NodeJS {
-        interface Global {
-            log: any;
-        }
+     * Ambient Memory extensions (repo convention: declared here, owned per-slice
+     * per architecture.md §6). Fields are optional because they may be absent
+     * before the shell's bootstrap runs — owners ensure their own slices.
+     */
+    interface Memory {
+        version?: number;
+        shell?: ShellMemory;
+        intel?: Record<string, unknown>;
+        stats?: StatsMemory;
     }
 }
 
-// When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
-// This utility uses source maps to get the line numbers and file names of the original, TS source code
-export const loop = ErrorMapper.wrapLoop(() => {
-    console.log(`Current game tick is ${Game.time}`);
-});
+export const loop = ErrorMapper.wrapLoop(shell.tick);

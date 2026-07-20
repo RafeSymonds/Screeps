@@ -46,6 +46,7 @@ g.FIND_MY_CONSTRUCTION_SITES = 114;
 g.FIND_CONSTRUCTION_SITES = 111;
 g.FIND_DROPPED_RESOURCES = 106;
 g.FIND_HOSTILE_STRUCTURES = 109;
+g.FIND_MINERALS = 116;
 
 // Structure types
 g.STRUCTURE_SPAWN = "spawn";
@@ -64,6 +65,8 @@ g.STRUCTURE_KEEPER_LAIR = "keeperLair";
 g.LOOK_STRUCTURES = "structure";
 g.LOOK_CONSTRUCTION_SITES = "constructionSite";
 g.TERRAIN_MASK_WALL = 1;
+g.TERRAIN_MASK_SWAMP = 2;
+g.STRUCTURE_CONTROLLER = "controller";
 
 // Controller structure limits
 g.CONTROLLER_STRUCTURES = {
@@ -78,6 +81,8 @@ function freshGame(): void {
         rooms: {},
         spawns: {},
         cpu: { bucket: 10000, limit: 20, tickLimit: 500, getUsed: () => 0 },
+        map: { getRoomTerrain: () => ({ get: () => 0 }) },
+        notify: () => undefined,
         getObjectById: () => null
     };
 }
