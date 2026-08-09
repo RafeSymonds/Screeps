@@ -1,7 +1,7 @@
 # Movement Design
 
-Status: draft — M2 scope (cached paths + stuck recovery; traffic shoving and cost-matrix
-sophistication are M4 per architecture §8), revised after fresh-context review
+Status: M4 scope — adds the shove/swap traffic pass on top of M2's cached paths +
+stuck recovery. Revised after fresh-context review.
 Parent: [architecture.md](architecture.md) §5.12 (also §3 principles 5 and 8).
 
 ## Goal
@@ -61,7 +61,23 @@ Live creep from `Game.creeps[name]` (gone → drop request + cache).
    - `stuckCount ≥ stuckTicks` → drop the path, re-search with **current creep
      positions stamped into a cloned cost matrix** (clone, never mutate the shared
      per-tick matrix — stamping the cached one would poison every later search this
-     tick). This walk-around is M2's whole traffic story; swap/shove is M4.
+     tick). The walk-around is the backstop; the shove pass below usually clears the
+     jam a tick earlier.
+
+## The shove pass (M4)
+
+After all requests are resolved and steps issued: for each mover whose next-step tile
+is occupied by one of MY creeps that issued **no move this tick** (idle — parked
+haulers, workers at their seats), issue the blocker a **swap step** toward the mover's
+current tile (the one adjacency guaranteed free after the mover leaves; both moves
+resolve simultaneously at tick end, and the engine allows exchanges). One shove per
+blocker per tick, movers processed in request order (deterministic). Guard: **never
+shove a creep standing on a container tile** — that's a miner's seat, and evicting it
+costs harvest throughput; the mover's stuck-repath walks around instead. Everyone else
+is fair game: a shoved worker at its range limit steps back next tick at the cost of
+one wasted move — strictly better than a 2-tick stuck stall for the mover.
+Shoves happen inside `resolveMoves` (class A), read `Game.creeps` positions live, and
+need no memory.
 4. **No valid cache** → search, if budget allows: spend from `opsPoolPerTick`
    (`maxOps = min(maxOpsPerSearch, poolRemaining)`) and respect `maxSearchesPerTick`;
    budget exhausted → the creep stands this tick (Debug count) — walking late beats
@@ -115,6 +131,9 @@ milestone's test-helper work, like snapshot's were at M1):
 - Budget: pool/count exhaustion leaves excess creeps unmoved this tick and intact next
   tick; per-search ops = min(maxOpsPerSearch, remaining pool).
 - Incomplete result still steps.
+- Shove: an idle blocker on a mover's next tile receives the swap direction; a blocker
+  on a container tile is never shoved; a blocker that moved on its own is not shoved;
+  at most one shove per blocker per tick.
 
 Sim: exercised constantly by the M2 gate (every hauler round trip); assertions are
 indirect (throughput + zero errors). Movement-specific sim scenarios arrive with M4.

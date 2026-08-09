@@ -91,8 +91,10 @@ tick ──▶ shell (memory bootstrap, world-discontinuity check, error contain
 ```
 
 **Normative tick order** (the diagram is illustrative; this list is the contract):
-shell → snapshot → the per-room subsystems in this order: defense assessment + towers,
-economy, remotes, construction (interval), spawn → creep execution → movement resolution →
+shell → snapshot → the per-room subsystems in this order: defense assessment + towers
+(class A), defense response (class B — demands must precede spawn), layout (interval),
+construction (interval — after layout so a fresh plan is consumed the
+same tick), economy, remotes, spawn → creep execution → movement resolution →
 throttled strategy: intel refresh, expansion, empire → telemetry flush. Per-room
 subsystems run as **subsystem-major sweeps** (economy over all rooms, then spawn over all
 rooms — the scheduler's perRoom iteration), not room-major; same-tick guarantees (economy
@@ -270,22 +272,25 @@ terminal, labs, factory, nuker, extractor — endgame homes reserved on day one)
 once per room when no valid plan exists, stored in the room's memory slice, versioned.
 The plan **anchors to reality**: a manually placed first spawn (respawn case), a
 pre-existing base (`growth`/`full-base` scenarios, adopted rooms) — existing structures
-are inputs, and the plan either incorporates or explicitly marks them for demolition.
+are inputs, and the plan **incorporates** them (anchor on the spawn, adopt built
+structures as the head of their type's placement array, plan around occupied tiles);
+demolition of badly-placed structures is an explicit later-milestone decision.
 Plan-vs-reality reconciliation is part of this subsystem's spec, not an afterthought.
 The `BasePlan` is deliberately **unordered placement data**.
 
 ### 5.8 Construction (`src/construction/`) — class C
 
 **Build order is its own subsystem.** It turns the `BasePlan` into a sequenced build
-queue (persisted in its slice, §6) and places only a **small number of construction
+queue (derived fresh each run — §6) and places only a **small number of construction
 sites at a time**, in structure-priority order. Rationale: a half-built structure is
 worth nothing until it completes, so concentrating builders on one extension beats
 spreading them across that extension plus 20 road sites — the extension pays back (more
 spawn energy) immediately. Priority is by economic/defensive impact per RCL
-(spawn > extensions > towers > containers > storage > … > roads), with initial rampart
-placement slotted by threat environment and the exact ordering and concurrent-site count
-specced in its design doc. Economy's builder demand (5.5) keys off open sites, so
-few-sites-at-a-time also caps how much workforce construction pulls from the economy.
+(spawn > extensions > containers > towers > storage > … > roads — exact ordering and
+concurrent-site count specced in its design doc). Economy fields a fixed small builder
+crew while sites are open (5.5); few-sites-at-a-time concentrates that crew's labor on
+one structure — the workforce *pull* is capped by economy's builder count, not by the
+site count.
 
 ### 5.9 Defense (`src/defense/`) — class A (towers/assessment) + B (response)
 
@@ -402,15 +407,15 @@ risks and move to RawMemory segments when they approach theirs (§7).
 | `Memory.shell`                 | shell        | persisted owned-room tracking (`owned`, `lostAt`) driving room-loss/respawn detection and lost-room GC — persisted because heap dies on reset |
 | `Memory.rooms[name].econ`      | economy      | static seats/spots (upgrade spot, source spots). The workforce plan itself is derived fresh each tick and never persisted — legibility comes from per-creep assignments in CreepMemory |
 | `Memory.rooms[name].layout`    | layout       | BasePlan, versioned |
-| `Memory.rooms[name].build`     | construction | sequenced build queue, active sites |
+| `Memory.rooms[name].build`     | construction | reserved (versioned, empty) — the build queue is derived fresh each run from plan + snapshot, not persisted (construction.md) |
 | `Memory.rooms[name].spawn`     | spawn        | queue + pre-spawn state |
-| `Memory.rooms[name].defense`   | defense      | threat state, fortification targets, safe-mode requests |
+| `Memory.rooms[name].defense`   | defense      | threat state only (`{v, level, lastHostile?}`) — fortification targets and safe-mode requests are derived fresh each run, not persisted (defense.md) |
 | `Memory.rooms[name].remotes`   | remotes      | adopted rooms + per-remote state (reserved/unreserved, unsafe) |
 | `Memory.intel[name]`           | intel        | persistent room knowledge, `lastSeen` everywhere; accessor-mediated writes |
 | `Memory.empire`                | empire       | room registry + lifecycle, safe-mode grants |
 | `Memory.expansion`             | expansion    | claim in progress, pioneer roster |
 | `Memory.stats`                 | telemetry    | bounded ring buffer |
-| `CreepMemory.home`             | spawn        | set at spawn time, never changes |
+| `CreepMemory.home`             | spawn        | set at spawn time (or once, by the adopting owner for orphan creeps — economy.md); never changes after |
 | `CreepMemory.owner`            | spawn → owner| owning planner id; stamped at spawn from demand; changes only by explicit handoff (release by owner, claim by successor — both recorded) |
 | `CreepMemory.assignment`       | owning planner | exactly one writer at any time: the planner named in `owner`. Creep execution reads, never writes (invalid assignments are detected by the owner's revalidation, §5.11) |
 
@@ -453,7 +458,7 @@ temporary hacks.
 | --------- | ------ | ------------ |
 | M1 Skeleton | shell, scheduler, snapshot, telemetry core | smoke: ticks clean, CPU measured |
 | M2 One room lives | economy (no layout yet), spawn, creep execution, basic movement | `default`: RCL2 + sustained pre-container economy (decay physics cap the era at ~5–7 e/t of upgrade — economy.md) |
-| M3 Hands-off building | layout + construction | `growth`: plan-anchoring around a pre-existing spawn (§5.7); `default`: extensions built → RCL3 at speed |
+| M3 Hands-off building | layout + construction | `growth`: plan-anchoring around a pre-existing spawn (§5.7); `default`: extensions + containers built hands-off, upgrade rate steps up (RCL3's 45k progress exceeds the invader-safe sim window at 20 e/t income — the gate proves the rate that makes RCL3 inevitable, construction.md) |
 | M4 Durability | defense, movement traffic/caching, wipe + discontinuity recovery | `under-attack`, `wiped-base` |
 | M5 Reach | intel (with scouting), remotes, links | `remote-mining`, `remote-invader` |
 | M6 Empire | expansion, empire (aid, safe-mode arbitration) | multi-room scenario (new), 7-day MMO run per §2 |

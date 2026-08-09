@@ -212,6 +212,8 @@ describe("shell", () => {
             const ids = ENTRIES.map(e => e.id);
             expect(new Set(ids).size).to.equal(ids.length);
             expect(ids).to.deep.equal([
+                SubsystemId.Layout,
+                SubsystemId.Construction,
                 SubsystemId.Economy,
                 SubsystemId.Spawn,
                 SubsystemId.CreepExecution,

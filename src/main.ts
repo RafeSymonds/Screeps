@@ -5,6 +5,8 @@ import type { SubsystemId } from "shared/subsystems";
 import type { ShellMemory } from "shell/memory";
 import type { StatsMemory } from "telemetry/index";
 import type { EconMemory } from "economy/index";
+import type { LayoutMemory } from "layout/index";
+import type { BuildMemory } from "construction/index";
 
 declare global {
     /*
@@ -21,6 +23,8 @@ declare global {
 
     interface RoomMemory {
         econ?: EconMemory;
+        layout?: LayoutMemory;
+        build?: BuildMemory;
     }
 
     interface CreepMemory {

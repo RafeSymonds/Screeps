@@ -1,7 +1,7 @@
 import { expect } from "../helpers/chai";
 import { AssignmentKind } from "shared/assignments";
 import { CreepView, Pos, RoomSnapshot } from "shared/views";
-import { haulerBody, minerBody, upgraderBody } from "economy/bodies";
+import { builderBody, haulerBody, minerBody, upgraderBody } from "economy/bodies";
 import { ECONOMY_CONFIG } from "economy/config";
 import { planRoom, RoomPlanInput } from "economy/planner";
 import { chooseUpgradeSpot, countAdjacentSpots } from "economy/spots";
@@ -58,7 +58,7 @@ function gateRoom(): RoomSnapshot {
 
 function worker(kind: AssignmentKind, sourceId: string | undefined, overrides: Partial<CreepView> = {}): CreepView {
     const assignment =
-        kind === AssignmentKind.Upgrade
+        kind === AssignmentKind.Upgrade || kind === AssignmentKind.Build
             ? { kind, room: "W1N1" }
             : { kind, room: "W1N1", sourceId: sourceId as Id<Source> };
     return {
@@ -76,10 +76,26 @@ function worker(kind: AssignmentKind, sourceId: string | undefined, overrides: P
     };
 }
 
+function orphan(name: string, bodyCounts: Partial<Record<BodyPartConstant, number>>): CreepView {
+    return {
+        name,
+        id: "oid" as Id<Creep>,
+        pos: pos(24, 24),
+        hits: 100,
+        hitsMax: 100,
+        ticksToLive: 1400,
+        spawning: false,
+        bodyCounts,
+        store: { free: 50, used: 0, byResource: {} },
+        memory: {} as CreepMemory
+    };
+}
+
 function input(roster: CreepView[] = []): RoomPlanInput {
     return {
         room: gateRoom(),
         roster,
+        orphans: [],
         sourceSpots: { srcA: 3, srcB: 3 },
         upgradeSpot: pos(25, 21),
         config: ECONOMY_CONFIG
@@ -87,11 +103,13 @@ function input(roster: CreepView[] = []): RoomPlanInput {
 }
 
 describe("economy bodies", () => {
-    it("scales miner WORK with capacity, unbounded except the 50-part limit", () => {
-        expect(counts(minerBody(300))).to.deep.equal({ [WORK]: 2, [MOVE]: 1 });
-        expect(counts(minerBody(550))).to.deep.equal({ [WORK]: 5, [MOVE]: 1 });
+    it("scales miner WORK with capacity and always carries exactly one CARRY", () => {
+        expect(counts(minerBody(300))).to.deep.equal({ [WORK]: 2, [CARRY]: 1, [MOVE]: 1 });
+        expect(counts(minerBody(550))).to.deep.equal({ [WORK]: 4, [CARRY]: 1, [MOVE]: 1 });
+        expect(counts(minerBody(800))).to.deep.equal({ [WORK]: 6, [CARRY]: 1, [MOVE]: 2 });
         const big = counts(minerBody(2000));
-        expect(big[WORK]).to.equal(18);
+        expect(big[WORK]).to.equal(17);
+        expect(big[CARRY]).to.equal(1);
         expect(big[MOVE]).to.equal(4);
     });
 
@@ -105,11 +123,16 @@ describe("economy bodies", () => {
         expect(counts(upgraderBody(300))).to.deep.equal({ [WORK]: 2, [CARRY]: 1, [MOVE]: 1 });
         expect(counts(upgraderBody(2000))).to.deep.equal({ [WORK]: 12, [CARRY]: 6, [MOVE]: 6 });
     });
+
+    it("uses [W,C,C,M] builder units", () => {
+        expect(counts(builderBody(300))).to.deep.equal({ [WORK]: 1, [CARRY]: 2, [MOVE]: 1 });
+        expect(counts(builderBody(550))).to.deep.equal({ [WORK]: 2, [CARRY]: 4, [MOVE]: 2 });
+    });
 });
 
 describe("economy planner", () => {
     it("demands the gate-map steady state: 6 miners, 7 haulers, 7 upgraders", () => {
-        const demands = planRoom(input());
+        const { demands } = planRoom(input());
         const byKind = Object.groupBy(demands, d => d.assignment.kind);
         expect(byKind[AssignmentKind.Mine]).to.have.length(6);
         expect(byKind[AssignmentKind.Haul]).to.have.length(7);
@@ -118,7 +141,7 @@ describe("economy planner", () => {
     });
 
     it("interleaves miners and haulers pairwise; upgraders last", () => {
-        const demands = planRoom(input());
+        const { demands } = planRoom(input());
         const kinds = demands.map(d => d.assignment.kind);
         expect(kinds.slice(0, 6)).to.deep.equal([
             AssignmentKind.Mine,
@@ -134,7 +157,7 @@ describe("economy planner", () => {
     it("keeps alternating under replanning — staffed slots consume the low priorities", () => {
         // 1 miner + 1 hauler alive: the next two demands must be miner then hauler,
         // not miner forever (the memoryless gap-indexed bug sim caught).
-        const midRamp = planRoom(input([worker(AssignmentKind.Mine, "srcA"), worker(AssignmentKind.Haul, "srcA")]));
+        const midRamp = planRoom(input([worker(AssignmentKind.Mine, "srcA"), worker(AssignmentKind.Haul, "srcA")])).demands;
         expect(midRamp[0].assignment.kind).to.equal(AssignmentKind.Mine);
         expect(midRamp[1].assignment.kind).to.equal(AssignmentKind.Haul);
 
@@ -145,17 +168,17 @@ describe("economy planner", () => {
                 worker(AssignmentKind.Mine, "srcA"),
                 worker(AssignmentKind.Haul, "srcA")
             ])
-        );
+        ).demands;
         expect(twoMiners[0].assignment.kind).to.equal(AssignmentKind.Haul);
         expect(twoMiners[1].assignment.kind).to.equal(AssignmentKind.Mine);
     });
 
     it("attaches minBody per role only while that role has zero creeps", () => {
-        const empty = planRoom(input());
-        expect(empty.find(d => d.assignment.kind === AssignmentKind.Mine)?.minBody).to.deep.equal([WORK, MOVE]);
+        const empty = planRoom(input()).demands;
+        expect(empty.find(d => d.assignment.kind === AssignmentKind.Mine)?.minBody).to.deep.equal([WORK, CARRY, MOVE]);
         expect(empty.find(d => d.assignment.kind === AssignmentKind.Haul)?.minBody).to.deep.equal([CARRY, MOVE]);
 
-        const withMiner = planRoom(input([worker(AssignmentKind.Mine, "srcA")]));
+        const withMiner = planRoom(input([worker(AssignmentKind.Mine, "srcA")])).demands;
         expect(withMiner.find(d => d.assignment.kind === AssignmentKind.Mine)?.minBody).to.equal(undefined);
         expect(withMiner.find(d => d.assignment.kind === AssignmentKind.Haul)?.minBody).to.deep.equal([CARRY, MOVE]);
     });
@@ -166,11 +189,11 @@ describe("economy planner", () => {
             worker(AssignmentKind.Mine, "srcA"),
             worker(AssignmentKind.Mine, "srcA")
         ];
-        const demands = planRoom(input(staffed));
+        const { demands } = planRoom(input(staffed));
         const miners = demands.filter(d => d.assignment.kind === AssignmentKind.Mine);
         expect(miners.every(d => (d.assignment as { sourceId: string }).sourceId === "srcB")).to.equal(true);
 
-        const twoSeats = planRoom({ ...input(), sourceSpots: { srcA: 2, srcB: 2 } });
+        const twoSeats = planRoom({ ...input(), sourceSpots: { srcA: 2, srcB: 2 } }).demands;
         expect(twoSeats.filter(d => d.assignment.kind === AssignmentKind.Mine)).to.have.length(4);
     });
 
@@ -181,14 +204,14 @@ describe("economy planner", () => {
         for (let i = 0; i < 4; i++) roster.push(worker(AssignmentKind.Haul, "srcA"));
         for (let i = 0; i < 3; i++) roster.push(worker(AssignmentKind.Haul, "srcB"));
         for (let i = 0; i < 7; i++) roster.push(worker(AssignmentKind.Upgrade, undefined));
-        expect(planRoom(input(roster))).to.have.length(0);
+        expect(planRoom(input(roster)).demands).to.have.length(0);
     });
 
     it("replaces a pre-spawn-aged creep before it dies", () => {
         const aged = worker(AssignmentKind.Mine, "srcA", { ticksToLive: 55 }); // 3 parts → threshold 59
         const fresh = worker(AssignmentKind.Mine, "srcA", { ticksToLive: 70 });
-        const withAged = planRoom(input([aged]));
-        const withFresh = planRoom(input([fresh]));
+        const withAged = planRoom(input([aged])).demands;
+        const withFresh = planRoom(input([fresh])).demands;
         const minersA = (ds: typeof withAged): number =>
             ds.filter(d => d.assignment.kind === AssignmentKind.Mine && (d.assignment as { sourceId: string }).sourceId === "srcA").length;
         expect(minersA(withAged)).to.equal(3);
@@ -196,7 +219,7 @@ describe("economy planner", () => {
     });
 
     it("never demands zero upgraders — a hauler slot is forfeited instead", () => {
-        const squeezed = planRoom({ ...input(), config: { ...ECONOMY_CONFIG, maxCreepsPerRoom: 13 } });
+        const squeezed = planRoom({ ...input(), config: { ...ECONOMY_CONFIG, maxCreepsPerRoom: 13 } }).demands;
         const byKind = Object.groupBy(squeezed, d => d.assignment.kind);
         expect(byKind[AssignmentKind.Upgrade]!.length).to.be.at.least(1);
         expect(byKind[AssignmentKind.Mine]).to.have.length(6);
@@ -204,9 +227,93 @@ describe("economy planner", () => {
 
     it("returns nothing for a room with no sources or no spawn", () => {
         const noSources = { ...gateRoom(), sources: [] };
-        expect(planRoom({ ...input(), room: noSources })).to.have.length(0);
+        expect(planRoom({ ...input(), room: noSources }).demands).to.have.length(0);
         const noSpawn = { ...gateRoom(), structures: {} };
-        expect(planRoom({ ...input(), room: noSpawn })).to.have.length(0);
+        expect(planRoom({ ...input(), room: noSpawn }).demands).to.have.length(0);
+    });
+
+    it("fields builders while sites are open and throttles upgraders to the floor", () => {
+        const room = gateRoom();
+        room.myConstructionSites = [
+            {
+                id: "site1" as Id<ConstructionSite>,
+                pos: pos(26, 24),
+                type: STRUCTURE_EXTENSION,
+                progress: 0,
+                progressTotal: 3000
+            }
+        ];
+        const { demands } = planRoom({ ...input(), room });
+        const byKind = Object.groupBy(demands, d => d.assignment.kind);
+        expect(byKind[AssignmentKind.Build]).to.have.length(ECONOMY_CONFIG.builders);
+        expect(byKind[AssignmentKind.Build]!.every(d => d.minBody === undefined)).to.equal(true);
+        // Construction throttles upgrading at the energy level: floor of 1 only.
+        expect(byKind[AssignmentKind.Upgrade]).to.have.length(1);
+        const kinds = demands.map(d => d.assignment.kind);
+        expect(kinds.lastIndexOf(AssignmentKind.Haul)).to.be.lessThan(kinds.indexOf(AssignmentKind.Build));
+        expect(kinds.lastIndexOf(AssignmentKind.Build)).to.be.lessThan(kinds.indexOf(AssignmentKind.Upgrade));
+    });
+
+    it("treats maintenance sites as a 1-builder crew, not the investment regime", () => {
+        const room = gateRoom();
+        room.myConstructionSites = [
+            { id: "r1" as Id<ConstructionSite>, pos: pos(24, 24), type: STRUCTURE_ROAD, progress: 0, progressTotal: 300 },
+            { id: "r2" as Id<ConstructionSite>, pos: pos(23, 24), type: STRUCTURE_RAMPART, progress: 0, progressTotal: 1 }
+        ];
+        const { demands } = planRoom({ ...input(), room });
+        const byKind = Object.groupBy(demands, d => d.assignment.kind);
+        expect(byKind[AssignmentKind.Build]).to.have.length(1); // maintenance crew only
+        // Upgraders NOT throttled: road/rampart sites recur forever (the livelock fix).
+        expect(byKind[AssignmentKind.Upgrade]!.length).to.be.at.least(6);
+    });
+
+    it("converts surplus upgraders to builders instead of spawning", () => {
+        const room = gateRoom();
+        room.myConstructionSites = [
+            {
+                id: "site1" as Id<ConstructionSite>,
+                pos: pos(26, 24),
+                type: STRUCTURE_EXTENSION,
+                progress: 0,
+                progressTotal: 3000
+            }
+        ];
+        const upgraders = [
+            worker(AssignmentKind.Upgrade, undefined, { name: "up-old", ticksToLive: 400 }),
+            worker(AssignmentKind.Upgrade, undefined, { name: "up-mid", ticksToLive: 900 }),
+            worker(AssignmentKind.Upgrade, undefined, { name: "up-new", ticksToLive: 1400 })
+        ];
+        const plan = planRoom({ ...input(upgraders), room });
+        // 3 alive, floor 1 → 2 surplus convert (freshest first); 2 builder spawns remain.
+        expect(plan.reassignments.map(r => r.name)).to.deep.equal(["up-new", "up-mid"]);
+        expect(plan.reassignments.every(r => r.assignment.kind === AssignmentKind.Build)).to.equal(true);
+        expect(plan.demands.filter(d => d.assignment.kind === AssignmentKind.Build)).to.have.length(
+            ECONOMY_CONFIG.builders - 2
+        );
+        // No upgrader spawn demand: the floor is already staffed by the one kept.
+        expect(plan.demands.filter(d => d.assignment.kind === AssignmentKind.Upgrade)).to.have.length(0);
+
+        // No sites → no conversion, upgraders keep their jobs.
+        const quiet = planRoom(input(upgraders));
+        expect(quiet.reassignments).to.have.length(0);
+    });
+
+    it("adopts orphans into gaps by body fit instead of spawning", () => {
+        // A [W,C,M] generalist fills the first (miner) gap; its spawn demand disappears.
+        const plan = planRoom({ ...input(), orphans: [orphan("seed0", { [WORK]: 1, [CARRY]: 1, [MOVE]: 1 })] });
+        expect(plan.adoptions).to.have.length(1);
+        expect(plan.adoptions[0].name).to.equal("seed0");
+        expect(plan.adoptions[0].assignment.kind).to.equal(AssignmentKind.Mine);
+        expect(plan.demands).to.have.length(ECONOMY_CONFIG.maxCreepsPerRoom - 1);
+
+        // A CARRY-only body can't mine — it takes the first hauler gap instead.
+        const ferry = planRoom({ ...input(), orphans: [orphan("boxcar", { [CARRY]: 1, [MOVE]: 1 })] });
+        expect(ferry.adoptions[0].assignment.kind).to.equal(AssignmentKind.Haul);
+
+        // A MOVE-only body fits nothing: no adoption, full demand list.
+        const legs = planRoom({ ...input(), orphans: [orphan("legs", { [MOVE]: 1 })] });
+        expect(legs.adoptions).to.have.length(0);
+        expect(legs.demands).to.have.length(ECONOMY_CONFIG.maxCreepsPerRoom);
     });
 });
 

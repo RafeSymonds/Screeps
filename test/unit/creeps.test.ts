@@ -1,8 +1,8 @@
 import { expect } from "../helpers/chai";
-import { AssignmentKind, HaulAssignment, MineAssignment, UpgradeAssignment } from "shared/assignments";
-import { CreepView, DroppedView, Pos, RoomSnapshot } from "shared/views";
+import { AssignmentKind, BuildAssignment, HaulAssignment, MineAssignment, UpgradeAssignment } from "shared/assignments";
+import { ConstructionSiteView, CreepView, DroppedView, Pos, RoomSnapshot, StructureView } from "shared/views";
 import { ActionKind } from "creeps/actions";
-import { decideHaul, decideMine, decideUpgrade } from "creeps/executors";
+import { decideBuild, decideHaul, decideMine, decideUpgrade } from "creeps/executors";
 
 function pos(x: number, y: number): Pos {
     return { x, y, roomName: "W1N1" };
@@ -67,7 +67,23 @@ function roomWith(overrides: Partial<RoomSnapshot> = {}): RoomSnapshot {
 const mine: MineAssignment = { kind: AssignmentKind.Mine, room: "W1N1", sourceId: "srcA" as Id<Source> };
 const haul: HaulAssignment = { kind: AssignmentKind.Haul, room: "W1N1", sourceId: "srcA" as Id<Source> };
 const upgrade: UpgradeAssignment = { kind: AssignmentKind.Upgrade, room: "W1N1" };
+const build: BuildAssignment = { kind: AssignmentKind.Build, room: "W1N1" };
 const SPOT = pos(25, 21);
+
+function container(id: string, p: Pos, energy: number, hits = 250000): StructureView {
+    return {
+        id: id as Id<AnyStructure>,
+        type: STRUCTURE_CONTAINER,
+        pos: p,
+        hits,
+        hitsMax: 250000,
+        store: { free: 2000 - energy, used: energy, byResource: energy > 0 ? { energy } : {} }
+    };
+}
+
+function site(id: string, type: StructureConstant, p: Pos, progress: number, progressTotal: number): ConstructionSiteView {
+    return { id: id as Id<ConstructionSite>, pos: p, type, progress, progressTotal };
+}
 
 describe("mine executor", () => {
     it("harvests in range, moves when far, idles without a source", () => {
@@ -160,5 +176,219 @@ describe("upgrade executor", () => {
         expect(decideUpgrade(creepAt(pos(25, 22), 50), upgrade, roomWith({ controller: undefined }), SPOT).kind).to.equal(
             ActionKind.Idle
         );
+    });
+});
+
+describe("mine executor with a container", () => {
+    const seat = pos(11, 40);
+    const withContainer = (energy = 0, hits = 250000): RoomSnapshot =>
+        roomWith({ structures: { ...roomWith().structures, [STRUCTURE_CONTAINER]: [container("cont1", seat, energy, hits)] } });
+
+    it("targets the container tile as its seat when approaching", () => {
+        expect(decideMine(creepAt(pos(20, 20), 0), mine, withContainer())).to.deep.equal({
+            kind: ActionKind.MoveTo,
+            pos: seat,
+            range: 0
+        });
+    });
+
+    it("harvests on the container; off-seat-but-in-range miners still harvest", () => {
+        expect(decideMine(creepAt(seat, 0), mine, withContainer())).to.deep.equal({
+            kind: ActionKind.Harvest,
+            targetId: "srcA"
+        });
+        expect(decideMine(creepAt(pos(10, 41), 0), mine, withContainer())).to.deep.equal({
+            kind: ActionKind.Harvest,
+            targetId: "srcA"
+        });
+    });
+
+    it("repairs a low container from carried energy, withdrawing a slug when empty", () => {
+        const low = withContainer(500, 90000);
+        expect(decideMine(creepAt(seat, 30), mine, low)).to.deep.equal({
+            kind: ActionKind.Repair,
+            targetId: "cont1"
+        });
+        expect(decideMine(creepAt(seat, 0), mine, low)).to.deep.equal({
+            kind: ActionKind.Withdraw,
+            targetId: "cont1",
+            resource: RESOURCE_ENERGY
+        });
+        // Low, empty, and container empty too: keep harvesting (drops refill it).
+        expect(decideMine(creepAt(seat, 0), mine, withContainer(0, 90000)).kind).to.equal(ActionKind.Harvest);
+    });
+});
+
+describe("haul executor with containers", () => {
+    const seat = pos(11, 40);
+
+    it("withdraws from the source container before chasing piles", () => {
+        const room = roomWith({
+            structures: { ...roomWith().structures, [STRUCTURE_CONTAINER]: [container("cont1", seat, 800)] },
+            dropped: [pile("p1", pos(10, 41), 300)]
+        });
+        expect(decideHaul(creepAt(pos(12, 40), 0), haul, room, SPOT)).to.deep.equal({
+            kind: ActionKind.Withdraw,
+            targetId: "cont1",
+            resource: RESOURCE_ENERGY
+        });
+        // Container short of minPickup → the pile wins.
+        const short = roomWith({
+            structures: { ...roomWith().structures, [STRUCTURE_CONTAINER]: [container("cont1", seat, 10)] },
+            dropped: [pile("p1", pos(10, 41), 300)]
+        });
+        expect(decideHaul(creepAt(pos(10, 40 + 2), 0), haul, short, SPOT).kind).to.not.equal(ActionKind.Withdraw);
+    });
+
+    it("delivers spawn → tower → controller container → drop when the feed is healthy", () => {
+        const towered = roomWith();
+        towered.structures[STRUCTURE_SPAWN]![0].store = { free: 0, used: 300, byResource: { energy: 300 } };
+        towered.structures[STRUCTURE_TOWER] = [
+            {
+                id: "tow1" as Id<AnyStructure>,
+                type: STRUCTURE_TOWER,
+                pos: pos(24, 26),
+                hits: 3000,
+                hitsMax: 3000,
+                store: { free: 500, used: 500, byResource: { energy: 500 } }
+            }
+        ];
+        towered.structures[STRUCTURE_CONTAINER] = [container("ctrlCont", SPOT, 500)]; // fed ≥ floor
+        expect(decideHaul(creepAt(pos(24, 25), 150), haul, towered, SPOT)).to.deep.equal({
+            kind: ActionKind.Transfer,
+            targetId: "tow1",
+            resource: RESOURCE_ENERGY
+        });
+        towered.structures[STRUCTURE_TOWER]![0].store = { free: 0, used: 1000, byResource: { energy: 1000 } };
+        expect(decideHaul(creepAt(pos(25, 22), 150), haul, towered, SPOT)).to.deep.equal({
+            kind: ActionKind.Transfer,
+            targetId: "ctrlCont",
+            resource: RESOURCE_ENERGY
+        });
+        towered.structures[STRUCTURE_CONTAINER] = [container("ctrlCont", SPOT, 2000)]; // full
+        expect(decideHaul(creepAt(pos(25, 22), 150), haul, towered, SPOT)).to.deep.equal({
+            kind: ActionKind.Drop,
+            resource: RESOURCE_ENERGY
+        });
+    });
+
+    it("feeds a starving controller ahead of towers", () => {
+        const towered = roomWith();
+        towered.structures[STRUCTURE_SPAWN]![0].store = { free: 0, used: 300, byResource: { energy: 300 } };
+        towered.structures[STRUCTURE_TOWER] = [
+            {
+                id: "tow1" as Id<AnyStructure>,
+                type: STRUCTURE_TOWER,
+                pos: pos(24, 26),
+                hits: 3000,
+                hitsMax: 3000,
+                store: { free: 500, used: 500, byResource: { energy: 500 } }
+            }
+        ];
+        towered.structures[STRUCTURE_CONTAINER] = [container("ctrlCont", SPOT, 100)]; // below the floor
+        expect(decideHaul(creepAt(pos(25, 22), 150), haul, towered, SPOT)).to.deep.equal({
+            kind: ActionKind.Transfer,
+            targetId: "ctrlCont",
+            resource: RESOURCE_ENERGY
+        });
+        // No container yet: a starving spot (no standing pile) wins over the tower too.
+        towered.structures[STRUCTURE_CONTAINER] = undefined;
+        expect(decideHaul(creepAt(pos(25, 22), 150), haul, towered, SPOT)).to.deep.equal({
+            kind: ActionKind.Drop,
+            resource: RESOURCE_ENERGY
+        });
+        // A healthy standing pile at the spot sends the hauler back to the tower tier.
+        towered.dropped = [pile("feed", SPOT, 400)];
+        expect(decideHaul(creepAt(pos(25, 25), 150), haul, towered, SPOT)).to.deep.equal({
+            kind: ActionKind.Transfer,
+            targetId: "tow1",
+            resource: RESOURCE_ENERGY
+        });
+    });
+});
+
+describe("upgrade executor with a controller container", () => {
+    const withCtrlContainer = (energy: number, hits = 250000): RoomSnapshot =>
+        roomWith({ structures: { ...roomWith().structures, [STRUCTURE_CONTAINER]: [container("ctrlCont", SPOT, energy, hits)] } });
+
+    it("withdraws from the container before pile-scanning", () => {
+        expect(decideUpgrade(creepAt(pos(25, 22), 0), upgrade, withCtrlContainer(500), SPOT)).to.deep.equal({
+            kind: ActionKind.Withdraw,
+            targetId: "ctrlCont",
+            resource: RESOURCE_ENERGY
+        });
+        expect(decideUpgrade(creepAt(pos(25, 22), 0), upgrade, withCtrlContainer(0), SPOT).kind).to.equal(ActionKind.Idle);
+    });
+
+    it("repairs the container below the floor while carrying", () => {
+        expect(decideUpgrade(creepAt(pos(25, 22), 50), upgrade, withCtrlContainer(500, 90000), SPOT)).to.deep.equal({
+            kind: ActionKind.Repair,
+            targetId: "ctrlCont"
+        });
+        expect(decideUpgrade(creepAt(pos(25, 20), 50), upgrade, withCtrlContainer(500), SPOT)).to.deep.equal({
+            kind: ActionKind.Upgrade,
+            targetId: "ctrl"
+        });
+    });
+});
+
+describe("build executor", () => {
+    const seat = pos(11, 40);
+    const roomWithSites = (sites: ConstructionSiteView[], extra: Partial<RoomSnapshot> = {}): RoomSnapshot =>
+        roomWith({ myConstructionSites: sites, ...extra });
+
+    it("refills from source containers, never the controller container", () => {
+        const sites = [site("s1", STRUCTURE_EXTENSION, pos(23, 23), 0, 3000)];
+        const room = roomWithSites(sites, {
+            structures: {
+                ...roomWith().structures,
+                [STRUCTURE_CONTAINER]: [container("srcCont", seat, 800), container("ctrlCont", SPOT, 2000)]
+            }
+        });
+        expect(decideBuild(creepAt(pos(12, 40), 0), build, room, SPOT)).to.deep.equal({
+            kind: ActionKind.Withdraw,
+            targetId: "srcCont",
+            resource: RESOURCE_ENERGY
+        });
+        // Only the controller container has energy → pile fallback, else idle.
+        const dry = roomWithSites(sites, {
+            structures: { ...roomWith().structures, [STRUCTURE_CONTAINER]: [container("ctrlCont", SPOT, 2000)] }
+        });
+        expect(decideBuild(creepAt(pos(25, 20), 0), build, dry, SPOT).kind).to.equal(ActionKind.Idle);
+    });
+
+    it("refills from the nearest pile, not the biggest", () => {
+        const sites = [site("s1", STRUCTURE_EXTENSION, pos(23, 23), 0, 3000)];
+        const room = roomWithSites(sites, {
+            dropped: [pile("far-big", pos(10, 41), 900), pile("near-small", pos(24, 21), 60)]
+        });
+        expect(decideBuild(creepAt(pos(25, 22), 0), build, room, SPOT)).to.deep.equal({
+            kind: ActionKind.Pickup,
+            targetId: "near-small"
+        });
+    });
+
+    it("focuses by priority, then remaining energy, then id — never raw progress", () => {
+        const sites = [
+            site("road1", STRUCTURE_ROAD, pos(20, 20), 250, 300), // 83% done but a road
+            site("ext1", STRUCTURE_EXTENSION, pos(23, 23), 100, 3000),
+            site("ext2", STRUCTURE_EXTENSION, pos(27, 23), 2900, 3000) // 100 remaining — the focus
+        ];
+        expect(decideBuild(creepAt(pos(25, 24), 50), build, roomWithSites(sites), SPOT)).to.deep.equal({
+            kind: ActionKind.Build,
+            targetId: "ext2"
+        });
+        expect(decideBuild(creepAt(pos(40, 40), 50), build, roomWithSites(sites), SPOT)).to.deep.equal({
+            kind: ActionKind.MoveTo,
+            pos: pos(27, 23),
+            range: 3
+        });
+    });
+
+    it("acts as an upgrader when no sites exist", () => {
+        expect(decideBuild(creepAt(pos(25, 20), 50), build, roomWith(), SPOT)).to.deep.equal({
+            kind: ActionKind.Upgrade,
+            targetId: "ctrl"
+        });
     });
 });

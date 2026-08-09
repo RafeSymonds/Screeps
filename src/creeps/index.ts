@@ -12,7 +12,7 @@ import { requestMove } from "movement/index";
 import { resolve } from "snapshot/handles";
 import { log } from "telemetry/index";
 import { Action, ActionKind } from "creeps/actions";
-import { decideHaul, decideMine, decideUpgrade } from "creeps/executors";
+import { decideBuild, decideHaul, decideMine, decideUpgrade } from "creeps/executors";
 
 const idleTally: Record<string, number> = {};
 
@@ -28,6 +28,8 @@ function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Act
             return decideHaul(creep, assignment, room, getUpgradeSpot(assignment.room));
         case AssignmentKind.Upgrade:
             return decideUpgrade(creep, assignment, room, getUpgradeSpot(assignment.room));
+        case AssignmentKind.Build:
+            return decideBuild(creep, assignment, room, getUpgradeSpot(assignment.room));
         default:
             return { kind: ActionKind.Idle, reason: "unknown-kind" };
     }
@@ -66,6 +68,21 @@ function perform(creepName: string, action: Action): void {
         case ActionKind.Drop:
             rc = creep.drop(action.resource);
             break;
+        case ActionKind.Withdraw: {
+            const target = resolve(action.targetId);
+            rc = target ? creep.withdraw(target, action.resource) : OK;
+            break;
+        }
+        case ActionKind.Build: {
+            const target = resolve(action.targetId);
+            rc = target ? creep.build(target) : OK;
+            break;
+        }
+        case ActionKind.Repair: {
+            const target = resolve(action.targetId);
+            rc = target ? creep.repair(target) : OK;
+            break;
+        }
         case ActionKind.Upgrade: {
             const target = resolve(action.targetId);
             rc = target ? creep.upgradeController(target) : OK;

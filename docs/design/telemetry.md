@@ -110,10 +110,11 @@ Missing or version-mismatched `Memory.stats` reinitializes fresh (stats are evid
 state — losing them is always acceptable, corrupting the tick over them never is).
 
 Provisional constants in `src/telemetry/config.ts` (one named config; revised from real
-data): `FLUSH_INTERVAL: 100`, `RING_SIZE: 24` (≈ 2400 ticks ≈ 2–3 hours at MMO tick
+data): `FLUSH_INTERVAL: 100`, `RING_SIZE: 20` (≈ 2000 ticks ≈ 2 hours at MMO tick
 rates; sized with the compact entry keys to keep the worst-case ring under the 10 KB
 budget — the size test trips as `SubsystemId` grows, forcing a conscious rebalance;
-M2's growth to 7 ids was the first trip and produced the compact-key schema),
+M2's growth to 7 ids was the first trip and produced the compact-key schema, M3's
+growth to 9 traded four windows of history),
 `RECENT_RESETS: 5`, `ALERT_DEDUPE_TICKS: 1000`, `ALERT_GROUP_MINUTES: 30`, alert
 thresholds below.
 

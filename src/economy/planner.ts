@@ -5,6 +5,7 @@
  * See docs/design/economy.md "Workforce model" for every rule and number here.
  */
 import { Assignment, AssignmentKind } from "shared/assignments";
+import { isInvestmentSite } from "shared/build";
 import { SpawnDemand } from "shared/spawning";
 import { SubsystemId } from "shared/subsystems";
 import { CreepView, Pos, RoomSnapshot } from "shared/views";
@@ -12,6 +13,7 @@ import { EconomyConfig } from "economy/config";
 import {
     HAULER_MIN_BODY,
     MINER_MIN_BODY,
+    builderBody,
     haulerBody,
     haulerCarryCapacity,
     minerBody,
@@ -22,10 +24,22 @@ export interface RoomPlanInput {
     room: RoomSnapshot;
     /** My creeps with memory.home === room.name, spawning included. */
     roster: CreepView[];
+    /** My creeps in this room with NO home — seeded/recovered worlds (economy.md). */
+    orphans: CreepView[];
     /** Walkable tiles adjacent to each source id. */
     sourceSpots: Record<string, number>;
     upgradeSpot: Pos;
     config: EconomyConfig;
+}
+
+export interface RoomPlan {
+    /** Priority-ordered spawn demands for gaps no orphan or conversion could fill. */
+    demands: SpawnDemand[];
+    /** Orphan → slot fills; the adapter writes home/owner/assignment. */
+    adoptions: { name: string; assignment: Assignment }[];
+    /** Owner rewrites of its own creeps (surplus upgraders → Build while sites are
+     *  open — economy.md rule 3); the adapter writes assignment only. */
+    reassignments: { name: string; assignment: Assignment }[];
 }
 
 const SOURCE_RATE = 10; // 3000 energy / 300-tick regen
@@ -41,9 +55,26 @@ const WORK_TO_SATURATE = 5; // 5 WORK × 2 e/t = 10 e/t
  */
 const PRIORITY_BOOTSTRAP_MINER = 1;
 const PRIORITY_BOOTSTRAP_HAULER = 2;
+const PRIORITY_BUILDER = 50;
 const PRIORITY_UPGRADER = 100;
 const minerPriority = (slot: number): number => 3 + 2 * slot;
 const haulerPriority = (slot: number): number => 4 + 2 * slot;
+
+/** Can this body do this job? (Adoption viability — economy.md.) */
+function bodyFits(creep: CreepView, kind: AssignmentKind): boolean {
+    const has = (part: BodyPartConstant): boolean => (creep.bodyCounts[part] ?? 0) > 0;
+    switch (kind) {
+        case AssignmentKind.Mine:
+            return has(WORK) && has(MOVE);
+        case AssignmentKind.Haul:
+            return has(CARRY) && has(MOVE);
+        case AssignmentKind.Build:
+        case AssignmentKind.Upgrade:
+            return has(WORK) && has(CARRY) && has(MOVE);
+        default:
+            return false;
+    }
+}
 
 function chebyshev(a: Pos, b: Pos): number {
     return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
@@ -65,10 +96,10 @@ function assignmentOf(creep: CreepView): Assignment | undefined {
     return (creep.memory as { assignment?: Assignment }).assignment;
 }
 
-export function planRoom(input: RoomPlanInput): SpawnDemand[] {
-    const { room, roster, sourceSpots, upgradeSpot, config } = input;
+export function planRoom(input: RoomPlanInput): RoomPlan {
+    const { room, roster, orphans, sourceSpots, upgradeSpot, config } = input;
     if (room.sources.length === 0) {
-        return [];
+        return { demands: [], adoptions: [], reassignments: [] };
     }
 
     const cap = room.energyCapacityAvailable;
@@ -78,7 +109,7 @@ export function planRoom(input: RoomPlanInput): SpawnDemand[] {
 
     const spawnView = room.structures[STRUCTURE_SPAWN]?.[0];
     if (!spawnView) {
-        return []; // nowhere to spawn from; demands would be noise
+        return { demands: [], adoptions: [], reassignments: [] }; // nowhere to spawn from
     }
 
     // Sources ordered closest-to-spawn (ties by id) — priority and round-robin order.
@@ -115,14 +146,23 @@ export function planRoom(input: RoomPlanInput): SpawnDemand[] {
     });
     let haulersDesiredTotal = Math.max(1, Math.ceil(perSourceNeed.reduce((a, b) => a + b, 0)));
 
+    // --- Builders: a full crew while INVESTMENT sites are open; a 1-builder
+    // maintenance crew while only maintenance work (roads/ramparts/walls) exists.
+    // Maintenance sites recur forever, so they must not throttle the economy
+    // (economy.md rule 3; sim-caught livelock) --------------------------------------
+    const investmentSitesOpen = room.myConstructionSites.some(s => isInvestmentSite(s.type));
+    const maintenanceWork = room.myConstructionSites.length > 0;
+    const buildersDesired = investmentSitesOpen ? config.builders : maintenanceWork ? 1 : 0;
+
     // --- Upgraders: the residual, floor 1 absolute (a hauler slot is forfeited
-    // rather than letting the residual hit zero) ------------------------------------
-    let residual = config.maxCreepsPerRoom - minersDesiredTotal - haulersDesiredTotal;
+    // rather than letting the residual hit zero). While investment sites are open
+    // the cap is 1: construction throttles upgrading at the energy level -------------
+    let residual = config.maxCreepsPerRoom - minersDesiredTotal - haulersDesiredTotal - buildersDesired;
     if (residual < 1) {
         haulersDesiredTotal = Math.max(1, haulersDesiredTotal + residual - 1);
         residual = 1;
     }
-    const upgradersDesired = Math.min(residual, config.maxUpgraders);
+    const upgradersDesired = Math.min(residual, investmentSitesOpen ? 1 : config.maxUpgraders);
 
     // Distribute hauler targets per source by largest remainder against the total.
     const haulerTargets = sources.map(() => 0);
@@ -182,9 +222,40 @@ export function planRoom(input: RoomPlanInput): SpawnDemand[] {
         });
     }
 
-    const upgradersStaffed = roster.filter(
-        c => assignmentOf(c)?.kind === AssignmentKind.Upgrade && fillsSlot(c, config.prespawnLead)
+    const buildersStaffed = roster.filter(
+        c => assignmentOf(c)?.kind === AssignmentKind.Build && fillsSlot(c, config.prespawnLead)
     ).length;
+
+    // --- Upgrader → builder conversion: surplus live upgraders fill builder gaps
+    // before any spawn does (instant, free; a spawn cycle lags a regime change by a
+    // whole generation). Freshest first, deterministic. Economy.md rule 3. ----------
+    const reassignments: RoomPlan["reassignments"] = [];
+    const liveUpgraders = roster.filter(
+        c => assignmentOf(c)?.kind === AssignmentKind.Upgrade && fillsSlot(c, config.prespawnLead)
+    );
+    let buildersFilled = buildersStaffed;
+    if (buildersFilled < buildersDesired && liveUpgraders.length > upgradersDesired) {
+        const surplus = [...liveUpgraders].sort(
+            (a, b) => (b.ticksToLive ?? Infinity) - (a.ticksToLive ?? Infinity) || (a.name < b.name ? -1 : 1)
+        );
+        const convertible = Math.min(liveUpgraders.length - upgradersDesired, buildersDesired - buildersFilled);
+        for (const creep of surplus.slice(0, convertible)) {
+            reassignments.push({ name: creep.name, assignment: { kind: AssignmentKind.Build, room: room.name } });
+            buildersFilled++;
+        }
+    }
+    for (let slot = buildersFilled; slot < buildersDesired; slot++) {
+        demands.push({
+            id: `build:${room.name}:${slot}`,
+            priority: PRIORITY_BUILDER,
+            home: room.name,
+            owner: SubsystemId.Economy,
+            assignment: { kind: AssignmentKind.Build, room: room.name },
+            body: builderBody(cap)
+        });
+    }
+
+    const upgradersStaffed = liveUpgraders.length - reassignments.length;
     for (let slot = upgradersStaffed; slot < upgradersDesired; slot++) {
         demands.push({
             id: `upgrade:${room.name}:${slot}`,
@@ -197,5 +268,22 @@ export function planRoom(input: RoomPlanInput): SpawnDemand[] {
     }
 
     demands.sort((a, b) => a.priority - b.priority);
-    return demands;
+
+    // --- Orphan adoption: fill gaps with existing unowned bodies before spawning ---
+    const adoptions: RoomPlan["adoptions"] = [];
+    if (orphans.length > 0) {
+        const unused = [...orphans].sort((a, b) => (a.name < b.name ? -1 : 1));
+        const remaining: SpawnDemand[] = [];
+        for (const demand of demands) {
+            const i = unused.findIndex(c => bodyFits(c, demand.assignment.kind));
+            if (i === -1) {
+                remaining.push(demand);
+            } else {
+                adoptions.push({ name: unused[i].name, assignment: demand.assignment });
+                unused.splice(i, 1);
+            }
+        }
+        return { demands: remaining, adoptions, reassignments };
+    }
+    return { demands, adoptions, reassignments };
 }

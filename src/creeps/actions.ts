@@ -7,9 +7,12 @@ import { Pos } from "shared/views";
 export enum ActionKind {
     Harvest = "harvest",
     Pickup = "pickup",
+    Withdraw = "withdraw",
     Transfer = "transfer",
     Drop = "drop",
     Upgrade = "upgrade",
+    Build = "build",
+    Repair = "repair",
     MoveTo = "moveTo",
     Idle = "idle"
 }
@@ -17,9 +20,12 @@ export enum ActionKind {
 export type Action =
     | { kind: ActionKind.Harvest; targetId: Id<Source> }
     | { kind: ActionKind.Pickup; targetId: Id<Resource> }
+    | { kind: ActionKind.Withdraw; targetId: Id<AnyStructure>; resource: ResourceConstant }
     | { kind: ActionKind.Transfer; targetId: Id<AnyStructure>; resource: ResourceConstant }
     | { kind: ActionKind.Drop; resource: ResourceConstant }
     | { kind: ActionKind.Upgrade; targetId: Id<StructureController> }
+    | { kind: ActionKind.Build; targetId: Id<ConstructionSite> }
+    | { kind: ActionKind.Repair; targetId: Id<AnyStructure> }
     | { kind: ActionKind.MoveTo; pos: Pos; range: number }
     | { kind: ActionKind.Idle; reason: string };
 

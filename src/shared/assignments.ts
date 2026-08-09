@@ -7,7 +7,8 @@
 export enum AssignmentKind {
     Mine = "mine",
     Haul = "haul",
-    Upgrade = "upgrade"
+    Upgrade = "upgrade",
+    Build = "build"
 }
 
 export interface MineAssignment {
@@ -27,4 +28,11 @@ export interface UpgradeAssignment {
     room: string;
 }
 
-export type Assignment = MineAssignment | HaulAssignment | UpgradeAssignment;
+/** Roomwide — the focus site is derived from the snapshot each tick (creeps.md);
+ *  a persisted site id would go stale the moment a site completes. */
+export interface BuildAssignment {
+    kind: AssignmentKind.Build;
+    room: string;
+}
+
+export type Assignment = MineAssignment | HaulAssignment | UpgradeAssignment | BuildAssignment;
