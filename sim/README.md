@@ -99,7 +99,8 @@ Tests use the shared `lib/harness.js`:
 const { runScenario, seriesOf, finalOf } = require("../lib/harness");
 const res = await runScenario({ scenario: "default", ticks: 180, every: 10 });
 // res.timeline    : per-snapshot state (same fields you watch in `bin/sim run`)
-// res.engineErrors : engine-level failures (e.g. module load)
+// res.notifications: every engine notification (incl. game events like "controller upgraded")
+// res.engineErrors : error-shaped notifications only (script errors, module load failures)
 // res.botErrors    : exceptions the bot caught (ErrorMapper red-span console lines)
 // seriesOf(res.timeline, "W1N1", "bot", "creeps") -> [1,1,2,3,...]
 // finalOf(res.timeline, "W1N1", "bot")            -> last snapshot's stats

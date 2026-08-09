@@ -36,7 +36,7 @@ function readBotModules(botMain, botMap) {
  * @param {function} [opts.setup]   inline setup(server, { TerrainMatrix, modules })
  * @param {number} [opts.ticks=100]
  * @param {number} [opts.every=1]   snapshot cadence
- * @returns {Promise<{timeline, consoleLines, engineErrors, botErrors, memories}>}
+ * @returns {Promise<{timeline, consoleLines, notifications, engineErrors, botErrors, memories}>}
  *          memories = each bot's final parsed Memory (null if unreadable), so
  *          tests can assert on persisted state (versioning, telemetry ring, …).
  */
@@ -64,7 +64,7 @@ async function runScenario(opts = {}) {
   await seedSurroundingTerrain(server, rooms);
 
   const consoleLines = [];
-  const engineErrors = [];
+  const notifications = [];
   for (const [name, bot] of botList) {
     bot.on("console", (log) => {
       for (const l of log) consoleLines.push({ name, line: l });
@@ -82,7 +82,7 @@ async function runScenario(opts = {}) {
 
       for (const [name, bot] of botList) {
         const notifs = await bot.newNotifications;
-        for (const n of notifs) engineErrors.push({ name, t, message: n.message });
+        for (const n of notifs) notifications.push({ name, t, message: n.message });
       }
 
       if (every === 1 || i % every === 0 || i === ticks) {
@@ -118,7 +118,11 @@ async function runScenario(opts = {}) {
   // Exceptions the bot caught itself surface as ErrorMapper red-span console lines.
   const botErrors = consoleLines.filter((c) => typeof c.line === "string" && c.line.includes("color:red"));
 
-  return { timeline, consoleLines, engineErrors, botErrors, memories };
+  // The engine notifies for informational game events too (controller upgraded,
+  // creep attacked, ...); only error-shaped notifications count as failures.
+  const engineErrors = notifications.filter((n) => /error|exception/i.test(n.message));
+
+  return { timeline, consoleLines, notifications, engineErrors, botErrors, memories };
 }
 
 /** timeline -> array of one stat field over time, for a given room/bot. */
