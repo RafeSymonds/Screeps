@@ -1,6 +1,6 @@
 import sinon from "sinon";
 import { expect } from "../helpers/chai";
-import { makeCreep, makePos, makeRoom, makeStore, makeStructure } from "../helpers/mock";
+import { makeCreep, makePos, makeRestrictedStore, makeRoom, makeStore, makeStructure } from "../helpers/mock";
 import { buildSnapshot } from "snapshot/index";
 import { _clearTerrainCacheForTest, getTerrain } from "snapshot/terrain";
 
@@ -134,6 +134,18 @@ describe("snapshot", () => {
 
         const { memory, ...creepRest } = snap.myCreeps[0];
         expect(JSON.parse(JSON.stringify(creepRest))).to.deep.equal(creepRest);
+    });
+
+    it("reads restricted (energy-only) stores via the energy-keyed fallback", () => {
+        installRoom(
+            makeRoom({
+                name: "W1N1",
+                structures: [makeStructure(STRUCTURE_SPAWN, { store: makeRestrictedStore(200, 300) })]
+            })
+        );
+        const snap = buildSnapshot();
+        const spawn = snap.myRooms[0].structures[STRUCTURE_SPAWN as StructureConstant]![0];
+        expect(spawn.store).to.deep.equal({ free: 100, used: 200, byResource: { energy: 200 } });
     });
 
     it("copies terrain once and caches the grid across calls", () => {

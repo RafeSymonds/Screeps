@@ -8,10 +8,13 @@ Parent: [architecture.md](architecture.md) §5.3 (also §3 principles 1 and 5).
 One read model for the whole bot: every tick, game state becomes plain data once, and all
 decision logic consumes that data. Success criteria:
 
-- **No `room.find` anywhere else.** Direct `Game` traversal outside this module happens
-  in exactly two documented places: the shell's bootstrap steps (owned-room listing and
-  creep-memory GC run before the snapshot exists — plain object iteration, no `find`),
-  and movement's PathFinder usage (M2). Everything else consumes views.
+- **No `room.find` anywhere else.** Direct `Game` access outside this module is limited
+  to a documented exception list: the shell's bootstrap steps (owned-room listing and
+  creep-memory GC, before the snapshot exists — plain object iteration, no `find`);
+  movement (PathFinder, `Game.creeps[name]` live position/fatigue, `creep.move`
+  intents); and the intent adapters that *execute* decisions via `handles.resolve` —
+  creep execution's runner and the spawn adapter's `spawnCreep` (later: towers).
+  Everything that *decides* consumes views.
 - Pure cores receive finished plain objects — nothing they touch can trigger a `Game`
   read, and everything they receive is JSON-serializable (unit tests enforce this).
 - Eager snapshot cost is metered under `SubsystemId.Snapshot`. On-demand `room(name)`
@@ -105,11 +108,17 @@ Two deliberately separate adapter-side helpers (not part of the pure surface):
 
 - `src/snapshot/handles.ts`: `resolve<T>(id: Id<T>): T | null` — wraps
   `Game.getObjectById` for intent execution. Only adapters (creep execution's intent
-  runner, tower runner) import it; cores emit ids, never objects.
+  runner, the spawn adapter, later towers) import it; cores emit ids, never objects.
 - `src/snapshot/terrain.ts`: `getTerrain(roomName): TerrainGrid` where `TerrainGrid` is
   a plain `{ isWall(x, y): boolean; isSwamp(x, y): boolean }` over a copied
   `Uint8Array(2500)` of terrain masks. Terrain is immutable, so the grid is heap-cached
-  forever (rebuilt lazily after a global reset). Consumers: movement (M2), layout (M3).
+  forever (rebuilt lazily after a global reset). Consumers: movement and economy's spot
+  chooser (M2), layout (M3).
+
+**M2 view extensions** (consumers landed, fields added per the "fields grow, shapes
+don't" rule): `ControllerView` gains `id` and `pos` (the upgrade executor and economy's
+upgrade-spot chooser need them); `StructureView` gains optional `spawning?: boolean`,
+present on spawn structures (the spawn resolver's free/busy input).
 
 ## Memory Schema
 
@@ -145,6 +154,10 @@ dev/prod build split in this toolchain, and a loud throw in sim is exactly what 
 - **`memory` is a live reference**, not a copy (copying every creep memory every tick is
   pure waste). Read-only-ness is by convention + ownership rules (architecture §6); it is
   also the one documented exception to the JSON-round-trip purity rule.
+- **Restricted stores** (spawn/extension/tower — energy-only): the argless
+  `getFreeCapacity()`/`getUsedCapacity()` return `null` for them; the builder's
+  energy-keyed fallback is load-bearing (this exact gotcha silently zeroed every spawn's
+  free capacity and starved M2's haul loop before sim caught it).
 - **Hostiles include harmless creeps** (scouts with no attack parts). Classification is
   defense's job (M4); the snapshot reports, never judges.
 - **Lost visibility between ticks**: `room(name)` returns `undefined` next tick —

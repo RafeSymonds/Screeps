@@ -8,6 +8,10 @@ export enum SubsystemId {
     Shell = "shell",
     /** Pseudo-entry: shell meters snapshot construction under this id. */
     Snapshot = "snapshot",
+    Economy = "economy",
+    Spawn = "spawn",
+    CreepExecution = "creeps",
+    Movement = "movement",
     TelemetryFlush = "telemetryFlush"
 }
 

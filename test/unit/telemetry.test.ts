@@ -38,8 +38,8 @@ describe("telemetry", () => {
         expect(window.avgCpu).to.equal(5);
         expect(window.maxCpu).to.equal(5);
         expect(window.minBucket).to.equal(9000);
-        expect(window.entries[SubsystemId.Shell]).to.deep.equal({ cpu: 3, runs: 2, skips: 0, errors: 1 });
-        expect(window.entries[SubsystemId.TelemetryFlush]).to.deep.equal({ cpu: 0, runs: 0, skips: 1, errors: 0 });
+        expect(window.entries[SubsystemId.Shell]).to.deep.equal({ c: 3, r: 2, s: 0, e: 1 });
+        expect(window.entries[SubsystemId.TelemetryFlush]).to.deep.equal({ c: 0, r: 0, s: 1, e: 0 });
         expect(stats().counters.errors).to.equal(1);
         expect(stats().counters.ticks).to.equal(1);
     });

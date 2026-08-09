@@ -36,6 +36,7 @@ function summarize(objects, botId) {
   const sites = of("constructionSite").filter(mine);
   const sources = of("source");
   const controller = of("controller")[0];
+  const dropped = of("energy"); // drop-mined ground piles
 
   return {
     creeps: creeps.length,
@@ -53,6 +54,8 @@ function summarize(objects, botId) {
     storageEnergy: sum(storage, energyOf),
     sites: sites.length,
     sourceEnergy: sum(sources, (o) => o.energy || 0),
+    droppedEnergy: sum(dropped, (o) => o.energy || 0),
+    droppedPiles: dropped.length,
     rcl: controller ? controller.level || 0 : 0,
     progress: controller ? controller.progress || 0 : 0,
     progressTotal: controller ? controller.progressTotal || 0 : 0
@@ -69,7 +72,8 @@ function fmtLine(s) {
     (s.hostiles ? `hostiles=${s.hostiles} ` : "") +
     `${rcl} spawn=${s.spawnEnergy}${s.spawning ? "*" : ""} ` +
     `ext=${s.extensions}/${s.extEnergy} cont=${s.containers}/${s.contEnergy} ` +
-    `stor=${s.storageEnergy} towers=${s.towers}/${s.towerEnergy} sites=${s.sites} src=${s.sourceEnergy}` +
+    `stor=${s.storageEnergy} towers=${s.towers}/${s.towerEnergy} sites=${s.sites} src=${s.sourceEnergy} ` +
+    `drop=${s.droppedPiles || 0}/${s.droppedEnergy || 0}` +
     cpu
   );
 }

@@ -28,13 +28,22 @@ export interface EntryStats {
     errors: number;
 }
 
+/** Compact keys (c: cpu, r: runs, s: skips, e: errors) — multiplied by RING_SIZE ×
+ *  every SubsystemId, readable keys blow the 10 KB slice budget. */
+export interface WindowEntryStats {
+    c: number;
+    r: number;
+    s: number;
+    e: number;
+}
+
 export interface WindowStats {
     t: number;
     ticks: number;
     avgCpu: number;
     maxCpu: number;
     minBucket: number;
-    entries: Record<string, EntryStats>;
+    entries: Record<string, WindowEntryStats>;
 }
 
 export interface StatsMemory {
@@ -138,9 +147,9 @@ export function flush(): void {
             return;
         }
         const stats = ensureStats();
-        const entries: Record<string, EntryStats> = {};
+        const entries: Record<string, WindowEntryStats> = {};
         for (const [id, e] of Object.entries(window.entries)) {
-            entries[id] = { cpu: round2(e.cpu), runs: e.runs, skips: e.skips, errors: e.errors };
+            entries[id] = { c: round2(e.cpu), r: e.runs, s: e.skips, e: e.errors };
         }
         stats.ring[stats.head] = {
             t: currentTime,

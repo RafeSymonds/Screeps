@@ -1,19 +1,32 @@
 import { ErrorMapper } from "utils/ErrorMapper";
 import * as shell from "shell/index";
+import type { Assignment } from "shared/assignments";
+import type { SubsystemId } from "shared/subsystems";
 import type { ShellMemory } from "shell/memory";
 import type { StatsMemory } from "telemetry/index";
+import type { EconMemory } from "economy/index";
 
 declare global {
     /*
      * Ambient Memory extensions (repo convention: declared here, owned per-slice
      * per architecture.md §6). Fields are optional because they may be absent
-     * before the shell's bootstrap runs — owners ensure their own slices.
+     * before the owning subsystem runs — owners ensure their own slices.
      */
     interface Memory {
         version?: number;
         shell?: ShellMemory;
         intel?: Record<string, unknown>;
         stats?: StatsMemory;
+    }
+
+    interface RoomMemory {
+        econ?: EconMemory;
+    }
+
+    interface CreepMemory {
+        home?: string;
+        owner?: SubsystemId;
+        assignment?: Assignment;
     }
 }
 

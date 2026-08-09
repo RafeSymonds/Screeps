@@ -91,10 +91,13 @@ tick ──▶ shell (memory bootstrap, world-discontinuity check, error contain
 ```
 
 **Normative tick order** (the diagram is illustrative; this list is the contract):
-shell → snapshot → per owned room in a fixed order per room: defense assessment + towers,
+shell → snapshot → the per-room subsystems in this order: defense assessment + towers,
 economy, remotes, construction (interval), spawn → creep execution → movement resolution →
-throttled strategy: intel refresh, expansion, empire → telemetry flush. The scheduler doc
-owns the exact entry list; reordering it is an architecture change and updates this file.
+throttled strategy: intel refresh, expansion, empire → telemetry flush. Per-room
+subsystems run as **subsystem-major sweeps** (economy over all rooms, then spawn over all
+rooms — the scheduler's perRoom iteration), not room-major; same-tick guarantees (economy
+feeds spawn) hold either way because demands route by room. The shell doc owns the exact
+entry list; reordering it is an architecture change and updates this file.
 
 ### Principles (the constitution — subsystem docs must comply)
 
@@ -103,10 +106,11 @@ owns the exact entry list; reordering it is an architecture change and updates t
    snapshots and to execute decided intents. Everything decision-shaped is unit-testable
    on the host.
 2. **Behavior is legible from Memory.** Every creep carries one explicit assignment and one
-   explicit owner in its memory; every room's plan is readable in its memory slice. "Why
-   did this creep do that?" must be answerable by reading Memory, never by mentally
-   composing scoring functions. Assignment changes are explicit decisions made by the
-   creep's owning planner, not per-tick re-auctions.
+   explicit owner in its memory; room-level state that persists is readable in the room's
+   slice (fully derived plans stay derived). "Why did this creep do that?" must be
+   answerable by reading Memory, never by mentally composing scoring functions.
+   Assignment changes are explicit decisions made by the creep's owning planner, not
+   per-tick re-auctions.
 3. **Contracts in one place.** Cross-subsystem types live in `src/shared/`; subsystems
    depend on those and never on each other's internals. Categorical values (assignment
    kinds, threat levels, scheduler priorities) are string enums, not bare literals.
@@ -396,7 +400,7 @@ risks and move to RawMemory segments when they approach theirs (§7).
 | ------------------------------ | ------------ | ----- |
 | `Memory.version`               | shell        | schema version; migrations + world-discontinuity resets run at bootstrap |
 | `Memory.shell`                 | shell        | persisted owned-room tracking (`owned`, `lostAt`) driving room-loss/respawn detection and lost-room GC — persisted because heap dies on reset |
-| `Memory.rooms[name].plan`      | economy      | workforce plan (small; derived data stays derived) |
+| `Memory.rooms[name].econ`      | economy      | static seats/spots (upgrade spot, source spots). The workforce plan itself is derived fresh each tick and never persisted — legibility comes from per-creep assignments in CreepMemory |
 | `Memory.rooms[name].layout`    | layout       | BasePlan, versioned |
 | `Memory.rooms[name].build`     | construction | sequenced build queue, active sites |
 | `Memory.rooms[name].spawn`     | spawn        | queue + pre-spawn state |
@@ -448,8 +452,8 @@ temporary hacks.
 | Milestone | Builds | Proves (sim) |
 | --------- | ------ | ------------ |
 | M1 Skeleton | shell, scheduler, snapshot, telemetry core | smoke: ticks clean, CPU measured |
-| M2 One room lives | economy (no layout yet), spawn, creep execution, basic movement | `default`: RCL1→3 unattended |
-| M3 Hands-off building | layout + construction | `growth`: RCL3 room with pre-existing spawn plans around it and builds out (exercises plan-anchoring, §5.7) |
+| M2 One room lives | economy (no layout yet), spawn, creep execution, basic movement | `default`: RCL2 + sustained pre-container economy (decay physics cap the era at ~5–7 e/t of upgrade — economy.md) |
+| M3 Hands-off building | layout + construction | `growth`: plan-anchoring around a pre-existing spawn (§5.7); `default`: extensions built → RCL3 at speed |
 | M4 Durability | defense, movement traffic/caching, wipe + discontinuity recovery | `under-attack`, `wiped-base` |
 | M5 Reach | intel (with scouting), remotes, links | `remote-mining`, `remote-invader` |
 | M6 Empire | expansion, empire (aid, safe-mode arbitration) | multi-room scenario (new), 7-day MMO run per §2 |

@@ -14,6 +14,51 @@ g.ERR_NOT_ENOUGH_RESOURCES = -6;
 g.ERR_INVALID_TARGET = -7;
 g.ERR_FULL = -8;
 g.ERR_NOT_IN_RANGE = -9;
+g.ERR_TIRED = -11;
+
+// Directions + body size limit
+g.TOP = 1;
+g.TOP_RIGHT = 2;
+g.RIGHT = 3;
+g.BOTTOM_RIGHT = 4;
+g.BOTTOM = 5;
+g.BOTTOM_LEFT = 6;
+g.LEFT = 7;
+g.TOP_LEFT = 8;
+g.MAX_CREEP_SIZE = 50;
+
+// Minimal RoomPosition + PathFinder stand-ins (movement tests replace search per-test)
+g.RoomPosition = class {
+    public x: number;
+    public y: number;
+    public roomName: string;
+    public constructor(x: number, y: number, roomName: string) {
+        this.x = x;
+        this.y = y;
+        this.roomName = roomName;
+    }
+};
+class MockCostMatrix {
+    private cells = new Map<string, number>();
+    public set(x: number, y: number, v: number): void {
+        this.cells.set(`${x},${y}`, v);
+    }
+    public get(x: number, y: number): number {
+        return this.cells.get(`${x},${y}`) ?? 0;
+    }
+    public clone(): MockCostMatrix {
+        const copy = new MockCostMatrix();
+        copy.cells = new Map(this.cells);
+        return copy;
+    }
+}
+function freshPathFinder(): void {
+    g.PathFinder = {
+        CostMatrix: MockCostMatrix,
+        search: () => ({ path: [], ops: 0, cost: 0, incomplete: false })
+    };
+}
+freshPathFinder();
 
 // Body parts + costs
 g.MOVE = "move";
@@ -100,5 +145,6 @@ export const mochaHooks = {
     beforeEach(): void {
         freshGame();
         freshMemory();
+        freshPathFinder();
     }
 };

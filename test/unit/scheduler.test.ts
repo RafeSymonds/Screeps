@@ -43,7 +43,7 @@ function recorder(): { reports: Report[]; reporter: SchedulerReporter } {
 
 function ctxWith(time: number, roomNames: string[] = []): TickContext {
     const myRooms = roomNames.map(name => ({ name } as RoomSnapshot));
-    return { snapshot: { time, myRooms, myCreeps: [], room: () => undefined } } as TickContext;
+    return { snapshot: { time, myRooms, myCreeps: [], room: () => undefined }, spawnDemands: [] } as TickContext;
 }
 
 function entry(overrides: Partial<ScheduledEntry>): ScheduledEntry {

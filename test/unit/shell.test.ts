@@ -211,7 +211,13 @@ describe("shell", () => {
         it("has unique ids in the normative order with staggered phases", () => {
             const ids = ENTRIES.map(e => e.id);
             expect(new Set(ids).size).to.equal(ids.length);
-            expect(ids).to.deep.equal([SubsystemId.TelemetryFlush]);
+            expect(ids).to.deep.equal([
+                SubsystemId.Economy,
+                SubsystemId.Spawn,
+                SubsystemId.CreepExecution,
+                SubsystemId.Movement,
+                SubsystemId.TelemetryFlush
+            ]);
 
             const byInterval = new Map<number, number[]>();
             for (const entry of ENTRIES) {

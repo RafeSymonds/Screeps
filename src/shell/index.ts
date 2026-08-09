@@ -59,7 +59,7 @@ export function tick(): void {
         const snapshotStart = meter.used();
         let ctx: TickContext | undefined;
         try {
-            ctx = { snapshot: buildSnapshot() };
+            ctx = { snapshot: buildSnapshot(), spawnDemands: [] };
             telemetry.reporter.entryRan(SubsystemId.Snapshot, null, meter.used() - snapshotStart);
         } catch (err) {
             telemetry.reporter.entryFailed(SubsystemId.Snapshot, null, err);

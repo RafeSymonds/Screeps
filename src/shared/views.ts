@@ -41,11 +41,15 @@ export interface StructureView {
     hitsMax: number;
     /** Present iff the structure has a store. */
     store?: StoreView;
+    /** Present on spawn structures: true while a creep is in the tube. */
+    spawning?: boolean;
 }
 
 export type StructuresByType = Partial<Record<StructureConstant, StructureView[]>>;
 
 export interface ControllerView {
+    id: Id<StructureController>;
+    pos: Pos;
     level: number;
     my: boolean;
     progress: number;

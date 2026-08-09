@@ -99,7 +99,10 @@ interface WindowStats {
     ticks: number;               // ticks accumulated (≤ FLUSH_INTERVAL; resets truncate —
                                  // short windows are themselves evidence of reset churn)
     avgCpu: number; maxCpu: number; minBucket: number;
-    entries: Record<string /* SubsystemId */, { cpu: number; runs: number; skips: number; errors: number }>;
+    /** Compact keys — c: cpu, r: runs, s: skips, e: errors — this record is multiplied
+     *  by RING_SIZE × every SubsystemId, and readable keys blew the 10 KB budget the
+     *  moment M2 grew the enum (the size test caught it, as designed). */
+    entries: Record<string /* SubsystemId */, { c: number; r: number; s: number; e: number }>;
 }
 ```
 
@@ -107,10 +110,12 @@ Missing or version-mismatched `Memory.stats` reinitializes fresh (stats are evid
 state — losing them is always acceptable, corrupting the tick over them never is).
 
 Provisional constants in `src/telemetry/config.ts` (one named config; revised from real
-data): `FLUSH_INTERVAL: 100`, `RING_SIZE: 30` (≈ 3000 ticks ≈ 2–4 hours at MMO tick
-rates; sized to keep the worst-case ring under the 10 KB budget — the size test trips as
-`SubsystemId` grows, forcing a conscious rebalance), `RECENT_RESETS: 5`,
-`ALERT_DEDUPE_TICKS: 1000`, `ALERT_GROUP_MINUTES: 30`, alert thresholds below.
+data): `FLUSH_INTERVAL: 100`, `RING_SIZE: 24` (≈ 2400 ticks ≈ 2–3 hours at MMO tick
+rates; sized with the compact entry keys to keep the worst-case ring under the 10 KB
+budget — the size test trips as `SubsystemId` grows, forcing a conscious rebalance;
+M2's growth to 7 ids was the first trip and produced the compact-key schema),
+`RECENT_RESETS: 5`, `ALERT_DEDUPE_TICKS: 1000`, `ALERT_GROUP_MINUTES: 30`, alert
+thresholds below.
 
 ## Tick Flow
 

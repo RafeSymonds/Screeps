@@ -22,6 +22,20 @@ export function makeStore(used: number, capacity = 50, resource = "energy"): Moc
     return store;
 }
 
+/** Energy-only store (spawn/extension/tower): argless capacity calls return null,
+ *  exactly like the real API — the gotcha that broke M2's haul loop. */
+export function makeRestrictedStore(used: number, capacity = 300): MockStore {
+    const store: MockStore = {
+        getUsedCapacity: (resource?: string) => (resource === "energy" ? used : (null as unknown as number)),
+        getFreeCapacity: (resource?: string) => (resource === "energy" ? capacity - used : (null as unknown as number)),
+        getCapacity: (resource?: string) => (resource === "energy" ? capacity : (null as unknown as number))
+    };
+    if (used > 0) {
+        store.energy = used;
+    }
+    return store;
+}
+
 export function makePos(x: number, y: number, roomName = "W1N1"): RoomPosition {
     const pos = {
         x,
@@ -114,6 +128,8 @@ export function makeRoom(opts: MockRoomOpts = {}): Room {
         opts.controller === null
             ? undefined
             : {
+                  id: `ctrl-${name}`,
+                  pos: makePos(25, 18, name),
                   level: 1,
                   my,
                   progress: 0,

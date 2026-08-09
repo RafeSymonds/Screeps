@@ -27,8 +27,10 @@ function toStoreView(store: StoreDefinition | Store<ResourceConstant, boolean>):
         }
     }
     return {
-        free: store.getFreeCapacity() ?? 0,
-        used: store.getUsedCapacity() ?? 0,
+        // Restricted stores (spawn/extension/tower: energy-only) return null for the
+        // argless calls — the energy-keyed fallback is load-bearing, not defensive.
+        free: store.getFreeCapacity() ?? store.getFreeCapacity(RESOURCE_ENERGY) ?? 0,
+        used: store.getUsedCapacity() ?? store.getUsedCapacity(RESOURCE_ENERGY) ?? 0,
         byResource
     };
 }
@@ -71,6 +73,8 @@ function toHostileView(creep: Creep): HostileView {
 
 function toControllerView(controller: StructureController): ControllerView {
     const view: ControllerView = {
+        id: controller.id,
+        pos: toPos(controller.pos),
         level: controller.level,
         my: controller.my === true,
         progress: controller.progress ?? 0,
@@ -98,6 +102,9 @@ function toStructureView(s: AnyStructure): StructureView {
     const store = (s as { store?: StoreDefinition }).store;
     if (store) {
         view.store = toStoreView(store);
+    }
+    if (s.structureType === STRUCTURE_SPAWN) {
+        view.spawning = Boolean((s as StructureSpawn).spawning);
     }
     return view;
 }
