@@ -61,8 +61,12 @@ async function runScenario(opts = {}) {
   const botList = Object.entries(bots);
   if (!botList.length) throw new Error("scenario returned no bots");
 
-  // Match production: give neighbor rooms terrain so cross-border pathfinding works.
-  await seedSurroundingTerrain(server, rooms);
+  // Neighbor terrain matters only when creeps cross borders (multi-room
+  // scenarios). Single-room runs skip it: every seeded room is one more room the
+  // processor sweeps EVERY tick — measured ~20% of tick time for 8 empty rooms.
+  // SIM_NEIGHBOR_RADIUS still overrides in both directions.
+  const defaultRadius = rooms.length > 1 ? 1 : 0;
+  await seedSurroundingTerrain(server, rooms, process.env.SIM_NEIGHBOR_RADIUS ? undefined : defaultRadius);
 
   const consoleLines = [];
   const notifications = [];

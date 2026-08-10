@@ -137,12 +137,12 @@ changes; keep `npm run test` for pure logic. Full details and rationale:
 -   `bin/sim run [ticks]`: build the bot (`npm run build`), tick a fresh RCL1 world, print live
     room state, exit. Flags: `--every N` (state cadence), `--scenario NAME`, `--verbose`
     (bot console each tick + final Memory dump). It is a batch tool, not a daemon.
--   `bin/sim test`: behavioral **regression tests** (`sim/tests/`) that run scenarios for many
-    ticks in the real engine and assert on the timeline. One scenario suite per file, run in
-    **parallel** (`SIM_JOBS` workers, default 4; `SIM_JOBS=1` for serial debugging). Iterate on
-    one suite with `bin/sim test -- --grep <name>`; run the full suite before every milestone
-    commit. Add cases with the `sim/lib/harness.js` `runScenario()` helper. A separate, slower
-    suite from `npm run test`.
+-   `bin/sim test`: behavioral **regression tests** in two tiers, run in **parallel**
+    (`SIM_JOBS` workers, default 4). The default FAST suite (`sim/tests/`, staged scenarios,
+    a few minutes) is the iteration loop; `bin/sim test --full` adds the full-arc suites
+    (`sim/tests-full/`, ~40 min) and is required before every milestone commit. Iterate on one
+    suite with `bin/sim test -- --grep <name>`. Add cases with `sim/lib/harness.js`
+    `runScenario()`.
 -   `bin/sim build` / `shell` / `clean`: manage the Docker engine image.
 -   Requires Docker running. The **first** build compiles a patched `isolated-vm` (~a few
     minutes); later runs reuse the image. The bot bundle is bind-mounted, so editing

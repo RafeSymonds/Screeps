@@ -86,18 +86,25 @@ bin/sim test                  # run all
 bin/sim test -- --grep defense  # only matching
 ```
 
+**Two tiers.** `bin/sim test` runs the FAST suite (`tests/`): staged scenarios that
+seed each era's starting state (`rcl2-base`, `infra-built`, …) so every suite proves
+one behavior in ≤ 900 ticks — the whole thing is a few minutes of wall clock and is
+the iteration loop. `bin/sim test --full` adds the FULL-ARC suites (`tests-full/`):
+the same behaviors proven end-to-end from scratch over thousands of ticks (~40 min)
+— run before every milestone commit. Staged gates prove stages; only the full arc
+proves the hand-offs between them, which is why both exist.
+
 The files run **in parallel, one scenario suite per file** (`mocha --parallel`, workers
 tuned by `SIM_JOBS`, default 4; `SIM_JOBS=1` restores serial for debugging). Each
 `runScenario` isolates its own server, port range (pid-derived), and storage dir, so
-workers never collide; wall clock ≈ the slowest single scenario instead of the sum
-(~70 min serial → ~40 min at 4 jobs on a 12-CPU Docker allotment — the July 2026
-"parallel degrades 3×" note predated the rebuild's CPU allotment and is retired).
-Two more speed levers live in the harness: notifications drain every 10 ticks instead
-of every tick (per-tick IPC was pure overhead), and multi-room scenarios fork a second
-engine processor onto the shared rooms queue. Workflow: iterate on ONE suite with
-`-- --grep <name>`; run the full suite before every milestone commit. Keep each
-scenario's tick count to the minimum that proves the behavior — engine ticks are ~the
-only cost (~0.3s each).
+workers never collide; wall clock ≈ the slowest single suite instead of the sum (the
+July 2026 "parallel degrades 3×" note predated the rebuild's CPU allotment and is
+retired). More speed levers in the harness: single-room scenarios skip neighbor-room
+seeding (each seeded room is a per-tick processor sweep — ~20% of tick time measured;
+`SIM_NEIGHBOR_RADIUS` still overrides), notifications drain every 10 ticks instead of
+every tick, and multi-room scenarios fork a second engine processor. Iterate on ONE
+suite with `-- --grep <name>`. Keep each scenario's tick count to the minimum that
+proves the behavior — engine ticks are ~the only cost (~0.2-0.3s each).
 
 Tests use the shared `lib/harness.js`:
 

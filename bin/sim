@@ -41,6 +41,7 @@ MOUNTS=(
   -v "$SIM/lib:/sim/lib:ro"
   -v "$SIM/scenarios:/sim/scenarios:ro"
   -v "$SIM/tests:/sim/tests:ro"
+  -v "$SIM/tests-full:/sim/tests-full:ro"
 )
 
 # `docker run --rm` only removes the container when it stops normally; if the CLIENT
@@ -96,8 +97,14 @@ case "$cmd" in
     # serial to ~the longest run. SIM_JOBS tunes workers (default 4; SIM_JOBS=1 for
     # serial debugging). Iterate on one suite with `bin/sim test -- --grep <name>`;
     # run the full suite before every milestone commit.
+    # Two tiers (sim/README.md): the FAST suite (tests/, staged scenarios, ~2-3 min
+    # wall) is the iteration loop; `bin/sim test --full` adds the full-arc suites
+    # (tests-full/, ~40 min) and is the pre-milestone-commit gate.
+    globs=("tests/**/*.test.js")
+    if [[ "${1:-}" == "--full" ]]; then shift; globs+=("tests-full/**/*.test.js"); fi
+    [[ "${1:-}" == "--" ]] && shift || true
     jobs="${SIM_JOBS:-4}"
-    run_container --rm --init --name "$CONTAINER" "${MOUNTS[@]}" -e SIM_NEIGHBOR_RADIUS --entrypoint npx "$IMAGE" mocha --exit --parallel --jobs "$jobs" "tests/**/*.test.js" "$@"
+    run_container --rm --init --name "$CONTAINER" "${MOUNTS[@]}" -e SIM_NEIGHBOR_RADIUS --entrypoint npx "$IMAGE" mocha --exit --parallel --jobs "$jobs" "${globs[@]}" "$@"
     ;;
   build|rebuild) build_image ;;
   shell)
