@@ -1,7 +1,8 @@
 # Creep Execution Design
 
-Status: M4 scope — adds Defend, storage tiers for haulers/builders, and the
-fortification-repair fallback, on top of M3's container-aware executors + Build.
+Status: M5 scope — adds the cross-room dispatch model (travel preamble), Scout and
+Reserve executors, and link tweaks, on top of M4's Defend/storage/fortification and
+M3's container-aware executors + Build.
 Parent: [architecture.md](architecture.md) §5.11 (also §3 principle 2 — executors never write assignments).
 
 ## Goal
@@ -52,6 +53,20 @@ One Action per creep per tick: the work intent when in range, else MoveTo — ne
 Range checks are chebyshev on view positions. All "nearest/biggest" choices are argmax
 over an explicit candidate list inside one pure function — the only scoring the
 architecture permits (§4).
+
+**Cross-room dispatch (M5, load-bearing).** The dispatcher computes the creep's **work
+room** — Haul: `store empty ? assignment.room : (assignment.to ?? assignment.room)`;
+everything else: `assignment.room`. Standing outside it → **travel**:
+`MoveTo({x:25,y:25,roomName: workRoom}, 20)`, which needs no vision (movement's
+roomCallback tolerates unseen rooms). Standing in it → run the executor with the view
+of the room the creep occupies — which exists by definition. This replaces the M4
+"no view → Idle(no-vision)" rule, which was a deadlock for any creep whose job is to
+GO somewhere unseen (vision requires a creep already there), and it keeps every
+executor's chebyshev checks same-room-sound (the helper is roomName-blind). A creep
+whose work room is `isUnsafe` (intel accessor) while standing in it overrides to
+`MoveTo(home spawn, 5)` — the retreat rule. Border mechanics are pinned by a movement
+unit test: stepping onto an exit tile teleports, so path conversion needs no
+direction for the transition and stays aligned.
 
 Shared container helpers (pure, in executors.ts): `sourceContainer(room, source)` = the
 container view within range 1 of the source; `spotContainer(room, spot)` = the container
@@ -135,6 +150,24 @@ ECONOMY_CONFIG.containerRepairFloor` (economy.md owns the number).
   the first spawn (`MoveTo(spawn, 2)`, Idle("parked") once there). Defenders never
   chase into other rooms at M4 (assignment is room-pinned; hostiles outside the view
   don't exist).
+- **Scout** (new, M5): the travel preamble does all the walking; in the target room →
+  Idle("scouting") and linger — intel's refresher records the room and its rotation
+  retargets the scout on a later pass (record-then-retarget, intel.md).
+- **Reserve** (new, M5): controller from the room view → `ReserveController` in range
+  1 / `MoveTo(controller, 1)`; no controller → Idle.
+- **Link tweaks** (M5, economy.md Links): miner beside a link with store ≥ half →
+  `Transfer(link)` before resuming harvest; upgrader refill tier gains the controller
+  link ahead of the container.
+- **Claim** (new, M6): controller from the room view → `ClaimController` in range 1 /
+  `MoveTo(controller, 1)`. The travel preamble crosses the border first.
+- **Pioneer** (new, M6): the ONE role that harvests, builds, and upgrades, because a
+  freshly claimed room has no miners, no haulers, and no spawn to make them. Order:
+  refill by harvesting → build (spawn site first) → upgrade. The fill loop is closed
+  by **position, not memory**: adjacent to a source and not full → keep harvesting;
+  away from a source with a load → go spend it. (Every other executor's "empty →
+  collect, else deliver" rule would send a pioneer to the site after one tick of
+  harvesting, carrying 4 energy.) Upgrading is not polish at RCL1 — the 20k
+  downgrade timer runs down while pioneers build, and expiry *unclaims* the room.
 
 Idle is always legal and free. The adapter counts idles per reason in a per-tick tally
 logged at Info every 100 ticks when nonzero.

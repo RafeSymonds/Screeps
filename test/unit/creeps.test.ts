@@ -5,12 +5,13 @@ import {
     DefendAssignment,
     HaulAssignment,
     MineAssignment,
+    PioneerAssignment,
     UpgradeAssignment
 } from "shared/assignments";
 import { ConstructionSiteView, CreepView, DroppedView, HostileView, Pos, RoomSnapshot, StructureView } from "shared/views";
 import { FortifyTarget } from "defense/fortify";
 import { ActionKind } from "creeps/actions";
-import { decideBuild, decideDefend, decideHaul, decideMine, decideUpgrade } from "creeps/executors";
+import { decideBuild, decideDefend, decideHaul, decideMine, decidePioneer, decideUpgrade } from "creeps/executors";
 
 function pos(x: number, y: number): Pos {
     return { x, y, roomName: "W1N1" };
@@ -508,6 +509,48 @@ describe("haul executor at war and with storage", () => {
             kind: ActionKind.Transfer,
             targetId: "stor1",
             resource: RESOURCE_ENERGY
+        });
+    });
+});
+
+describe("pioneer executor", () => {
+    const pioneer: PioneerAssignment = { kind: AssignmentKind.Pioneer, room: "W1N1" };
+    // 200 capacity: 4 CARRY, like the real body.
+    const carrying = (used: number): CreepView => ({ ...creepAt(pos(11, 40), 0), store: { free: 200 - used, used, byResource: used > 0 ? { energy: used } : {} } });
+
+    it("fills at the source before spending — position closes the loop, not memory", () => {
+        const room = roomWith();
+        // Adjacent and partially loaded: KEEP harvesting (the "empty → collect"
+        // rule every other executor uses would leave with 4 energy).
+        expect(decidePioneer(carrying(50), pioneer, room)).to.deep.equal({
+            kind: ActionKind.Harvest,
+            targetId: "srcA"
+        });
+        // Empty and away: go get some.
+        expect(decidePioneer(creepAt(pos(25, 25), 0), pioneer, room)).to.deep.equal({
+            kind: ActionKind.MoveTo,
+            pos: pos(10, 40),
+            range: 1
+        });
+    });
+
+    it("builds the spawn site first, then upgrades when there is nothing to build", () => {
+        const withSite = roomWith({
+            myConstructionSites: [
+                site("road1", STRUCTURE_ROAD, pos(20, 20), 0, 300),
+                site("spawnSite", STRUCTURE_SPAWN, pos(25, 25), 0, 15000)
+            ]
+        });
+        const loaded = { ...carrying(200), pos: pos(25, 24) };
+        expect(decidePioneer(loaded, pioneer, withSite)).to.deep.equal({
+            kind: ActionKind.Build,
+            targetId: "spawnSite"
+        });
+        // No sites: upgrade — at RCL1 that is what keeps the claim from expiring.
+        const noSites = { ...carrying(200), pos: pos(25, 20) };
+        expect(decidePioneer(noSites, pioneer, roomWith())).to.deep.equal({
+            kind: ActionKind.Upgrade,
+            targetId: "ctrl"
         });
     });
 });

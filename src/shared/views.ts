@@ -43,6 +43,8 @@ export interface StructureView {
     store?: StoreView;
     /** Present on spawn structures: true while a creep is in the tube. */
     spawning?: boolean;
+    /** Present on cooldown structures (links, labs) while ticking down. */
+    cooldown?: number;
 }
 
 export type StructuresByType = Partial<Record<StructureConstant, StructureView[]>>;

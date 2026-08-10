@@ -143,13 +143,15 @@ describe("layout planner", () => {
     });
 
     it("places links beside their hosts without stealing seats or the upgrade ring", () => {
+        // Order (planV 2): [controller, farthest-source, hub, remaining sources] —
+        // RCL5's two slots go to the highest-value pair.
         const plan = planBase(growthInput())!;
         const links = plan.places[STRUCTURE_LINK]!;
         const storage = plan.places[STRUCTURE_STORAGE]![0];
         const containers = plan.places[STRUCTURE_CONTAINER]!;
-        expect(cheb(links[0], storage)).to.equal(1); // hub
-        expect(cheb(links[1], plan.controllerContainer!)).to.equal(1);
-        expect(cheb(links[1], pos(25, 15))).to.be.at.least(3);
+        expect(cheb(links[0], plan.controllerContainer!)).to.equal(1);
+        expect(cheb(links[0], pos(25, 15))).to.be.at.least(3);
+        expect(cheb(links[2], storage)).to.equal(1); // hub takes slot three
         for (const source of [pos(10, 40), pos(40, 40)]) {
             const srcContainer = containers.find(c => cheb(c, source) <= 1)!;
             const link = links.find(l => cheb(l, srcContainer) <= 1 && cheb(l, source) >= 2);

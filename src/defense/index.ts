@@ -8,6 +8,7 @@ import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
 import { RoomSnapshot } from "shared/views";
 import { resolve } from "snapshot/handles";
+import { confirmSafeMode, requestSafeMode } from "empire/index";
 import { alert, AlertKind, log } from "telemetry/index";
 import { DEFENSE_CONFIG } from "defense/config";
 import { computeFortifyTargets, FortifyTarget } from "defense/fortify";
@@ -61,11 +62,14 @@ export function runResponse(ctx: TickContext, room: RoomSnapshot): void {
     const roster = ctx.snapshot.myCreeps.filter(c => (c.memory as { home?: string }).home === room.name);
     const plan = planDefense(room, assessment, roster, DEFENSE_CONFIG);
     ctx.spawnDemands.push(...plan.demands);
-    if (plan.requestSafeMode && room.controller) {
+    // Rung 3: defense REQUESTS, empire GRANTS (shard-scarce, and same-tick
+    // serialization matters — the engine keeps only the last intent of a tick).
+    if (plan.requestSafeMode && room.controller && requestSafeMode(room.name, ctx)) {
         const controller = resolve(room.controller.id);
         if (controller) {
             const rc = controller.activateSafeMode();
             if (rc === OK) {
+                confirmSafeMode(ctx.snapshot.time); // stamp on OK, never on grant
                 alert(AlertKind.SafeMode, `${room.name}: SAFE MODE activated`);
             } else {
                 log.warn(SubsystemId.DefenseResponse, () => `${room.name}: safe mode refused (${rc})`);

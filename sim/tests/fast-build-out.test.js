@@ -10,11 +10,13 @@ const { runScenario, seriesOf } = require("../lib/harness");
  */
 const at = (series, tick, every) => series[Math.min(Math.floor(tick / every) - 1, series.length - 1)];
 
-describe("fast: build-out (rcl2-base, 900 ticks)", function () {
+describe("fast: build-out (rcl2-base, 1200 ticks)", function () {
   this.timeout(12 * 60 * 1000);
   let res;
   before(async () => {
-    res = await runScenario({ scenario: "rcl2-base", ticks: 900, every: 50 });
+    // 1200: the M5 era adds a scout spawn + seeded neighbors, shifting the
+    // build timeline ~200 ticks right (measured).
+    res = await runScenario({ scenario: "rcl2-base", ticks: 1200, every: 50 });
   });
 
   it("runs without engine or bot errors", () => {

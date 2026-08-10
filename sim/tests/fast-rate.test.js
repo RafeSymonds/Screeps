@@ -11,11 +11,11 @@ const { runScenario, seriesOf } = require("../lib/harness");
  */
 const at = (series, tick, every) => series[Math.min(Math.floor(tick / every) - 1, series.length - 1)];
 
-describe("fast: post-infrastructure rate (infra-built, 1100 ticks)", function () {
+describe("fast: post-infrastructure rate (infra-built, 1400 ticks)", function () {
   this.timeout(12 * 60 * 1000);
   let res;
   before(async () => {
-    res = await runScenario({ scenario: "infra-built", ticks: 1100, every: 50 });
+    res = await runScenario({ scenario: "infra-built", ticks: 1400, every: 50 });
   });
 
   it("runs without engine or bot errors", () => {
@@ -26,10 +26,11 @@ describe("fast: post-infrastructure rate (infra-built, 1100 ticks)", function ()
 
   it("upgrades at the container-era rate once staffed", () => {
     const progress = seriesOf(res.timeline, "W1N1", "bot", "progress");
-    // Income staffs first by design, so upgraders spawn ~t400-550 (measured);
-    // the rate window starts after the queue reaches them. Measured ~5 e/t.
-    const gained = at(progress, 1100, 50) - at(progress, 500, 50);
-    expect(gained, `progress series: ${progress.join(",")}`).to.be.at.least(1800);
+    // Income staffs first by design; the M5 era's scout spawn shifts the queue
+    // ~200 ticks right — upgrading starts ~t750 (measured). ~2.5 e/t floor while
+    // the crew ramps toward ~5.
+    const gained = at(progress, 1400, 50) - at(progress, 800, 50);
+    expect(gained, `progress series: ${progress.join(",")}`).to.be.at.least(1500);
   });
 
   it("keeps the containers in play", () => {

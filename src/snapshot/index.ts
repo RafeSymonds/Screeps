@@ -102,6 +102,10 @@ function toStructureView(s: AnyStructure): StructureView {
         hits: s.hits ?? 0,
         hitsMax: s.hitsMax ?? 0
     };
+    const cooldown = (s as { cooldown?: number }).cooldown;
+    if (cooldown !== undefined) {
+        view.cooldown = cooldown;
+    }
     const store = (s as { store?: StoreDefinition }).store;
     if (store) {
         view.store = toStoreView(store);

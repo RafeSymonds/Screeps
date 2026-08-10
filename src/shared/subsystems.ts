@@ -8,6 +8,13 @@ export enum SubsystemId {
     Shell = "shell",
     /** Pseudo-entry: shell meters snapshot construction under this id. */
     Snapshot = "snapshot",
+    Empire = "empire",
+    EmpireAid = "empireAid",
+    Expansion = "expansion",
+    ExpansionSpawn = "expansionSpawn",
+    Intel = "intel",
+    RemotesPlan = "remotesPlan",
+    Remotes = "remotes",
     DefenseTowers = "defenseTowers",
     DefenseResponse = "defenseResponse",
     Layout = "layout",

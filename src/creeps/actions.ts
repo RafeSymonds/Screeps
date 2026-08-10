@@ -14,6 +14,8 @@ export enum ActionKind {
     Build = "build",
     Repair = "repair",
     Attack = "attack",
+    ReserveController = "reserveController",
+    ClaimController = "claimController",
     MoveTo = "moveTo",
     Idle = "idle"
 }
@@ -28,6 +30,8 @@ export type Action =
     | { kind: ActionKind.Build; targetId: Id<ConstructionSite> }
     | { kind: ActionKind.Repair; targetId: Id<AnyStructure> }
     | { kind: ActionKind.Attack; targetId: Id<Creep> }
+    | { kind: ActionKind.ReserveController; targetId: Id<StructureController> }
+    | { kind: ActionKind.ClaimController; targetId: Id<StructureController> }
     | { kind: ActionKind.MoveTo; pos: Pos; range: number }
     | { kind: ActionKind.Idle; reason: string };
 

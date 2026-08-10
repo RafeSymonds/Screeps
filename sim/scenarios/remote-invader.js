@@ -6,7 +6,7 @@
  * the threat, holds off on the remote, and resumes once it clears.
  *
  * The hostiles are static (no driver code) — they don't chase anything; they exist
- * to be seen. Their ageTime kills them around tick ~250 so a ~900-tick run covers
+ * to be seen. Their ageTime kills them around tick ~900 so a ~1500-tick run covers
  * both the threatened and cleared phases.
  */
 const W = require("./_world");
@@ -34,13 +34,14 @@ module.exports.setup = async (server, { modules }) => {
   // Built-out RCL4 home with a workforce, so remote labor is fundable immediately.
   await W.fullBase(server, home, bot.id, { level: 4, center, creeps: 6 });
 
-  // Hostiles camped in the remote, expiring around tick ~250: long enough that the
-  // scout definitely sees them (pause), short enough that the run covers the resume.
+  // Hostiles camped in the remote, expiring around tick ~900: the scout must sight them
+  // FIRST (spawn+walk ≈ t300-600) for the pause to be observable at all; expiry
+  // then leaves room for the resume inside a ~1500-tick run (M5 review).
   const gt = await server.world.gameTime;
   const raiders = await W.addUser(server, "Raiders");
   const body = [C.TOUGH, C.MOVE, C.ATTACK, C.ATTACK];
-  await W.addCreep(server, remote, 20, 22, raiders, body, { name: "invader_0", ageTime: gt + 250 });
-  await W.addCreep(server, remote, 30, 28, raiders, body, { name: "invader_1", ageTime: gt + 250 });
+  await W.addCreep(server, remote, 20, 22, raiders, body, { name: "invader_0", ageTime: gt + 900 });
+  await W.addCreep(server, remote, 30, 28, raiders, body, { name: "invader_1", ageTime: gt + 900 });
 
   // Real terrain around both rooms so cross-border pathfinding behaves like production.
   await W.seedSurroundingTerrain(server, [home, remote]);

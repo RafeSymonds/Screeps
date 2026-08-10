@@ -83,6 +83,29 @@ This is the recovery path for a drained wipe: minBody `[C,M]` (100) is reachable
 ~100 ticks from zero. If sim ever shows otherwise, this doc and economy.md's bootstrap
 timelines are the things to fix.
 
+### Head-of-line blocking is TIME-BOUNDED (M6, sim-caught twice)
+
+Holding the queue for an unaffordable head demand is **load-bearing**: it is how a
+room saves up for a body it cannot afford this tick instead of dribbling its income
+away on cheap ones. Sim evidence: an `infra-built` room whose only "haulers" were
+adopted 1-CARRY generalists recovers *only* by accumulating toward a real one — a
+resolver that always let cheaper work through left it deadlocked with zero haulers,
+spawn-side energy pinned near 100, and controller progress frozen dead.
+
+But an **unbounded** hold is starvation: a room whose income never reaches its own
+ideal body spawns nothing behind that demand, ever. Same sim, other scenario: an RCL5
+sponsor hovering around 800 energy sat behind its own 1800-energy hauler demand and
+never built a 650-energy claimer, so expansion recorded a claim it could not act on
+for an entire run.
+
+So the hold is bounded in **time**, not in energy: the resolver records which demand
+it is waiting on and since when (`Memory.rooms[name].spawn` — the one piece of spawn
+state that cannot be re-derived), holds for up to `BLOCK_PATIENCE` (150 ticks), then
+lets the queue through **once** and clears the record. At most one queue-jump per
+patience window; never a permanent skip, so a demand the room is genuinely saving
+for still gets built. Malformed or over-capacity bodies still block absolutely
+(defence in depth), and `minBody` is still tried first.
+
 ## Memory Schema
 
 None at M2. Spawn's only Memory write is the newborn's

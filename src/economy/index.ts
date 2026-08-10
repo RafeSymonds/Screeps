@@ -7,9 +7,11 @@
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
 import { Pos, RoomSnapshot } from "shared/views";
+import { getClaimTarget } from "expansion/index";
 import { getControllerContainerPos } from "layout/index";
 import { getTerrain } from "snapshot/terrain";
 import { ECONOMY_CONFIG } from "economy/config";
+import { planLinkTransfers } from "economy/links";
 import { planRoom } from "economy/planner";
 import { chooseUpgradeSpot, countAdjacentSpots } from "economy/spots";
 
@@ -74,6 +76,7 @@ export function runRoom(ctx: TickContext, room: RoomSnapshot): void {
         orphans,
         sourceSpots: econ.sourceSpots,
         upgradeSpot: { x: econ.upgradeSpot.x, y: econ.upgradeSpot.y, roomName: room.name },
+        allowRebuild: getClaimTarget() !== room.name,
         config: ECONOMY_CONFIG
     });
     // Adoption: the §6 claim-by-successor path — home set once, owner recorded.
@@ -91,6 +94,14 @@ export function runRoom(ctx: TickContext, room: RoomSnapshot): void {
         const creep = Game.creeps[reassignment.name];
         if (creep) {
             creep.memory.assignment = reassignment.assignment;
+        }
+    }
+    // Links (M5): each ready source link sends toward the controller side.
+    for (const transfer of plan ? planLinkTransfers(room, getUpgradeSpot(room.name)) : []) {
+        const from = Game.getObjectById(transfer.fromId) as StructureLink | null;
+        const to = Game.getObjectById(transfer.toId) as StructureLink | null;
+        if (from && to) {
+            from.transferEnergy(to);
         }
     }
     ctx.spawnDemands.push(...plan.demands);

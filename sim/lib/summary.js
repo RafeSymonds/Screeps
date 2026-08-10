@@ -33,6 +33,7 @@ function summarize(objects, botId) {
   const towers = of("tower").filter(mine);
   const containers = of("container");
   const storage = of("storage").filter(mine);
+  const links = of("link").filter(mine);
   const sites = of("constructionSite").filter(mine);
   const sources = of("source");
   const controller = of("controller")[0];
@@ -52,6 +53,7 @@ function summarize(objects, botId) {
     containers: containers.length,
     contEnergy: sum(containers, energyOf),
     storageEnergy: sum(storage, energyOf),
+    linkEnergy: sum(links, energyOf),
     sites: sites.length,
     sourceEnergy: sum(sources, (o) => o.energy || 0),
     droppedEnergy: sum(dropped, (o) => o.energy || 0),

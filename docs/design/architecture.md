@@ -94,8 +94,14 @@ tick ──▶ shell (memory bootstrap, world-discontinuity check, error contain
 shell → snapshot → the per-room subsystems in this order: defense assessment + towers
 (class A), defense response (class B — demands must precede spawn), layout (interval),
 construction (interval — after layout so a fresh plan is consumed the
-same tick), economy, remotes, spawn → creep execution → movement resolution →
-throttled strategy: intel refresh, expansion, empire → telemetry flush. Per-room
+same tick), empire registry (interval — expansion reads its trigger), intel (interval),
+remotes (plan interval + per-tick emission), expansion (decision interval + per-tick
+emission), economy, empire aid (re-homes a crippled room's demands — must see this tick's
+demands), spawn → creep execution → movement resolution → telemetry flush.
+**Every demand producer runs before spawn**: a demand lives exactly one tick, so a
+producer scheduled after the resolver emits into a list nobody reads, and an
+interval-only producer has an interval-shaped *duty cycle* rather than an
+interval-shaped latency (both were M5/M6 review findings). Per-room
 subsystems run as **subsystem-major sweeps** (economy over all rooms, then spawn over all
 rooms — the scheduler's perRoom iteration), not room-major; same-tick guarantees (economy
 feeds spawn) hold either way because demands route by room. The shell doc owns the exact
@@ -328,11 +334,13 @@ Two **separately computed** economic decisions per remote, never assumed:
 
 1. **Adopt at all?** Income minus body upkeep, haul distance, *and standing
    infrastructure upkeep* (remote containers and roads decay too), from real constants.
-2. **Reserve or not?** Reserving doubles source capacity (1500 → 3000 per regen), but
-   reservation decays 1/tick and each CLAIM part adds only 1 tick/tick — so a 1-CLAIM
-   creep merely offsets decay and can never build the timer. The minimum *functional*
-   reserver is **2×CLAIM + 2×MOVE ≈ 1300 energy** (an RCL4-capacity home), continuously
-   replaced (600-tick CLAIM-creep lifetime, spawn and travel gaps included). Mine-
+2. **Reserve or not?** Reserving doubles source capacity (1500 → 3000 per regen).
+   Engine-verified correction (M5 review — intents resolve before controller ticks):
+   a **1-CLAIM creep sustains a reservation indefinitely**, so `[CLAIM, MOVE]` = 650
+   energy is the *functional* floor; **2×CLAIM + 2×MOVE (1300)** is the *slack* body
+   — it builds the timer +1/tick so missed ticks don't drop the reservation, where
+   1-CLAIM tolerates exactly zero. Both are continuously replaced (600-tick
+   CLAIM-creep lifetime, spawn and travel gaps included). Mine-
    unreserved is a valid steady state — the default for low-RCL homes, distant remotes,
    and 1-source rooms; the break-even formula lives in the remotes design doc. The
    decision is re-evaluated as the home room grows, and each remote's state (unreserved /
@@ -412,8 +420,8 @@ risks and move to RawMemory segments when they approach theirs (§7).
 | `Memory.rooms[name].defense`   | defense      | threat state only (`{v, level, lastHostile?}`) — fortification targets and safe-mode requests are derived fresh each run, not persisted (defense.md) |
 | `Memory.rooms[name].remotes`   | remotes      | adopted rooms + per-remote state (reserved/unreserved, unsafe) |
 | `Memory.intel[name]`           | intel        | persistent room knowledge, `lastSeen` everywhere; accessor-mediated writes |
-| `Memory.empire`                | empire       | room registry + lifecycle, safe-mode grants |
-| `Memory.expansion`             | expansion    | claim in progress, pioneer roster |
+| `Memory.empire`                | empire       | room registry + lifecycle (`{state, since}`), last safe-mode grant |
+| `Memory.expansion`             | expansion    | the one claim in flight (target, sponsor, phase, claimer name for death observation) + cooldown; the pioneer roster is derived from creep memory, not persisted |
 | `Memory.stats`                 | telemetry    | bounded ring buffer |
 | `CreepMemory.home`             | spawn        | set at spawn time (or once, by the adopting owner for orphan creeps — economy.md); never changes after |
 | `CreepMemory.owner`            | spawn → owner| owning planner id; stamped at spawn from demand; changes only by explicit handoff (release by owner, claim by successor — both recorded) |
@@ -460,8 +468,8 @@ temporary hacks.
 | M2 One room lives | economy (no layout yet), spawn, creep execution, basic movement | `default`: RCL2 + sustained pre-container economy (decay physics cap the era at ~5–7 e/t of upgrade — economy.md) |
 | M3 Hands-off building | layout + construction | `growth`: plan-anchoring around a pre-existing spawn (§5.7); `default`: extensions + containers built hands-off, upgrade rate steps up (RCL3's 45k progress exceeds the invader-safe sim window at 20 e/t income — the gate proves the rate that makes RCL3 inevitable, construction.md) |
 | M4 Durability | defense, movement traffic/caching, wipe + discontinuity recovery | `under-attack`, `wiped-base` |
-| M5 Reach | intel (with scouting), remotes, links | `remote-mining`, `remote-invader` |
-| M6 Empire | expansion, empire (aid, safe-mode arbitration) | multi-room scenario (new), 7-day MMO run per §2 |
+| M5 Reach | intel (with scouting), remotes, links | `remote-mining` (sight → adopt → reserve → mine home), `remote-invader` (pause/resume), `links` (a route carried with zero hauler labor) |
+| M6 Empire | expansion, empire (registry, aid, safe-mode arbitration) | `expand`: fast gate claims a second room; full gate follows the arc to that room spawning its own creep. The 7-day MMO run (§2) stays a deployment checklist, not a sim gate |
 
 ## 9. CPU Budget (20 CPU, official MMO)
 

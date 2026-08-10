@@ -8,8 +8,10 @@ export const TELEMETRY_CONFIG = {
     /** Windows kept in the ring (≈ 1800 ticks at MMO tick rates).
      *  Sized with compact entry keys so the worst-case ring stays under the 10 KB
      *  slice budget — the size test trips as SubsystemIds grow, forcing a conscious
-     *  rebalance (M2 → 7 ids: compact keys; M3 → 9: RING 20; M4 → 11: RING 18). */
-    RING_SIZE: 18,
+     *  rebalance (M2 → 7 ids: compact keys; M3 → 9: RING 20; M4 → 11: RING 18; M5 → 14: RING 14; M6 → 18: RING 11 —
+     *  ~1100 ticks of history, so the §2 7-day CPU criterion is answered from
+     *  the cumulative counters, not the ring). */
+    RING_SIZE: 11,
     /** Reset timestamps retained for ResetLoop detection. */
     RECENT_RESETS: 5,
     RESET_LOOP_COUNT: 3,

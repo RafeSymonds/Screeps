@@ -10,11 +10,12 @@ import { CreepView } from "shared/views";
 import { fortificationTargets } from "defense/index";
 import { FortifyTarget } from "defense/fortify";
 import { getUpgradeSpot } from "economy/index";
+import { isUnsafe } from "intel/index";
 import { requestMove } from "movement/index";
 import { resolve } from "snapshot/handles";
 import { log } from "telemetry/index";
 import { Action, ActionKind } from "creeps/actions";
-import { decideBuild, decideDefend, decideHaul, decideMine, decideUpgrade } from "creeps/executors";
+import { decideBuild, decideDefend, decideHaul, decideMine, decidePioneer, decideUpgrade } from "creeps/executors";
 
 const idleTally: Record<string, number> = {};
 
@@ -36,8 +37,30 @@ function fortifyFor(ctx: TickContext, roomName: string): FortifyTarget[] {
     return targets;
 }
 
+/** The M5 cross-room rule: for Haul, empty works in `room`, loaded in `to`. */
+function workRoomOf(creep: CreepView, assignment: Assignment): string {
+    if (assignment.kind === AssignmentKind.Haul && creep.store.used > 0) {
+        return assignment.to ?? assignment.room;
+    }
+    return assignment.room;
+}
+
 function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Action {
-    const room = ctx.snapshot.room(assignment.room);
+    // Retreat: an unsafe work room empties out (intel's persistent sighting).
+    const workRoom = workRoomOf(creep, assignment);
+    if (creep.pos.roomName === workRoom && workRoom !== (creep.memory as { home?: string }).home && isUnsafe(workRoom, ctx.snapshot.time)) {
+        const home = (creep.memory as { home?: string }).home;
+        if (home) {
+            return { kind: ActionKind.MoveTo, pos: { x: 25, y: 25, roomName: home }, range: 5 };
+        }
+    }
+    // Travel preamble: outside the work room → walk there; needs no vision (the
+    // M4 no-view→Idle rule deadlocked every creep whose job is somewhere unseen).
+    if (creep.pos.roomName !== workRoom) {
+        return { kind: ActionKind.MoveTo, pos: { x: 25, y: 25, roomName: workRoom }, range: 20 };
+    }
+    // Standing in the work room: its view exists by definition.
+    const room = ctx.snapshot.room(creep.pos.roomName);
     if (!room) {
         return { kind: ActionKind.Idle, reason: "no-vision" };
     }
@@ -52,6 +75,31 @@ function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Act
             return decideBuild(creep, assignment, room, getUpgradeSpot(assignment.room), fortifyFor(ctx, assignment.room));
         case AssignmentKind.Defend:
             return decideDefend(creep, assignment, room);
+        case AssignmentKind.Scout:
+            // The travel preamble did the walking; linger for intel's refresher.
+            return { kind: ActionKind.Idle, reason: "scouting" };
+        case AssignmentKind.Reserve: {
+            const controller = room.controller;
+            if (!controller) {
+                return { kind: ActionKind.Idle, reason: "no-controller" };
+            }
+            if (Math.max(Math.abs(creep.pos.x - controller.pos.x), Math.abs(creep.pos.y - controller.pos.y)) <= 1) {
+                return { kind: ActionKind.ReserveController, targetId: controller.id };
+            }
+            return { kind: ActionKind.MoveTo, pos: controller.pos, range: 1 };
+        }
+        case AssignmentKind.Claim: {
+            const controller = room.controller;
+            if (!controller) {
+                return { kind: ActionKind.Idle, reason: "no-controller" };
+            }
+            if (Math.max(Math.abs(creep.pos.x - controller.pos.x), Math.abs(creep.pos.y - controller.pos.y)) <= 1) {
+                return { kind: ActionKind.ClaimController, targetId: controller.id };
+            }
+            return { kind: ActionKind.MoveTo, pos: controller.pos, range: 1 };
+        }
+        case AssignmentKind.Pioneer:
+            return decidePioneer(creep, assignment, room);
         default:
             return { kind: ActionKind.Idle, reason: "unknown-kind" };
     }
@@ -108,6 +156,16 @@ function perform(creepName: string, action: Action): void {
         case ActionKind.Attack: {
             const target = resolve(action.targetId);
             rc = target ? creep.attack(target) : OK;
+            break;
+        }
+        case ActionKind.ReserveController: {
+            const target = resolve(action.targetId);
+            rc = target ? creep.reserveController(target) : OK;
+            break;
+        }
+        case ActionKind.ClaimController: {
+            const target = resolve(action.targetId);
+            rc = target ? creep.claimController(target) : OK;
             break;
         }
         case ActionKind.Upgrade: {

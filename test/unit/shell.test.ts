@@ -60,7 +60,7 @@ describe("shell", () => {
 
         it("resets on version rollback but keeps everything in KEEP_ON_RESET", () => {
             ensureAndMigrate();
-            Memory.intel = { W5N5: { seen: true } };
+            Memory.intel = { v: 1, rooms: { W5N5: { lastSeen: 1, sources: [] } } };
             telemetry.countReset(50); // materializes Memory.stats
             const statsBefore = Memory.stats;
             Memory.rooms.W1N1 = {} as RoomMemory;
@@ -68,7 +68,7 @@ describe("shell", () => {
 
             ensureAndMigrate();
             expect(Memory.version).to.equal(CURRENT_VERSION);
-            expect(Memory.intel).to.deep.equal({ W5N5: { seen: true } });
+            expect(Memory.intel).to.deep.equal({ v: 1, rooms: { W5N5: { lastSeen: 1, sources: [] } } });
             expect(Memory.stats).to.equal(statsBefore);
             expect(Memory.rooms).to.deep.equal({});
             expect(sent.some(m => m.includes(AlertKind.Discontinuity))).to.equal(true);
@@ -115,12 +115,12 @@ describe("shell", () => {
         it("total loss: alerts, records empty ownership, does NOT reset", () => {
             checkWorldContinuity(["W1N1"]);
             Memory.rooms.W1N1 = {} as RoomMemory;
-            Memory.intel = { W1N1: { seen: 1 } };
+            Memory.intel = { v: 1, rooms: { W1N1: { lastSeen: 1, sources: [] } } };
             checkWorldContinuity([]);
             expect(Memory.shell!.owned).to.deep.equal([]);
             expect(sent.filter(m => m.includes(AlertKind.RoomLost))).to.have.length(1);
             expect(Memory.rooms.W1N1).to.deep.equal({});
-            expect(Memory.intel).to.deep.equal({ W1N1: { seen: 1 } });
+            expect(Memory.intel).to.deep.equal({ v: 1, rooms: { W1N1: { lastSeen: 1, sources: [] } } });
 
             checkWorldContinuity([]); // dead and waiting — quiet
             expect(sent.filter(m => m.includes(AlertKind.RoomLost))).to.have.length(1);
@@ -128,7 +128,7 @@ describe("shell", () => {
 
         it("respawn: selective reset keeps intel and stats, wipes the rest", () => {
             g().Game.time = 100;
-            Memory.intel = { W1N1: { seen: 1 } };
+            Memory.intel = { v: 1, rooms: { W1N1: { lastSeen: 1, sources: [] } } };
             telemetry.countReset(100);
             checkWorldContinuity(["W1N1"]);
             Memory.creeps.ghost = {} as CreepMemory;
@@ -141,7 +141,7 @@ describe("shell", () => {
             expect(Memory.shell).to.deep.equal({ owned: ["W7N7"], lostAt: {} });
             expect(Memory.rooms).to.deep.equal({});
             expect(Memory.creeps).to.deep.equal({});
-            expect(Memory.intel).to.deep.equal({ W1N1: { seen: 1 } });
+            expect(Memory.intel).to.deep.equal({ v: 1, rooms: { W1N1: { lastSeen: 1, sources: [] } } });
             expect(Memory.stats).to.not.equal(undefined);
         });
 
@@ -160,11 +160,11 @@ describe("shell", () => {
         it("treats a remembered world the shell never saw as discontinuity (deploy over foreign Memory)", () => {
             g().Game.time = 10;
             Memory.rooms.W3N3 = { v1Leftover: true } as unknown as RoomMemory;
-            Memory.intel = { W3N3: { seen: 1 } };
+            Memory.intel = { v: 1, rooms: { W3N3: { lastSeen: 1, sources: [] } } };
             checkWorldContinuity(["W1N1"]);
             expect(sent.some(m => m.includes(AlertKind.Discontinuity))).to.equal(true);
             expect(Memory.rooms).to.deep.equal({});
-            expect(Memory.intel).to.deep.equal({ W3N3: { seen: 1 } });
+            expect(Memory.intel).to.deep.equal({ v: 1, rooms: { W3N3: { lastSeen: 1, sources: [] } } });
             expect(Memory.shell!.owned).to.deep.equal(["W1N1"]);
         });
 
@@ -216,7 +216,14 @@ describe("shell", () => {
                 SubsystemId.DefenseResponse,
                 SubsystemId.Layout,
                 SubsystemId.Construction,
+                SubsystemId.Empire,
+                SubsystemId.Intel,
+                SubsystemId.RemotesPlan,
+                SubsystemId.Remotes,
+                SubsystemId.Expansion,
+                SubsystemId.ExpansionSpawn,
                 SubsystemId.Economy,
+                SubsystemId.EmpireAid,
                 SubsystemId.Spawn,
                 SubsystemId.CreepExecution,
                 SubsystemId.Movement,

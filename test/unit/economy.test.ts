@@ -98,6 +98,7 @@ function input(roster: CreepView[] = []): RoomPlanInput {
         orphans: [],
         sourceSpots: { srcA: 3, srcB: 3 },
         upgradeSpot: pos(25, 21),
+        allowRebuild: true,
         config: ECONOMY_CONFIG
     };
 }
@@ -225,11 +226,25 @@ describe("economy planner", () => {
         expect(byKind[AssignmentKind.Mine]).to.have.length(6);
     });
 
-    it("returns nothing for a room with no sources or no spawn", () => {
+    it("returns nothing for a sourceless room, but a REBUILD SKELETON for a spawnless one", () => {
         const noSources = { ...gateRoom(), sources: [] };
         expect(planRoom({ ...input(), room: noSources }).demands).to.have.length(0);
+
+        // M6: a spawnless owned room can't spawn its own recovery, so it emits the
+        // skeleton for empire's aid pass to re-home to a donor. Returning [] here
+        // made brokerAid a guaranteed no-op on its only real customer.
         const noSpawn = { ...gateRoom(), structures: {} };
-        expect(planRoom({ ...input(), room: noSpawn }).demands).to.have.length(0);
+        const skeleton = planRoom({ ...input(), room: noSpawn }).demands;
+        const kinds = skeleton.map(d => d.assignment.kind);
+        expect(kinds).to.include(AssignmentKind.Mine);
+        expect(kinds).to.include(AssignmentKind.Haul);
+        expect(kinds).to.include(AssignmentKind.Build);
+        expect(skeleton.every(d => d.home === "W1N1")).to.equal(true);
+        // Bootstrap-sized: the donor spawns these, and a 1300-body would wedge it.
+        expect(skeleton.find(d => d.assignment.kind === AssignmentKind.Mine)!.body).to.deep.equal(minerBody(300));
+
+        // ...but NOT while expansion is pioneering it: that bootstrap has an owner.
+        expect(planRoom({ ...input(), room: noSpawn, allowRebuild: false }).demands).to.have.length(0);
     });
 
     it("fields builders while sites are open and throttles upgraders to the floor", () => {

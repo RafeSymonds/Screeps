@@ -113,10 +113,16 @@ Steps, in order:
    counted against limits" rule froze half-built rooms forever). Demolition of
    badly-placed structures is deferred to a later milestone (needs dismantle logic);
    architecture.md §5.7 amended to match.
-2. **Anchor.** The first existing spawn by (y, x). No spawn (expansion/wipe-with-no-plan
-   case): the tile maximizing chebyshev distance to the nearest wall **or room edge**
-   (edges count as walls), ties by distance to the centroid of controller + sources,
-   then (y, x). The no-spawn branch is an M6 seam with unit tests, not a sim gate.
+2. **Anchor.** The first existing spawn by (y, x). No spawn (expansion claim, or a
+   wipe with no plan): clearance to the nearest wall **or room edge** is a
+   **threshold, not the objective** — among tiles within 2 of the room's best
+   clearance, take the one minimizing summed chebyshev distance to controller +
+   sources, ties by (y, x). (M6 review: maximizing clearance lexicographically
+   parks the anchor at the geometric centre regardless of where the sources are,
+   and pioneer build time runs ~`70 + 4d` per 200-energy cycle in the
+   anchor↔source distance — that single choice sets a permanent base's cost.
+   Distance is chebyshev, not BFS: equal on open terrain, far cheaper, and the
+   clearance threshold already rejects tiles walled off from the room.)
 3. **Core stamp** at anchor-relative offsets, all on the anchor's checkerboard parity —
    (x+y) mod 2; same-parity tiles are never orthogonally adjacent, so every building's
    four orthogonal neighbors stay walkable and the walkable lattice (connected via
@@ -148,14 +154,18 @@ Steps, in order:
    — relative (1,0) and (2,0), from which every other lab is within range 2 (checked
    in unit tests); the rest follow in (y, x) order. Placed at the first top-left
    position, in BFS-from-anchor order, where all 12 tiles are valid/unclaimed.
-8. **Links** — `[hub, controller, per-source closest-first]` order (provisional; M5
-   owns link logic and may re-version): hub = nearest unclaimed non-wall in-bounds
-   tile within chebyshev 1 of storage; controller link = same within 1 of the
-   controller container but at chebyshev ≥ 3 from the controller (outer ring — inner
-   tiles are upgrader seats); per source = same within 1 of that source's container
-   but not within 1 of the source (miner transfers at range 1 without losing a mining
-   seat). Any parity (they sit next to walkable containers); each absent if no
-   candidate. RCL8 allows 6; a 2-source room plans 4.
+8. **Links** — `[controller, farthest-source, hub, remaining sources]` order (M5,
+   planV 2: RCL5 allows two links and ctrl + farthest-source is the highest-value
+   pair — the original hub-first order spent slot two on a link nothing could empty):
+   hub = nearest unclaimed non-wall in-bounds tile within chebyshev 1 of storage;
+   controller link = same within 1 of the controller container but at chebyshev ≥ 3
+   from the controller (outer ring — inner tiles are upgrader seats); per source =
+   same within 1 of that source's container but not within 1 of the source (miner
+   transfers at range 1 without losing a mining seat). Any parity (they sit next to
+   walkable containers); each absent if no candidate. RCL8 allows 6; a 2-source room
+   plans 4. Consumers derive link ROLES geometrically from the room view
+   (economy.md Links), never from array order — incorporation scrambles order in
+   adopted bases.
 9. **Roads**: Dijkstra over cost grid — plain 2, swamp 10, wall ∞, planned/existing
    **obstacle** structures ∞ (containers, roads, ramparts are walkable and passable;
    the anchor tile is a legal search origin), planned-road 1 so later paths reuse

@@ -61,12 +61,11 @@ async function runScenario(opts = {}) {
   const botList = Object.entries(bots);
   if (!botList.length) throw new Error("scenario returned no bots");
 
-  // Neighbor terrain matters only when creeps cross borders (multi-room
-  // scenarios). Single-room runs skip it: every seeded room is one more room the
-  // processor sweeps EVERY tick — measured ~20% of tick time for 8 empty rooms.
-  // SIM_NEIGHBOR_RADIUS still overrides in both directions.
-  const defaultRadius = rooms.length > 1 ? 1 : 0;
-  await seedSurroundingTerrain(server, rooms, process.env.SIM_NEIGHBOR_RADIUS ? undefined : defaultRadius);
+  // Always seed neighbor terrain (radius 1): rooms that "exist" per describeExits
+  // but have no terrain are voids that trap scouts in endless 600-ops re-searches —
+  // sim-measured at 1.7 CPU/tick of movement and a 4-6x parallel-suite collapse.
+  // The ~20%/tick cost of empty neighbor rooms is the price of a truthful world.
+  await seedSurroundingTerrain(server, rooms);
 
   const consoleLines = [];
   const notifications = [];

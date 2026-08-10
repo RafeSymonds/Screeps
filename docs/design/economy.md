@@ -241,6 +241,29 @@ diff → adoptions, reassignments, demands.
 stops counting toward its slot, so the replacement demand appears while it still works
 and throughput never gaps across generations.
 
+## Links (M5 — the biggest principle-8 lever)
+
+One link transfer replaces a hauler round trip on its route, at 0.2 CPU per send and a
+3% toll on the receiver. Throughput is **distance-limited** (engine: cooldown = 1 ×
+chebyshev distance per send, capacity 800) — a 23-tile pair moving 400 per send caps
+at ~17 e/t; still transformative for the longest route. Layout's link array order is
+`[controller, farthest-source, hub, remaining sources]` (layout.md, planV 2): RCL5
+allows two links, and ctrl + farthest-source is the highest-value pair.
+
+**Role derivation is geometric, never positional** (incorporation scrambles array
+order in adopted bases): source link = within range 2 of a source; controller link =
+within range 2 of the upgrade spot; hub link = within range 2 of storage. Pure over
+the room view; ambiguous links are not transferred through.
+
+`planLinkTransfers(room, upgradeSpot)` (pure, a class-B step in runRoom): each source
+link with ≥ 400 energy and no cooldown sends to the controller link if it has ≥ 400
+free, else the hub link. Executor deltas (creeps.md): a miner beside a link transfers
+its store at ≥ half full (one intent per ~5 ticks — ~20% of harvest intents, the
+stated cost; the container beneath still catches overflow, and its decay upkeep
+remains — container retirement is M6 cleanup); upgraders refill from the controller
+link before the container. Haulers are unchanged — over-staffing on a link-served
+route self-corrects at generation turnover (declared simplification).
+
 ## Memory Schema
 
 Owner of `Memory.rooms[name].econ` (architecture §6's economy slice; the workforce plan

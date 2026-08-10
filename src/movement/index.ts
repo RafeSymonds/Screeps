@@ -26,6 +26,15 @@ interface CachedPath {
 
 const requests = new Map<string, MoveRequest>();
 const caches = new Map<string, CachedPath>();
+/** Negative cache: a search that THREW (target room off the sim's sparse map
+ *  grid, malformed goal) parks the creep instead of re-throwing every tick —
+ *  the error burst this prevents was sim-measured at maxSearchesPerTick/window. */
+const blockedUntil = new Map<string, number>();
+/** Per-creep search cool-off: cached steps are free, but a fresh 600-ops search
+ *  per creep per tick is how movement ate 1.7 CPU/tick (sim-measured). */
+const searchedAt = new Map<string, { time: number; goal: string }>();
+const SEARCH_COOLDOWN = 5;
+const goalKey = (req: MoveRequest): string => `${req.to.x},${req.to.y},${req.to.roomName},${req.range}`;
 let matrixTick = -1;
 const matrices = new Map<string, CostMatrix>();
 
@@ -170,25 +179,47 @@ export function resolveMoves(ctx: TickContext): void {
             stamped = true;
         }
 
+        if ((blockedUntil.get(name) ?? 0) > ctx.snapshot.time) {
+            continue; // known-unreachable goal; re-try after the cool-off
+        }
+        const lastSearch = searchedAt.get(name);
+        if (
+            !stamped &&
+            lastSearch !== undefined &&
+            lastSearch.goal === goalKey(req) &&
+            ctx.snapshot.time - lastSearch.time < SEARCH_COOLDOWN
+        ) {
+            continue; // same goal, just searched: stand rather than churn the ops
+            // pool (stuck-repaths and changed goals are exempt — the first is
+            // already rate-limited, the second is genuinely new work)
+        }
         if (searches >= CFG.maxSearchesPerTick || opsPool <= 0) {
             deferred++;
             continue; // stands this tick; walking late beats blowing the budget
         }
         const sameRoom = pos.roomName === req.to.roomName;
         const maxOps = Math.min(CFG.maxOpsPerSearch, opsPool);
-        const goal = { pos: new RoomPosition(req.to.x, req.to.y, req.to.roomName), range: req.range };
-        const result = PathFinder.search(pos, goal, {
-            maxOps,
-            plainCost: CFG.plainCost,
-            swampCost: CFG.swampCost,
-            maxRooms: sameRoom ? 1 : 16,
-            roomCallback: roomName =>
-                stamped && roomName === pos.roomName
-                    ? stuckMatrix(ctx, roomName, name)
-                    : roomMatrix(ctx, roomName) ?? new PathFinder.CostMatrix()
-        });
+        let result: PathFinderPath;
+        try {
+            const goal = { pos: new RoomPosition(req.to.x, req.to.y, req.to.roomName), range: req.range };
+            result = PathFinder.search(pos, goal, {
+                maxOps,
+                plainCost: CFG.plainCost,
+                swampCost: CFG.swampCost,
+                maxRooms: sameRoom ? 1 : 16,
+                roomCallback: roomName =>
+                    stamped && roomName === pos.roomName
+                        ? stuckMatrix(ctx, roomName, name)
+                        : roomMatrix(ctx, roomName) ?? new PathFinder.CostMatrix()
+            });
+        } catch (err) {
+            blockedUntil.set(name, ctx.snapshot.time + 100);
+            log.debug(SubsystemId.Movement, () => `${name} search threw for ${req.to.roomName}: ${String(err)}`);
+            continue;
+        }
         opsPool -= result.ops;
         searches++;
+        searchedAt.set(name, { time: ctx.snapshot.time, goal: goalKey(req) });
         if (result.incomplete) {
             log.debug(SubsystemId.Movement, () => `${name} incomplete path (${result.ops} ops)`);
         }
@@ -266,4 +297,6 @@ export function _clearForTest(): void {
     matrices.clear();
     matrixTick = -1;
     issued.clear();
+    blockedUntil.clear();
+    searchedAt.clear();
 }

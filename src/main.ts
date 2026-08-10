@@ -8,6 +8,11 @@ import type { EconMemory } from "economy/index";
 import type { LayoutMemory } from "layout/index";
 import type { BuildMemory } from "construction/index";
 import type { DefenseMemory } from "defense/index";
+import type { SpawnMemory } from "spawn/index";
+import type { IntelMemory } from "intel/index";
+import type { RemotesMemory } from "remotes/index";
+import type { EmpireMemory } from "empire/index";
+import type { ExpansionMemory } from "expansion/index";
 
 declare global {
     /*
@@ -18,8 +23,10 @@ declare global {
     interface Memory {
         version?: number;
         shell?: ShellMemory;
-        intel?: Record<string, unknown>;
+        intel?: IntelMemory;
         stats?: StatsMemory;
+        empire?: EmpireMemory;
+        expansion?: ExpansionMemory;
     }
 
     interface RoomMemory {
@@ -27,6 +34,8 @@ declare global {
         layout?: LayoutMemory;
         build?: BuildMemory;
         defense?: DefenseMemory;
+        remotes?: RemotesMemory;
+        spawn?: SpawnMemory;
     }
 
     interface CreepMemory {

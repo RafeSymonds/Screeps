@@ -29,6 +29,11 @@ export interface RoomPlanInput {
     /** Walkable tiles adjacent to each source id. */
     sourceSpots: Record<string, number>;
     upgradeSpot: Pos;
+    /** Emit the rebuild skeleton for a spawnless room? FALSE while expansion is
+     *  pioneering it — that bootstrap already has an owner, and running both
+     *  would double-load the sponsor's spawn queue with two uncoordinated
+     *  crews. Rebuild is for a room that LOST its spawn (empire.md Crippled). */
+    allowRebuild: boolean;
     config: EconomyConfig;
 }
 
@@ -96,8 +101,48 @@ function assignmentOf(creep: CreepView): Assignment | undefined {
     return (creep.memory as { assignment?: Assignment }).assignment;
 }
 
+/** Miner + hauler + builders, all at bootstrap size: enough labor to rebuild a
+ *  spawn from a donor room's spawn queue. See economy.md / empire.md. */
+function rebuildSkeleton(room: RoomSnapshot, config: EconomyConfig): SpawnDemand[] {
+    const source = room.sources[0];
+    if (!source) {
+        return [];
+    }
+    const demands: SpawnDemand[] = [
+        {
+            id: `mine:${room.name}:rebuild`,
+            priority: PRIORITY_BOOTSTRAP_MINER,
+            home: room.name,
+            owner: SubsystemId.Economy,
+            assignment: { kind: AssignmentKind.Mine, room: room.name, sourceId: source.id },
+            body: minerBody(300),
+            minBody: MINER_MIN_BODY
+        },
+        {
+            id: `haul:${room.name}:rebuild`,
+            priority: PRIORITY_BOOTSTRAP_HAULER,
+            home: room.name,
+            owner: SubsystemId.Economy,
+            assignment: { kind: AssignmentKind.Haul, room: room.name, sourceId: source.id },
+            body: haulerBody(300),
+            minBody: HAULER_MIN_BODY
+        }
+    ];
+    for (let slot = 0; slot < config.builders; slot++) {
+        demands.push({
+            id: `build:${room.name}:rebuild:${slot}`,
+            priority: PRIORITY_BUILDER,
+            home: room.name,
+            owner: SubsystemId.Economy,
+            assignment: { kind: AssignmentKind.Build, room: room.name },
+            body: builderBody(300)
+        });
+    }
+    return demands;
+}
+
 export function planRoom(input: RoomPlanInput): RoomPlan {
-    const { room, roster, orphans, sourceSpots, upgradeSpot, config } = input;
+    const { room, roster, orphans, sourceSpots, upgradeSpot, allowRebuild, config } = input;
     if (room.sources.length === 0) {
         return { demands: [], adoptions: [], reassignments: [] };
     }
@@ -117,7 +162,17 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
 
     const spawnView = room.structures[STRUCTURE_SPAWN]?.[0];
     if (!spawnView) {
-        return { demands: [], adoptions: [], reassignments: [] }; // nowhere to spawn from
+        // M6: a spawnless owned room emits the REBUILD SKELETON rather than
+        // bailing. It cannot spawn these itself — by definition — so empire's aid
+        // pass re-homes them to a donor; layout kept the plan, construction places
+        // spawn[0] under its spawnless exception, and these builders rebuild it.
+        // (Returning [] here made brokerAid a guaranteed no-op: the canonical
+        // crippled room emitted nothing to broker.)
+        return {
+            demands: allowRebuild ? rebuildSkeleton(room, config) : [],
+            adoptions: [],
+            reassignments: []
+        };
     }
 
     // Sources ordered closest-to-spawn (ties by id) — priority and round-robin order.

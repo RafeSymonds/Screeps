@@ -19,7 +19,8 @@ export enum AlertKind {
     RoomLost = "roomLost",
     Discontinuity = "discontinuity",
     CorruptSlice = "corruptSlice",
-    SafeMode = "safeMode"
+    SafeMode = "safeMode",
+    ExpansionStalled = "expansionStalled"
 }
 
 export interface EntryStats {
@@ -165,6 +166,17 @@ export function flush(): void {
         stats.counters.errors += window.errors;
         window = emptyWindow();
     });
+}
+
+/** §6-blessed read of the stats slice — expansion's CPU-headroom gate needs the
+ *  last full window's average and must not reach into Memory.stats directly. */
+export function lastWindowAvgCpu(): number | undefined {
+    const stats = Memory.stats;
+    if (!stats?.ring || stats.ring.length === 0) {
+        return undefined;
+    }
+    const idx = (stats.head - 1 + stats.ring.length) % stats.ring.length;
+    return stats.ring[idx]?.avgCpu;
 }
 
 /** Shell calls once per fresh heap. Persists immediately — a crash loop never flushes. */

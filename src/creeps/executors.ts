@@ -9,6 +9,7 @@ import {
     DefendAssignment,
     HaulAssignment,
     MineAssignment,
+    PioneerAssignment,
     UpgradeAssignment
 } from "shared/assignments";
 import { buildPriorityIndex } from "shared/build";
@@ -80,6 +81,14 @@ export function decideMine(creep: CreepView, a: MineAssignment, room: RoomSnapsh
         if (containerEnergy(container) > 0) {
             return { kind: ActionKind.Withdraw, targetId: container.id, resource: RESOURCE_ENERGY };
         }
+    }
+    // Link feed (M5): a link beside the seat receives the store at ≥ half full —
+    // one transfer intent per ~5 saturated ticks (economy.md Links).
+    const link = (room.structures[STRUCTURE_LINK] ?? []).find(
+        l => chebyshev(l.pos, creep.pos) <= 1 && (l.store?.free ?? 0) > 0
+    );
+    if (link && creep.store.used * 2 >= creep.store.used + creep.store.free) {
+        return { kind: ActionKind.Transfer, targetId: link.id, resource: RESOURCE_ENERGY };
     }
     return { kind: ActionKind.Harvest, targetId: source.id };
 }
@@ -228,6 +237,16 @@ export function decideUpgrade(
         }
         return { kind: ActionKind.MoveTo, pos: controller.pos, range: 3 };
     }
+    // Controller link first (M5): the fresher feed, if one stands by the spot.
+    const ctrlLink = (room.structures[STRUCTURE_LINK] ?? []).find(
+        l => chebyshev(l.pos, anchor) <= 2 && (l.store?.byResource[RESOURCE_ENERGY] ?? 0) > 0
+    );
+    if (ctrlLink) {
+        if (chebyshev(creep.pos, ctrlLink.pos) <= 1) {
+            return { kind: ActionKind.Withdraw, targetId: ctrlLink.id, resource: RESOURCE_ENERGY };
+        }
+        return { kind: ActionKind.MoveTo, pos: ctrlLink.pos, range: 1 };
+    }
     if (container && containerEnergy(container) > 0) {
         if (chebyshev(creep.pos, container.pos) <= 1) {
             return { kind: ActionKind.Withdraw, targetId: container.id, resource: RESOURCE_ENERGY };
@@ -372,4 +391,46 @@ function stepAwayFrom(pos: Pos, from: Pos): Pos {
         y: Math.min(48, Math.max(1, pos.y + dy)),
         roomName: pos.roomName
     };
+}
+
+/**
+ * Pioneer (M6): the ONE role that harvests and builds and upgrades, because a
+ * freshly claimed room has no miners, no haulers, and no spawn to make them.
+ * Precedence: refill by harvesting → build the spawn site → upgrade (which at
+ * level 1 is not polish: the 20k downgrade timer runs down while we build, and
+ * expiry unclaims the room outright).
+ */
+export function decidePioneer(creep: CreepView, _a: PioneerAssignment, room: RoomSnapshot): Action {
+    // Fill-then-spend, statelessly: harvesting takes many ticks, so "empty →
+    // collect, else deliver" (every other executor's rule) would send a pioneer
+    // to the site after ONE tick of harvest carrying 4 energy. Position closes
+    // the loop instead — adjacent to a source and not full means keep harvesting;
+    // away from a source with a load means go spend it.
+    if (creep.store.free > 0) {
+        const source = nearest(creep.pos, room.sources);
+        if (source && chebyshev(creep.pos, source.pos) <= 1) {
+            return { kind: ActionKind.Harvest, targetId: source.id };
+        }
+        if (creep.store.used === 0) {
+            if (!source) {
+                return { kind: ActionKind.Idle, reason: "no-source" };
+            }
+            return { kind: ActionKind.MoveTo, pos: source.pos, range: 1 };
+        }
+    }
+    const site = room.myConstructionSites.find(s => s.type === STRUCTURE_SPAWN) ?? room.myConstructionSites[0];
+    if (site) {
+        if (chebyshev(creep.pos, site.pos) <= 3) {
+            return { kind: ActionKind.Build, targetId: site.id };
+        }
+        return { kind: ActionKind.MoveTo, pos: site.pos, range: 3 };
+    }
+    const controller = room.controller;
+    if (!controller) {
+        return { kind: ActionKind.Idle, reason: "no-controller" };
+    }
+    if (chebyshev(creep.pos, controller.pos) <= 3) {
+        return { kind: ActionKind.Upgrade, targetId: controller.id };
+    }
+    return { kind: ActionKind.MoveTo, pos: controller.pos, range: 3 };
 }

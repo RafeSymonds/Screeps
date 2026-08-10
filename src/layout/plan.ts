@@ -23,8 +23,9 @@ export interface BasePlan {
     places: Partial<Record<BuildableStructureConstant, Pos[]>>;
 }
 
-/** Bump when the algorithm changes shape; forces a recompute (layout.md). */
-export const LAYOUT_PLAN_VERSION = 1;
+/** Bump when the algorithm changes shape; forces a recompute (layout.md).
+ *  v2 (M5): link array order became [controller, farthest-source, hub, rest]. */
+export const LAYOUT_PLAN_VERSION = 2;
 
 /** Packing matches snapshot/terrain's grid index convention. */
 export const pack = (x: number, y: number): number => y * 50 + x;
@@ -231,10 +232,10 @@ export function chooseAnchor(input: LayoutInput): Pos | undefined {
             clearance[p] = Math.min(clearance[p], 1 + Math.min(at(x + 1, y), at(x, y + 1), at(x + 1, y + 1), at(x - 1, y + 1)));
         }
     }
+    // Candidate tiles: valid, non-adjacent to POIs.
     const pois = [input.controller, ...input.sources];
-    const cx = pois.reduce((s, p) => s + p.x, 0) / pois.length;
-    const cy = pois.reduce((s, p) => s + p.y, 0) / pois.length;
-    let best: { x: number; y: number; clear: number; cent: number } | undefined;
+    const candidates: { x: number; y: number; clear: number; toPois: number }[] = [];
+    let maxClear = 0;
     for (let y = 2; y <= 47; y++) {
         for (let x = 2; x <= 47; x++) {
             if (input.terrain.isWall(x, y)) continue;
@@ -242,10 +243,22 @@ export function chooseAnchor(input: LayoutInput): Pos | undefined {
             if (input.sources.some(s => cheb(x, y, s) <= 1)) continue;
             if (input.mineral && cheb(x, y, input.mineral) <= 1) continue;
             const clear = clearance[pack(x, y)];
-            const cent = Math.max(Math.abs(x - cx), Math.abs(y - cy));
-            if (!best || clear > best.clear || (clear === best.clear && cent < best.cent)) {
-                best = { x, y, clear, cent };
-            }
+            const toPois = pois.reduce((sum, p) => sum + cheb(x, y, p), 0);
+            candidates.push({ x, y, clear, toPois });
+            maxClear = Math.max(maxClear, clear);
+        }
+    }
+    // Clearance is a THRESHOLD, not the objective (M6 review): maximizing it
+    // lexicographically puts the anchor at the room's geometric centre regardless
+    // of where the sources are — and pioneer build time is ~(70 + 4d) per cycle in
+    // the anchor↔source distance d, so that choice sets a permanent base's cost.
+    // Among tiles that are open enough, take the one closest to the work.
+    const floor = Math.max(1, maxClear - 2);
+    let best: { x: number; y: number; toPois: number } | undefined;
+    for (const c of candidates) {
+        if (c.clear < floor) continue;
+        if (!best || c.toPois < best.toPois || (c.toPois === best.toPois && (c.y < best.y || (c.y === best.y && c.x < best.x)))) {
+            best = { x: c.x, y: c.y, toPois: c.toPois };
         }
     }
     return best ? { x: best.x, y: best.y, roomName: input.roomName } : undefined;
@@ -432,16 +445,31 @@ function placeLabBlock(ctx: Ctx): Pos[] {
     return [];
 }
 
-/** Step 8: links next to storage / controller container / source containers. */
+/** Step 8: links — [controller, farthest-source, hub, remaining sources] order
+ *  (M5, planV 2): RCL5 allows two, and ctrl + farthest-source is the
+ *  highest-value pair (hub-first spent slot two on a link nothing could empty). */
 function placeLinks(ctx: Ctx, ctrlContainer: Pos | undefined): void {
-    const { input } = ctx;
+    const { input, anchorDist } = ctx;
+    const dOf = (p: Pos): number => {
+        const d = anchorDist[pack(p.x, p.y)];
+        return d === -1 ? Infinity : d;
+    };
+    const sourcesFarFirst = [...input.sources].sort((a, b) => dOf(b) - dOf(a) || byYX(a, b));
     const hosts: { host: Pos | undefined; extra?: (x: number, y: number) => boolean }[] = [
-        { host: ctx.places[STRUCTURE_STORAGE]?.[0] },
         {
             host: ctrlContainer,
             extra: (x, y) => cheb(x, y, input.controller) >= 3
         },
-        ...input.sources.map(source => ({
+        ...(sourcesFarFirst.length > 0
+            ? [
+                  {
+                      host: (ctx.places[STRUCTURE_CONTAINER] ?? []).find(c => cheb(c.x, c.y, sourcesFarFirst[0]) <= 1),
+                      extra: (x: number, y: number) => cheb(x, y, sourcesFarFirst[0]) >= 2
+                  }
+              ]
+            : []),
+        { host: ctx.places[STRUCTURE_STORAGE]?.[0] },
+        ...sourcesFarFirst.slice(1).map(source => ({
             host: (ctx.places[STRUCTURE_CONTAINER] ?? []).find(c => cheb(c.x, c.y, source) <= 1),
             extra: (x: number, y: number) => cheb(x, y, source) >= 2
         }))

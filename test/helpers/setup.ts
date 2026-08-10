@@ -68,6 +68,8 @@ g.ATTACK = "attack";
 g.RANGED_ATTACK = "ranged_attack";
 g.HEAL = "heal";
 g.CLAIM = "claim";
+g.RESOURCE_UTRIUM = "U";
+g.RESOURCE_LEMERGIUM = "L";
 g.TOUGH = "tough";
 g.BODYPART_COST = { move: 50, work: 100, carry: 50, attack: 80, ranged_attack: 150, heal: 250, claim: 600, tough: 10 };
 
