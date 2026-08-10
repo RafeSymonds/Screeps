@@ -86,12 +86,18 @@ bin/sim test                  # run all
 bin/sim test -- --grep defense  # only matching
 ```
 
-The files run **serially**: the suite has multiple long tests (remote-mining and
-remote-invader each tick ~900 times), and two concurrent engines degrade each other ~3x on a
-typical Docker Desktop allotment — enough to blow per-test timeouts (this bit us in July 2026;
-`mocha --parallel` was removed then). Iterate on one test with `-- --grep <name>`. Keep each
-scenario's tick count to the minimum that proves the behavior — engine ticks are ~the only
-cost (~0.5s each).
+The files run **in parallel, one scenario suite per file** (`mocha --parallel`, workers
+tuned by `SIM_JOBS`, default 4; `SIM_JOBS=1` restores serial for debugging). Each
+`runScenario` isolates its own server, port range (pid-derived), and storage dir, so
+workers never collide; wall clock ≈ the slowest single scenario instead of the sum
+(~70 min serial → ~40 min at 4 jobs on a 12-CPU Docker allotment — the July 2026
+"parallel degrades 3×" note predated the rebuild's CPU allotment and is retired).
+Two more speed levers live in the harness: notifications drain every 10 ticks instead
+of every tick (per-tick IPC was pure overhead), and multi-room scenarios fork a second
+engine processor onto the shared rooms queue. Workflow: iterate on ONE suite with
+`-- --grep <name>`; run the full suite before every milestone commit. Keep each
+scenario's tick count to the minimum that proves the behavior — engine ticks are ~the
+only cost (~0.3s each).
 
 Tests use the shared `lib/harness.js`:
 

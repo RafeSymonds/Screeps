@@ -18,7 +18,8 @@ export enum AlertKind {
     ResetLoop = "resetLoop",
     RoomLost = "roomLost",
     Discontinuity = "discontinuity",
-    CorruptSlice = "corruptSlice"
+    CorruptSlice = "corruptSlice",
+    SafeMode = "safeMode"
 }
 
 export interface EntryStats {

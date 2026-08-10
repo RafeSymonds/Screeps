@@ -298,6 +298,29 @@ describe("economy planner", () => {
         expect(quiet.reassignments).to.have.length(0);
     });
 
+    it("sizes bodies to 300 while income staffing is below floor (wipe recovery)", () => {
+        // A wiped high-cap room: no creeps, cap 1300 — bodies must NOT be 1300-sized.
+        const rich = gateRoom();
+        rich.energyCapacityAvailable = 1300;
+        rich.energyAvailable = 1300;
+        const wiped = planRoom({ ...input(), room: rich });
+        const miner = wiped.demands.find(d => d.assignment.kind === AssignmentKind.Mine)!;
+        const hauler = wiped.demands.find(d => d.assignment.kind === AssignmentKind.Haul)!;
+        expect(miner.body).to.deep.equal(minerBody(300));
+        expect(hauler.body).to.deep.equal(haulerBody(300));
+
+        // Income staffed (2 miners, 2 haulers alive): replacements size to capacity.
+        const staffed = [
+            worker(AssignmentKind.Mine, "srcA"),
+            worker(AssignmentKind.Mine, "srcB"),
+            worker(AssignmentKind.Haul, "srcA"),
+            worker(AssignmentKind.Haul, "srcB")
+        ];
+        const healthy = planRoom({ ...input(staffed), room: rich });
+        const bigUpgrader = healthy.demands.find(d => d.assignment.kind === AssignmentKind.Upgrade)!;
+        expect(bigUpgrader.body).to.deep.equal(upgraderBody(1300));
+    });
+
     it("adopts orphans into gaps by body fit instead of spawning", () => {
         // A [W,C,M] generalist fills the first (miner) gap; its spawn demand disappears.
         const plan = planRoom({ ...input(), orphans: [orphan("seed0", { [WORK]: 1, [CARRY]: 1, [MOVE]: 1 })] });

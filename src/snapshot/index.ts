@@ -85,6 +85,9 @@ function toControllerView(controller: StructureController): ControllerView {
     if (controller.safeMode !== undefined) {
         view.safeMode = controller.safeMode;
     }
+    if (controller.safeModeCooldown !== undefined) {
+        view.safeModeCooldown = controller.safeModeCooldown;
+    }
     if (controller.upgradeBlocked !== undefined) {
         view.upgradeBlocked = controller.upgradeBlocked;
     }

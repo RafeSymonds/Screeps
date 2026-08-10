@@ -17,7 +17,8 @@ const { seedSurroundingTerrain } = require("../scenarios/_world");
 
 // Per-process base port so `mocha --parallel` workers never collide on storage
 // ports/dirs (each worker is a separate process with its own counter).
-let nextPort = 21025 + (process.pid % 1000) * 4;
+// Wide per-pid stride: parallel mocha workers must never share a port range.
+let nextPort = 21025 + (process.pid % 1000) * 16;
 
 function readBotModules(botMain, botMap) {
   botMain = botMain || process.env.BOT_MAIN || "/bot/main.js";
@@ -73,6 +74,17 @@ async function runScenario(opts = {}) {
 
   await server.start();
 
+  // Multi-room scenarios: fork a second processor onto the shared rooms queue so
+  // rooms process in parallel (the mockup starts exactly one; we have CPU to spare).
+  if (rooms.length > 1) {
+    const enginePath = path.dirname(require.resolve("@screeps/engine"));
+    await server.startProcess("engine_processor2", path.join(enginePath, "processor.js"), {
+      DRIVER_MODULE: "@screeps/driver",
+      MODFILE: path.join(base, "db.json"), // mirror the mockup's own processor env exactly
+      STORAGE_PORT: `${port}`
+    });
+  }
+
   const timeline = [];
   const memories = {};
   try {
@@ -80,9 +92,14 @@ async function runScenario(opts = {}) {
       await server.tick();
       const t = await server.world.gameTime;
 
-      for (const [name, bot] of botList) {
-        const notifs = await bot.newNotifications;
-        for (const n of notifs) notifications.push({ name, t, message: n.message });
+      // Notifications drain on a coarse cadence — a per-tick IPC query was pure
+      // overhead; tests only assert on their content, and `t` attribution at
+      // drain-tick granularity is fine.
+      if (i % 10 === 0 || i === ticks) {
+        for (const [name, bot] of botList) {
+          const notifs = await bot.newNotifications;
+          for (const n of notifs) notifications.push({ name, t, message: n.message });
+        }
       }
 
       if (every === 1 || i % every === 0 || i === ticks) {

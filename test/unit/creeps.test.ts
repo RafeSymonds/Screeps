@@ -1,8 +1,16 @@
 import { expect } from "../helpers/chai";
-import { AssignmentKind, BuildAssignment, HaulAssignment, MineAssignment, UpgradeAssignment } from "shared/assignments";
-import { ConstructionSiteView, CreepView, DroppedView, Pos, RoomSnapshot, StructureView } from "shared/views";
+import {
+    AssignmentKind,
+    BuildAssignment,
+    DefendAssignment,
+    HaulAssignment,
+    MineAssignment,
+    UpgradeAssignment
+} from "shared/assignments";
+import { ConstructionSiteView, CreepView, DroppedView, HostileView, Pos, RoomSnapshot, StructureView } from "shared/views";
+import { FortifyTarget } from "defense/fortify";
 import { ActionKind } from "creeps/actions";
-import { decideBuild, decideHaul, decideMine, decideUpgrade } from "creeps/executors";
+import { decideBuild, decideDefend, decideHaul, decideMine, decideUpgrade } from "creeps/executors";
 
 function pos(x: number, y: number): Pos {
     return { x, y, roomName: "W1N1" };
@@ -389,6 +397,117 @@ describe("build executor", () => {
         expect(decideBuild(creepAt(pos(25, 20), 50), build, roomWith(), SPOT)).to.deep.equal({
             kind: ActionKind.Upgrade,
             targetId: "ctrl"
+        });
+    });
+
+    it("repairs emergency fortifications before the focus site, then fortifies, then upgrades", () => {
+        const fresh: FortifyTarget = { id: "ram1" as Id<AnyStructure>, pos: pos(24, 24), hits: 1, targetHits: 10000 };
+        const healthy: FortifyTarget = { id: "ram2" as Id<AnyStructure>, pos: pos(26, 24), hits: 8000, targetHits: 10000 };
+        const sites = [site("s1", STRUCTURE_EXTENSION, pos(23, 23), 0, 3000)];
+        // Emergency (1 hit) outranks the site.
+        expect(decideBuild(creepAt(pos(25, 24), 50), build, roomWithSites(sites), SPOT, [fresh])).to.deep.equal({
+            kind: ActionKind.Repair,
+            targetId: "ram1"
+        });
+        // Above the emergency floor: the site wins.
+        expect(decideBuild(creepAt(pos(25, 24), 50), build, roomWithSites(sites), SPOT, [healthy])).to.deep.equal({
+            kind: ActionKind.Build,
+            targetId: "s1"
+        });
+        // No sites: fortify the neediest target.
+        expect(decideBuild(creepAt(pos(25, 24), 50), build, roomWith(), SPOT, [healthy])).to.deep.equal({
+            kind: ActionKind.Repair,
+            targetId: "ram2"
+        });
+    });
+});
+
+describe("defend executor", () => {
+    const defend: DefendAssignment = { kind: AssignmentKind.Defend, room: "W1N1" };
+    const armed = (id: string, p: Pos): HostileView => ({
+        id: id as Id<Creep>,
+        pos: p,
+        owner: "Raiders",
+        hits: 500,
+        bodyCounts: { [ATTACK]: 2, [MOVE]: 2 }
+    });
+
+    it("pursues and attacks the nearest armed hostile", () => {
+        const room = roomWith({ hostiles: [armed("far", pos(5, 5)), armed("near", pos(26, 26))] });
+        expect(decideDefend(creepAt(pos(25, 25), 0), defend, room)).to.deep.equal({
+            kind: ActionKind.Attack,
+            targetId: "near"
+        });
+        expect(decideDefend(creepAt(pos(40, 40), 0), defend, room)).to.deep.equal({
+            kind: ActionKind.MoveTo,
+            pos: pos(26, 26),
+            range: 1
+        });
+    });
+
+    it("ignores unarmed hostiles and parks at the spawn when quiet", () => {
+        const scoutOnly = roomWith({
+            hostiles: [{ id: "s1" as Id<Creep>, pos: pos(10, 10), owner: "Raiders", hits: 100, bodyCounts: { [MOVE]: 1 } }]
+        });
+        expect(decideDefend(creepAt(pos(40, 40), 0), defend, scoutOnly)).to.deep.equal({
+            kind: ActionKind.MoveTo,
+            pos: pos(25, 25),
+            range: 2
+        });
+        expect(decideDefend(creepAt(pos(25, 24), 0), defend, scoutOnly).kind).to.equal(ActionKind.Idle);
+    });
+});
+
+describe("haul executor at war and with storage", () => {
+    it("promotes towers ahead of spawn while hostiles are present", () => {
+        const war = roomWith({
+            hostiles: [{ id: "r1" as Id<Creep>, pos: pos(10, 10), owner: "Raiders", hits: 500, bodyCounts: { [ATTACK]: 2 } }]
+        });
+        war.structures[STRUCTURE_TOWER] = [
+            {
+                id: "tow1" as Id<AnyStructure>,
+                type: STRUCTURE_TOWER,
+                pos: pos(24, 26),
+                hits: 3000,
+                hitsMax: 3000,
+                store: { free: 500, used: 500, byResource: { energy: 500 } }
+            }
+        ];
+        // Spawn has free capacity — peacetime order would pick it; war picks the tower.
+        expect(decideHaul(creepAt(pos(24, 25), 150), haul, war, SPOT)).to.deep.equal({
+            kind: ActionKind.Transfer,
+            targetId: "tow1",
+            resource: RESOURCE_ENERGY
+        });
+    });
+
+    it("withdraws from storage only while spawn-side needs energy, deposits when full", () => {
+        const stored = roomWith();
+        stored.structures[STRUCTURE_STORAGE] = [
+            {
+                id: "stor1" as Id<AnyStructure>,
+                type: STRUCTURE_STORAGE,
+                pos: pos(25, 27),
+                hits: 10000,
+                hitsMax: 10000,
+                store: { free: 400000, used: 500000, byResource: { energy: 500000 } }
+            }
+        ];
+        // Empty hauler, spawn has free capacity, no piles/containers → storage run.
+        expect(decideHaul(creepAt(pos(25, 26), 0), haul, stored, SPOT)).to.deep.equal({
+            kind: ActionKind.Withdraw,
+            targetId: "stor1",
+            resource: RESOURCE_ENERGY
+        });
+        // Spawn-side full → no withdraw (step-off/idle instead)…
+        stored.structures[STRUCTURE_SPAWN]![0].store = { free: 0, used: 300, byResource: { energy: 300 } };
+        expect(decideHaul(creepAt(pos(25, 26), 0), haul, stored, SPOT).kind).to.equal(ActionKind.Idle);
+        // …and a carrying hauler with a fed controller deposits INTO storage before dropping.
+        stored.structures[STRUCTURE_CONTAINER] = [container("ctrlCont", SPOT, 2000)]; // feed full
+        expect(decideHaul(creepAt(pos(25, 26), 150), haul, stored, SPOT)).to.deep.equal({
+            kind: ActionKind.Transfer,
+            targetId: "stor1",
+            resource: RESOURCE_ENERGY
         });
     });
 });

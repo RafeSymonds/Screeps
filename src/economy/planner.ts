@@ -102,10 +102,18 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
         return { demands: [], adoptions: [], reassignments: [] };
     }
 
-    const cap = room.energyCapacityAvailable;
     const demands: SpawnDemand[] = [];
-    const anyMinersAlive = roster.some(c => assignmentOf(c)?.kind === AssignmentKind.Mine);
-    const anyHaulersAlive = roster.some(c => assignmentOf(c)?.kind === AssignmentKind.Haul);
+    const minersAlive = roster.filter(c => assignmentOf(c)?.kind === AssignmentKind.Mine).length;
+    const haulersAlive = roster.filter(c => assignmentOf(c)?.kind === AssignmentKind.Haul).length;
+    const anyMinersAlive = minersAlive > 0;
+    const anyHaulersAlive = haulersAlive > 0;
+
+    // Bootstrap sizing (economy.md, sim-caught in wiped-base): while income staffing
+    // is below floor, size EVERY body to 300 — a wiped high-cap room's full-cap
+    // bodies drain the banked stores once and then wedge the head-of-line queue on
+    // the spawn's 300-cap self-regen. Capacity-sized bodies are earned, not assumed.
+    const bootstrapping = minersAlive < room.sources.length || haulersAlive < Math.min(2, room.sources.length);
+    const cap = bootstrapping ? Math.min(room.energyCapacityAvailable, 300) : room.energyCapacityAvailable;
 
     const spawnView = room.structures[STRUCTURE_SPAWN]?.[0];
     if (!spawnView) {

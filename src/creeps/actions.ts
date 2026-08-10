@@ -13,6 +13,7 @@ export enum ActionKind {
     Upgrade = "upgrade",
     Build = "build",
     Repair = "repair",
+    Attack = "attack",
     MoveTo = "moveTo",
     Idle = "idle"
 }
@@ -26,6 +27,7 @@ export type Action =
     | { kind: ActionKind.Upgrade; targetId: Id<StructureController> }
     | { kind: ActionKind.Build; targetId: Id<ConstructionSite> }
     | { kind: ActionKind.Repair; targetId: Id<AnyStructure> }
+    | { kind: ActionKind.Attack; targetId: Id<Creep> }
     | { kind: ActionKind.MoveTo; pos: Pos; range: number }
     | { kind: ActionKind.Idle; reason: string };
 

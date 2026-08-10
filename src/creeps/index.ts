@@ -7,14 +7,34 @@ import { Assignment, AssignmentKind } from "shared/assignments";
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
 import { CreepView } from "shared/views";
+import { fortificationTargets } from "defense/index";
+import { FortifyTarget } from "defense/fortify";
 import { getUpgradeSpot } from "economy/index";
 import { requestMove } from "movement/index";
 import { resolve } from "snapshot/handles";
 import { log } from "telemetry/index";
 import { Action, ActionKind } from "creeps/actions";
-import { decideBuild, decideHaul, decideMine, decideUpgrade } from "creeps/executors";
+import { decideBuild, decideDefend, decideHaul, decideMine, decideUpgrade } from "creeps/executors";
 
 const idleTally: Record<string, number> = {};
+
+/** Per-tick memo: the fortify accessor scans room walls once per room, not per creep. */
+let fortifyTick = -1;
+const fortifyMemo = new Map<string, FortifyTarget[]>();
+
+function fortifyFor(ctx: TickContext, roomName: string): FortifyTarget[] {
+    if (fortifyTick !== ctx.snapshot.time) {
+        fortifyMemo.clear();
+        fortifyTick = ctx.snapshot.time;
+    }
+    let targets = fortifyMemo.get(roomName);
+    if (!targets) {
+        const room = ctx.snapshot.room(roomName);
+        targets = room ? fortificationTargets(roomName, room) : [];
+        fortifyMemo.set(roomName, targets);
+    }
+    return targets;
+}
 
 function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Action {
     const room = ctx.snapshot.room(assignment.room);
@@ -29,7 +49,9 @@ function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Act
         case AssignmentKind.Upgrade:
             return decideUpgrade(creep, assignment, room, getUpgradeSpot(assignment.room));
         case AssignmentKind.Build:
-            return decideBuild(creep, assignment, room, getUpgradeSpot(assignment.room));
+            return decideBuild(creep, assignment, room, getUpgradeSpot(assignment.room), fortifyFor(ctx, assignment.room));
+        case AssignmentKind.Defend:
+            return decideDefend(creep, assignment, room);
         default:
             return { kind: ActionKind.Idle, reason: "unknown-kind" };
     }
@@ -81,6 +103,11 @@ function perform(creepName: string, action: Action): void {
         case ActionKind.Repair: {
             const target = resolve(action.targetId);
             rc = target ? creep.repair(target) : OK;
+            break;
+        }
+        case ActionKind.Attack: {
+            const target = resolve(action.targetId);
+            rc = target ? creep.attack(target) : OK;
             break;
         }
         case ActionKind.Upgrade: {

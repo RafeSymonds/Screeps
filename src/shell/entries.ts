@@ -4,6 +4,7 @@
  */
 import { ScheduledEntry } from "shared/scheduling";
 import { CpuClass, SubsystemId } from "shared/subsystems";
+import * as defense from "defense/index";
 import * as layout from "layout/index";
 import * as construction from "construction/index";
 import * as economy from "economy/index";
@@ -14,6 +15,20 @@ import { TELEMETRY_CONFIG } from "telemetry/config";
 import { flush } from "telemetry/index";
 
 export const ENTRIES: ScheduledEntry[] = [
+    {
+        // First: assess + towers fire even when everything else sheds.
+        id: SubsystemId.DefenseTowers,
+        cpuClass: CpuClass.A,
+        perRoom: true,
+        run: (ctx, room) => defense.runTowers(ctx, room!)
+    },
+    {
+        // Demands must precede spawn; sheds under pressure while towers keep firing.
+        id: SubsystemId.DefenseResponse,
+        cpuClass: CpuClass.B,
+        perRoom: true,
+        run: (ctx, room) => defense.runResponse(ctx, room!)
+    },
     {
         // Interval 50 phase 7 co-fires with construction's 10/7 (ticks ≡ 43 mod 50)
         // by design — layout first, so a fresh plan is consumed the same tick;

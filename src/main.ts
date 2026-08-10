@@ -7,6 +7,7 @@ import type { StatsMemory } from "telemetry/index";
 import type { EconMemory } from "economy/index";
 import type { LayoutMemory } from "layout/index";
 import type { BuildMemory } from "construction/index";
+import type { DefenseMemory } from "defense/index";
 
 declare global {
     /*
@@ -25,6 +26,7 @@ declare global {
         econ?: EconMemory;
         layout?: LayoutMemory;
         build?: BuildMemory;
+        defense?: DefenseMemory;
     }
 
     interface CreepMemory {

@@ -179,16 +179,19 @@ engine requires an invader core in the sector; our worlds seed none — economy.
 long runs are safe; on the MMO the ~100k-harvested trigger is real exposure until M4.
 Architecture §8's M3 row updated to match.
 
-- `default`, ~6000 ticks, every 100 (measured: RCL2 ~t1050, 5th extension ~t3400,
-  container sites ~t3450): zero errors — all three checks (`engineErrors`,
-  `botErrors`, `stats.counters.errors === 0`); RCL2 by t1200 (M2 regression); 5
-  extensions by t3800; all three containers by t6000; upgrade resumes
-  post-infrastructure — progress gained t5000→t6000 ≥ 2000 (provisional floor;
-  tighten to measured − margin); controller progress monotonic within an RCL;
-  workforce ≥ 15 from t900 through t2500 (M2's generational continuity,
-  pre-extension era), ≥ 10 after (bigger bodies legitimately shrink the roster — the
-  cap is on slots, not spend); open sites ≤ 2 at every sampled snapshot (unit tests
-  enforce the budget exactly; the sampled assertion catches gross regressions only).
+- `default`, ~7500 ticks, every 100. **Run-to-run variance on infrastructure
+  milestones measured at ±800 ticks across identical-code runs** (movement
+  congestion + spawn-timing noise) — thresholds carry ~2× margin over the slowest
+  observed run so the gate detects regressions, not weather: zero errors — all
+  three checks (`engineErrors`, `botErrors`, `stats.counters.errors === 0`); RCL2
+  by t1200 (M2 regression; measured t780–1050); 5 extensions by t5000 (measured
+  t3400–4300); all three containers by t7000 (measured: third lands t5800–6300+);
+  total progress ≥ 13000 by t7500 — the slowest investment-locked run banks ~11000
+  by t6000 at the 1-upgrader floor, so this number is reachable only if the
+  upgrader throttle actually releases post-infrastructure (a windowed rate
+  assertion straddled the build era and flaked); controller progress monotonic
+  within an RCL; workforce ≥ 15 from t900 through t2500, ≥ 8 after (the 550-cap
+  turnover troughs at 9); open sites ≤ 2 at every sampled snapshot.
 - `growth`, ~3000 ticks, every 100: zero errors (all three checks); plan anchored on
   the pre-existing spawn — `memories.bot.rooms.W1N1.layout.anchor === 25*50+25`; ≥ 4
   extensions by t3000 (measured: income-first staffing delays first build to ~t1400,

@@ -208,6 +208,18 @@ uses `minBody` when the ideal is unaffordable — a fresh or wiped room recovers
 energy ≥ 100 + trickle. Builders and upgraders carry no minBody: they are never
 income-critical.
 
+**Bootstrap sizing** (M4, sim-caught in `wiped-base`): while income staffing is below
+floor — working miners < source count, or working haulers < min(2, source count) — **every
+economy body is sized to 300**, not to `energyCapacityAvailable`. Rationale: a wiped
+high-cap room's first full-cap miner (1300) drains the banked stores, after which
+every remaining ideal body is unaffordable on the spawn's 300-cap self-regen (the
+engine refills only the spawn, never extensions), minBody fires only for *empty*
+roles, and head-of-line blocking wedges the queue for thousands of ticks — measured:
+a wiped RCL4 room sat at 2–3 creeps for 1500+ ticks. At 300, the whole first
+generation spawns on the proven fresh-room path; once income stands, replacements
+size to full capacity through the normal pre-spawn rotation. Capacity-sized bodies
+are an *earned* state, not a birthright.
+
 **Orphan adoption** (new at M3): my creeps in the room with **no `home`** — seeded
 scenario workforces (`growth`), manual spawns, recovered worlds — are claimed instead of
 duplicated. The planner walks its gap list in priority order and fills each gap with the

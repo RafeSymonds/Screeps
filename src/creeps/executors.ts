@@ -3,9 +3,18 @@
  * All "nearest/biggest" choices are argmax over explicit candidates inside one
  * pure function (the only scoring the architecture permits). See docs/design/creeps.md.
  */
-import { AssignmentKind, BuildAssignment, HaulAssignment, MineAssignment, UpgradeAssignment } from "shared/assignments";
+import {
+    AssignmentKind,
+    BuildAssignment,
+    DefendAssignment,
+    HaulAssignment,
+    MineAssignment,
+    UpgradeAssignment
+} from "shared/assignments";
 import { buildPriorityIndex } from "shared/build";
-import { CreepView, DroppedView, Pos, RoomSnapshot, SourceView, StructureView } from "shared/views";
+import { CreepView, DroppedView, HostileView, Pos, RoomSnapshot, SourceView, StructureView } from "shared/views";
+import { DEFENSE_CONFIG } from "defense/config";
+import { FortifyTarget } from "defense/fortify";
 import { ECONOMY_CONFIG } from "economy/config";
 import { Action, ActionKind, chebyshev } from "creeps/actions";
 
@@ -105,6 +114,21 @@ export function decideHaul(
             }
             return { kind: ActionKind.MoveTo, pos: pile.pos, range: 1 };
         }
+        // Storage tier (M4): the reserve funds spawning and recovery — withdraw only
+        // while spawn-side has free capacity, so no hauler ever loops storage→storage.
+        const spawnSideNeedy = [
+            ...(room.structures[STRUCTURE_SPAWN] ?? []),
+            ...(room.structures[STRUCTURE_EXTENSION] ?? [])
+        ].some(s => (s.store?.free ?? 0) > 0);
+        const storage = (room.structures[STRUCTURE_STORAGE] ?? []).find(
+            s => (s.store?.byResource[RESOURCE_ENERGY] ?? 0) >= ECONOMY_CONFIG.minPickup
+        );
+        if (spawnSideNeedy && storage) {
+            if (chebyshev(creep.pos, storage.pos) <= 1) {
+                return { kind: ActionKind.Withdraw, targetId: storage.id, resource: RESOURCE_ENERGY };
+            }
+            return { kind: ActionKind.MoveTo, pos: storage.pos, range: 1 };
+        }
         // Nothing to collect: never squat a miner seat while idle.
         if (source && chebyshev(creep.pos, source.pos) <= 1) {
             const step = stepAwayFrom(creep.pos, source.pos);
@@ -113,10 +137,21 @@ export function decideHaul(
         return { kind: ActionKind.Idle, reason: "no-pile" };
     }
 
-    // Deliver: spawn/extensions → controller feed when starving → towers →
-    // controller container → drop at the spot. The starving clause keeps the floor
-    // upgrader (the downgrade guard) fed even while big-body spawning drains the
-    // spawn/extension sinks continuously (creeps.md).
+    // Deliver: towers under threat → spawn/extensions → controller feed when
+    // starving → towers → controller container → storage → drop at the spot.
+    // The wartime tower promotion closes the refill deadlock: raid spawning holds
+    // spawn-side capacity open forever, so the peacetime tower tier below is
+    // unreachable exactly when it matters (defense.md rung 1).
+    const towerSinksAll = (room.structures[STRUCTURE_TOWER] ?? []).filter(s => (s.store?.free ?? 0) > 0);
+    if (room.hostiles.length > 0) {
+        const warTower = nearest(creep.pos, towerSinksAll);
+        if (warTower) {
+            if (chebyshev(creep.pos, warTower.pos) <= 1) {
+                return { kind: ActionKind.Transfer, targetId: warTower.id, resource: RESOURCE_ENERGY };
+            }
+            return { kind: ActionKind.MoveTo, pos: warTower.pos, range: 1 };
+        }
+    }
     const spawnSinks: StructureView[] = [
         ...(room.structures[STRUCTURE_SPAWN] ?? []),
         ...(room.structures[STRUCTURE_EXTENSION] ?? [])
@@ -150,9 +185,10 @@ export function decideHaul(
             }
         }
     }
-    const towerSinks = (room.structures[STRUCTURE_TOWER] ?? []).filter(s => (s.store?.free ?? 0) > 0);
     const containerSinks = ctrlContainer && (ctrlContainer.store?.free ?? 0) > 0 ? [ctrlContainer] : [];
-    const sink = nearest(creep.pos, towerSinks) ?? nearest(creep.pos, containerSinks);
+    const storageSinks = (room.structures[STRUCTURE_STORAGE] ?? []).filter(s => (s.store?.free ?? 0) > 0);
+    const sink =
+        nearest(creep.pos, towerSinksAll) ?? nearest(creep.pos, containerSinks) ?? nearest(creep.pos, storageSinks);
     if (sink) {
         if (chebyshev(creep.pos, sink.pos) <= 1) {
             return { kind: ActionKind.Transfer, targetId: sink.id, resource: RESOURCE_ENERGY };
@@ -213,11 +249,12 @@ export function decideBuild(
     creep: CreepView,
     _a: BuildAssignment,
     room: RoomSnapshot,
-    upgradeSpot: Pos | undefined
+    upgradeSpot: Pos | undefined,
+    fortifyTargets: FortifyTarget[] = []
 ): Action {
     const sites = room.myConstructionSites;
-    if (sites.length === 0) {
-        // Construction finishing never strands labor — behave as an upgrader.
+    if (sites.length === 0 && fortifyTargets.length === 0) {
+        // Nothing to build or maintain — labor is never stranded: upgrade.
         return decideUpgrade(creep, { kind: AssignmentKind.Upgrade, room: room.name }, room, upgradeSpot);
     }
     if (creep.store.used === 0) {
@@ -258,24 +295,72 @@ export function decideBuild(
             }
             return { kind: ActionKind.MoveTo, pos: pile.pos, range: 1 };
         }
+        // Storage as the last refill tier — the reserve funds building too (M4).
+        const storage = (room.structures[STRUCTURE_STORAGE] ?? []).find(
+            s => (s.store?.byResource[RESOURCE_ENERGY] ?? 0) >= ECONOMY_CONFIG.minPickup
+        );
+        if (storage) {
+            if (chebyshev(creep.pos, storage.pos) <= 1) {
+                return { kind: ActionKind.Withdraw, targetId: storage.id, resource: RESOURCE_ENERGY };
+            }
+            return { kind: ActionKind.MoveTo, pos: storage.pos, range: 1 };
+        }
         return { kind: ActionKind.Idle, reason: "no-energy" };
     }
-    // Focus site: (BUILD_PRIORITY index, remaining energy, id) — construction's own
-    // order, so every builder independently converges on the same site.
-    let focus = sites[0];
-    for (const site of sites.slice(1)) {
-        const a1 = buildPriorityIndex(site.type);
-        const b1 = buildPriorityIndex(focus.type);
-        const a2 = site.progressTotal - site.progress;
-        const b2 = focus.progressTotal - focus.progress;
-        if (a1 < b1 || (a1 === b1 && (a2 < b2 || (a2 === b2 && site.id < focus.id)))) {
-            focus = site;
+    // Work order (defense.md — this exact precedence closes the rampart-decay
+    // livelock): 1. emergency fortify, 2. focus site, 3. fortify, 4. upgrade.
+    const emergency = fortifyTargets.find(t => t.hits < DEFENSE_CONFIG.emergencyFloor);
+    if (emergency) {
+        if (chebyshev(creep.pos, emergency.pos) <= 3) {
+            return { kind: ActionKind.Repair, targetId: emergency.id };
         }
+        return { kind: ActionKind.MoveTo, pos: emergency.pos, range: 3 };
     }
-    if (chebyshev(creep.pos, focus.pos) <= 3) {
-        return { kind: ActionKind.Build, targetId: focus.id };
+    if (sites.length > 0) {
+        // Focus site: (BUILD_PRIORITY index, remaining energy, id) — construction's
+        // own order, so every builder independently converges on the same site.
+        let focus = sites[0];
+        for (const site of sites.slice(1)) {
+            const a1 = buildPriorityIndex(site.type);
+            const b1 = buildPriorityIndex(focus.type);
+            const a2 = site.progressTotal - site.progress;
+            const b2 = focus.progressTotal - focus.progress;
+            if (a1 < b1 || (a1 === b1 && (a2 < b2 || (a2 === b2 && site.id < focus.id)))) {
+                focus = site;
+            }
+        }
+        if (chebyshev(creep.pos, focus.pos) <= 3) {
+            return { kind: ActionKind.Build, targetId: focus.id };
+        }
+        return { kind: ActionKind.MoveTo, pos: focus.pos, range: 3 };
     }
-    return { kind: ActionKind.MoveTo, pos: focus.pos, range: 3 };
+    const target = fortifyTargets[0]; // accessor returns ascending hits
+    if (target) {
+        if (chebyshev(creep.pos, target.pos) <= 3) {
+            return { kind: ActionKind.Repair, targetId: target.id };
+        }
+        return { kind: ActionKind.MoveTo, pos: target.pos, range: 3 };
+    }
+    return decideUpgrade(creep, { kind: AssignmentKind.Upgrade, room: room.name }, room, upgradeSpot);
+}
+
+/** Defend: pursue the nearest armed hostile; park near the spawn when quiet. */
+export function decideDefend(creep: CreepView, _a: DefendAssignment, room: RoomSnapshot): Action {
+    const armed = room.hostiles.filter((h: HostileView) =>
+        [ATTACK, RANGED_ATTACK, HEAL, WORK, CLAIM].some(p => (h.bodyCounts[p] ?? 0) > 0)
+    );
+    const target = nearest(creep.pos, armed);
+    if (target) {
+        if (chebyshev(creep.pos, target.pos) <= 1) {
+            return { kind: ActionKind.Attack, targetId: target.id };
+        }
+        return { kind: ActionKind.MoveTo, pos: target.pos, range: 1 };
+    }
+    const spawn = room.structures[STRUCTURE_SPAWN]?.[0];
+    if (spawn && chebyshev(creep.pos, spawn.pos) > 2) {
+        return { kind: ActionKind.MoveTo, pos: spawn.pos, range: 2 };
+    }
+    return { kind: ActionKind.Idle, reason: "parked" };
 }
 
 /** One walkable-agnostic tile directly away from `from` — movement paths the detail. */

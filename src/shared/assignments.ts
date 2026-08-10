@@ -8,7 +8,8 @@ export enum AssignmentKind {
     Mine = "mine",
     Haul = "haul",
     Upgrade = "upgrade",
-    Build = "build"
+    Build = "build",
+    Defend = "defend"
 }
 
 export interface MineAssignment {
@@ -35,4 +36,10 @@ export interface BuildAssignment {
     room: string;
 }
 
-export type Assignment = MineAssignment | HaulAssignment | UpgradeAssignment | BuildAssignment;
+/** Roomwide — the target hostile is derived each tick (defense.md). */
+export interface DefendAssignment {
+    kind: AssignmentKind.Defend;
+    room: string;
+}
+
+export type Assignment = MineAssignment | HaulAssignment | UpgradeAssignment | BuildAssignment | DefendAssignment;

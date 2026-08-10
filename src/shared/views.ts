@@ -56,6 +56,8 @@ export interface ControllerView {
     progressTotal: number;
     ticksToDowngrade: number;
     safeMode?: number;
+    /** Present while activation is on cooldown — defense's rung-3 gate (M4). */
+    safeModeCooldown?: number;
     safeModeAvailable: number;
     upgradeBlocked?: number;
 }

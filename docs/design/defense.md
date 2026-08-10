@@ -205,21 +205,25 @@ Unit (`test/unit/defense.test.ts`):
 Sim (`sim/tests/m4-durability.test.js`):
 
 - `under-attack` (~400 ticks, every 20) — rung 1: zero errors (all three checks);
-  hostiles reach 0 fast (measured expectation ~10 ticks; assert by t100); tower
-  energy visibly spent then stable; spawn/tower/storage counts never decrease;
-  controller progress still increases. (The scenario's raiders are static and its
-  controller has `safeModeAvailable: 0` — safe-mode assertions would be vacuous
-  here and live in unit tests instead.)
+  hostiles reach 0 fast (measured: ~10 ticks; assert by t100); tower energy visibly
+  spent then stable; spawn/tower counts never decrease; **the workforce keeps
+  growing** — controller progress was the first draft's economy proxy and was
+  miscalibrated: a cold fullBase room staffs income and builders for its first
+  several hundred ticks by design (upgraders last; a 48-part upgrader alone is a
+  144-tick spawn). (The scenario's raiders are static and its controller has
+  `safeModeAvailable: 0` — safe-mode assertions would be vacuous here and live in
+  unit tests instead.)
 - `raid-early` (new scenario, ~600 ticks, every 20) — rung 2: RCL2 base, no towers,
-  2 armed-but-passive raiders near the base; assert a creep with ATTACK parts
-  exists within ~150 ticks, hostiles reach 0, zero errors, and the economy resumes
-  (progress increasing after the fight).
-- `wiped-base` (~1500 ticks, every 50) — recovery: zero errors; first worker fast
-  (the base starts at 1300 energyAvailable — full stores, not a trickle; the
-  resolver affords ideal bodies immediately); workforce ≥ 6 by ~t1000 (planner's
-  own steady state at cap 1300 is ~9 — the old ≥ 10 asserted more creeps than the
-  plan ever wants); controller progress strictly positive by the end. (No
-  storage-delta assertion: collect-order means the reserve mostly buffers rather
-  than drains — asserting its sign was reviewed out as backwards.)
+  2 armed-but-passive raiders near the base; assert a combat creep exists, hostiles
+  reach 0, zero errors, and the workforce keeps growing (the same proxy correction
+  as under-attack).
+- `wiped-base` (~1500 ticks, every 50) — recovery: zero errors; first worker fast;
+  workforce ≥ 6 by ~t1000; controller progress strictly positive by the end. The
+  first gate run caught the real recovery bug here: the room's banked 1300 funded
+  ONE full-cap miner, after which every ideal body was unaffordable on the spawn's
+  300-cap self-regen and head-of-line blocking wedged the roster at 2–3 creeps for
+  the whole run — fixed by economy.md's **bootstrap sizing** rule (bodies size to
+  300 until income staffing stands). (No storage-delta assertion: collect-order
+  means the reserve mostly buffers rather than drains.)
 
 Thresholds provisional until the first instrumented run (M2 protocol).

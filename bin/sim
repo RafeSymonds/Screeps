@@ -90,12 +90,14 @@ case "$cmd" in
     [[ -f "$ROOT/dist/main.js" ]] || die "dist/main.js missing after build"
     echo "[sim] running behavioral tests (real engine, this is slower than npm run test)…"
     CONTAINER="screeps-sim-test-$$"
-    # Serial on purpose: the suite now has multiple LONG tests (remote-mining and
-    # remote-invader run ~900 engine ticks each), and two concurrent engines degrade
-    # each other ~3x on a typical Docker Desktop allotment — enough to blow the
-    # per-test timeouts. Serial is slower in total but deterministic; use
-    # `bin/sim test -- --grep <name>` to iterate on a single test.
-    run_container --rm --init --name "$CONTAINER" "${MOUNTS[@]}" -e SIM_NEIGHBOR_RADIUS --entrypoint npx "$IMAGE" mocha --exit "tests/**/*.test.js" "$@"
+    # Parallel by FILE: one scenario suite per test file, each runScenario isolates
+    # its own server/port/storage (harness derives ports from pid). Wall clock ≈ the
+    # slowest single scenario instead of the sum — the suite dropped from ~70 min
+    # serial to ~the longest run. SIM_JOBS tunes workers (default 4; SIM_JOBS=1 for
+    # serial debugging). Iterate on one suite with `bin/sim test -- --grep <name>`;
+    # run the full suite before every milestone commit.
+    jobs="${SIM_JOBS:-4}"
+    run_container --rm --init --name "$CONTAINER" "${MOUNTS[@]}" -e SIM_NEIGHBOR_RADIUS --entrypoint npx "$IMAGE" mocha --exit --parallel --jobs "$jobs" "tests/**/*.test.js" "$@"
     ;;
   build|rebuild) build_image ;;
   shell)
