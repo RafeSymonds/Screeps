@@ -4,6 +4,7 @@ import { CreepView, RoomSnapshot } from "shared/views";
 import { RoomIntel } from "intel/index";
 import { PRIORITY_REMOTE_BASE, PRIORITY_RESERVER, REMOTES_CONFIG } from "remotes/config";
 import {
+    rejectionReason,
     planAdoption,
     planRemoteDemands,
     RemoteCandidate,
@@ -103,6 +104,17 @@ describe("remotes planner", () => {
         expect(planAdoption(input()).adopt).to.deep.equal(["W2N1"]);
         expect(planAdoption(input({ candidates: [candidate("W2N1", 0)] })).adopt).to.have.length(0);
         expect(planAdoption(input({ homeCap: REMOTES_CONFIG.minHomeCap - 1 })).adopt).to.have.length(0);
+    });
+
+    it("names the gate that rejected a neighbour, so 'why no remotes?' is answerable", () => {
+        const cfg = REMOTES_CONFIG;
+        expect(rejectionReason(candidate("W2N1", 2), 1300, cfg)).to.equal(undefined); // adoptable
+        expect(rejectionReason(candidate("W10N1", 2), 1300, cfg)).to.equal("highway room");
+        expect(rejectionReason(candidate("W2N1", 0), 1300, cfg)).to.equal("no sources");
+        expect(rejectionReason(candidate("W2N1", 2, { unsafe: true }), 1300, cfg)).to.equal("hostiles sighted");
+        expect(rejectionReason(candidate("W2N1", 2, { foreignReserved: true }), 1300, cfg)).to.contain("reserved by");
+        expect(rejectionReason({ ...candidate("W2N1", 2), intel: intelOf(2, { owner: "Them" }) }, 1300, cfg)).to.equal("owned by Them");
+        expect(rejectionReason(candidate("W2N1", 2), 300, cfg)).to.contain("home capacity 300");
     });
 
     it("drops an adopted remote that stops qualifying", () => {

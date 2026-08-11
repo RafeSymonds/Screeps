@@ -11,7 +11,14 @@ import { getClaimTarget } from "expansion/index";
 import { flagUnsafe, getIntel, isUnsafe } from "intel/index";
 import { log } from "telemetry/index";
 import { REMOTES_CONFIG } from "remotes/config";
-import { planAdoption, planRemoteDemands, RemoteCandidate, RemotePlanInput, RemotesMemory } from "remotes/planner";
+import {
+    planAdoption,
+    planRemoteDemands,
+    RemoteCandidate,
+    RemotePlanInput,
+    RemotesMemory,
+    rejectionReason
+} from "remotes/planner";
 
 export type { RemotesMemory } from "remotes/planner";
 
@@ -95,6 +102,19 @@ export function runPlan(ctx: TickContext, home: RoomSnapshot): void {
         if (slice.rooms[name]) {
             slice.rooms[name].reserved = reserved;
         }
+    }
+
+    // "Why are there no remotes?" should be answerable from the console, not by
+    // reading source. Logged only while this home has none — i.e. exactly when
+    // someone is asking — and only on this class-C pass, so it stays quiet.
+    if (Object.keys(slice.rooms).length === 0) {
+        const why =
+            input.candidates.length === 0
+                ? "no scouted neighbours yet"
+                : input.candidates
+                      .map(c => `${c.roomName}: ${rejectionReason(c, input.homeCap, REMOTES_CONFIG) ?? "eligible"}`)
+                      .join("; ");
+        log.info(SubsystemId.RemotesPlan, () => `${home.name}: no remote adopted — ${why}`);
     }
 }
 

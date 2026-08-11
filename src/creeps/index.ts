@@ -89,12 +89,16 @@ function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Act
     switch (assignment.kind) {
         case AssignmentKind.Mine:
             return decideMine(creep, assignment, room);
+        // Room-scoped lookups key off the room being WORKED, not assignment.room:
+        // a remote hauler delivering home has assignment.room = the remote, whose
+        // upgrade spot is undefined — it arrived home loaded and lost both the
+        // controller-feed tier and the drop fallback, and could only idle.
         case AssignmentKind.Haul:
-            return decideHaul(creep, assignment, room, getUpgradeSpot(assignment.room));
+            return decideHaul(creep, assignment, room, getUpgradeSpot(room.name));
         case AssignmentKind.Upgrade:
-            return decideUpgrade(creep, assignment, room, getUpgradeSpot(assignment.room));
+            return decideUpgrade(creep, assignment, room, getUpgradeSpot(room.name));
         case AssignmentKind.Build:
-            return decideBuild(creep, assignment, room, getUpgradeSpot(assignment.room), fortifyFor(ctx, assignment.room));
+            return decideBuild(creep, assignment, room, getUpgradeSpot(room.name), fortifyFor(ctx, room.name));
         case AssignmentKind.Defend:
             return decideDefend(creep, assignment, room);
         case AssignmentKind.Scout:

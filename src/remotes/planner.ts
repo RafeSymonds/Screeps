@@ -81,14 +81,40 @@ export interface RemotePlan {
     demands: SpawnDemand[];
 }
 
-function eligible(c: RemoteCandidate, config: RemotesConfig): boolean {
-    if (roomType(c.roomName) !== RoomType.Normal) {
-        return false;
+/**
+ * Why this neighbour is not adoptable — `undefined` means it is. One source of
+ * truth for the gate, so "we aren't using remotes at all" has a printable answer
+ * instead of being inferred from silence (the adapter logs it).
+ */
+export function rejectionReason(c: RemoteCandidate, homeCap: number, config: RemotesConfig): string | undefined {
+    const type = roomType(c.roomName);
+    if (type !== RoomType.Normal) {
+        return `${type} room`;
     }
-    if (c.unsafe || c.intel.owner !== undefined || c.foreignReserved) {
-        return false;
+    if (c.intel.owner !== undefined) {
+        return `owned by ${c.intel.owner}`;
     }
-    return c.intel.sources.length >= 1;
+    if (c.foreignReserved) {
+        return `reserved by ${c.intel.reservedBy ?? "someone"}`;
+    }
+    if (c.unsafe) {
+        return "hostiles sighted";
+    }
+    if (c.intel.sources.length === 0) {
+        return "no sources";
+    }
+    if (homeCap < config.minHomeCap) {
+        return `home capacity ${homeCap} < ${config.minHomeCap}`;
+    }
+    const profit = remoteProfit(c.intel.sources.length, false, c.travelTiles, config);
+    if (profit < config.minProfit) {
+        return `profit ${profit.toFixed(1)} e/t < ${config.minProfit}`;
+    }
+    return undefined;
+}
+
+function eligible(c: RemoteCandidate, config: RemotesConfig, homeCap: number): boolean {
+    return rejectionReason(c, homeCap, config) === undefined;
 }
 
 /** The class-C decision pass: adopt/drop/reserve (recorded in the slice by the adapter). */
@@ -100,7 +126,7 @@ export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" |
 
     for (const name of Object.keys(slice.rooms)) {
         const cand = candidates.find(c => c.roomName === name);
-        if (!cand || !eligible(cand, config)) {
+        if (!cand || !eligible(cand, config, homeCap)) {
             drop.push(name);
         }
     }
@@ -108,7 +134,7 @@ export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" |
     const kept = Object.keys(slice.rooms).filter(n => !drop.includes(n));
     if (homeCap >= config.minHomeCap) {
         const pool = candidates
-            .filter(c => eligible(c, config) && !kept.includes(c.roomName))
+            .filter(c => eligible(c, config, homeCap) && !kept.includes(c.roomName))
             .map(c => ({ c, profit: remoteProfit(c.intel.sources.length, false, c.travelTiles, config) }))
             .filter(x => x.profit >= config.minProfit)
             .sort((a, b) => b.profit - a.profit || (a.c.roomName < b.c.roomName ? -1 : 1));
