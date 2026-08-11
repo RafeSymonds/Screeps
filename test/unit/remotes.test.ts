@@ -96,6 +96,15 @@ describe("remotes planner", () => {
         expect(planAdoption(input({ candidates: [candidate("W10N1", 2)] })).adopt).to.have.length(0); // highway
     });
 
+    it("adopts a scouted neighbour that has sources — the gates in one place", () => {
+        // The four things that stop adoption, so a "why are there no remotes?"
+        // question has one place to look: room type, ownership/reservation,
+        // safety, and — the usual answer in a seeded sim world — no sources.
+        expect(planAdoption(input()).adopt).to.deep.equal(["W2N1"]);
+        expect(planAdoption(input({ candidates: [candidate("W2N1", 0)] })).adopt).to.have.length(0);
+        expect(planAdoption(input({ homeCap: REMOTES_CONFIG.minHomeCap - 1 })).adopt).to.have.length(0);
+    });
+
     it("drops an adopted remote that stops qualifying", () => {
         const slice: RemotesMemory = { v: 1, rooms: { W2N1: { reserved: false, adoptedAt: 1 } } };
         const plan = planAdoption(input({ slice, candidates: [candidate("W2N1", 2, { unsafe: true })] }));

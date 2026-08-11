@@ -73,8 +73,12 @@ export function decideMine(creep: CreepView, a: MineAssignment, room: RoomSnapsh
     // In harvest range: work. Off-seat-but-in-range miners drop-mine (transitional —
     // the in-range check is the seat's range to source, not container occupancy;
     // replacements target the container tile and consolidation ends the state).
+    // Carrying capacity is the exception now, not the rule (economy.md): a pure
+    // WORK+MOVE miner can neither hold repair energy nor feed a link, and both
+    // paths would otherwise burn an intent every tick on an error return.
+    const canCarry = creep.store.free + creep.store.used > 0;
     const onContainer = container !== undefined && creep.pos.x === container.pos.x && creep.pos.y === container.pos.y;
-    if (container && onContainer && needsRepair(container)) {
+    if (container && onContainer && canCarry && needsRepair(container)) {
         if ((creep.store.byResource[RESOURCE_ENERGY] ?? 0) > 0) {
             return { kind: ActionKind.Repair, targetId: container.id };
         }
@@ -87,7 +91,7 @@ export function decideMine(creep: CreepView, a: MineAssignment, room: RoomSnapsh
     const link = (room.structures[STRUCTURE_LINK] ?? []).find(
         l => chebyshev(l.pos, creep.pos) <= 1 && (l.store?.free ?? 0) > 0
     );
-    if (link && creep.store.used * 2 >= creep.store.used + creep.store.free) {
+    if (link && creep.store.used > 0 && creep.store.used * 2 >= creep.store.used + creep.store.free) {
         return { kind: ActionKind.Transfer, targetId: link.id, resource: RESOURCE_ENERGY };
     }
     return { kind: ActionKind.Harvest, targetId: source.id };

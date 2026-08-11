@@ -7,6 +7,7 @@ import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
 import { RoomSnapshot } from "shared/views";
 import { AssignmentKind } from "shared/assignments";
+import { getClaimTarget } from "expansion/index";
 import { flagUnsafe, getIntel, isUnsafe } from "intel/index";
 import { log } from "telemetry/index";
 import { REMOTES_CONFIG } from "remotes/config";
@@ -32,10 +33,14 @@ function buildInput(ctx: TickContext, home: RoomSnapshot): RemotePlanInput {
     const exits = Game.map.describeExits(home.name);
     const names = exits ? Object.values(exits).filter((n): n is string => typeof n === "string") : [];
     const me = Object.values(Game.spawns)[0]?.owner.username;
+    // Never farm the room expansion is claiming: we would fund miners, haulers and
+    // a reserver for a neighbour we are about to OWN, then drop every one of them
+    // the moment the claim lands (sim-observed: adopted t279, claim started t267).
+    const claimTarget = getClaimTarget();
     const candidates: RemoteCandidate[] = [];
     for (const name of names) {
         const intel = getIntel(name);
-        if (intel) {
+        if (intel && name !== claimTarget) {
             candidates.push({
                 roomName: name,
                 intel,

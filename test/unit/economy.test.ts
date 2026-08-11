@@ -1,7 +1,7 @@
 import { expect } from "../helpers/chai";
 import { AssignmentKind } from "shared/assignments";
 import { CreepView, Pos, RoomSnapshot } from "shared/views";
-import { builderBody, haulerBody, minerBody, upgraderBody } from "economy/bodies";
+import { builderBody, haulerBody, minerBody, MINER_MIN_BODY, upgraderBody } from "economy/bodies";
 import { ECONOMY_CONFIG } from "economy/config";
 import { planRoom, RoomPlanInput } from "economy/planner";
 import { chooseUpgradeSpot, countAdjacentSpots } from "economy/spots";
@@ -104,14 +104,24 @@ function input(roster: CreepView[] = []): RoomPlanInput {
 }
 
 describe("economy bodies", () => {
-    it("scales miner WORK with capacity and always carries exactly one CARRY", () => {
-        expect(counts(minerBody(300))).to.deep.equal({ [WORK]: 2, [CARRY]: 1, [MOVE]: 1 });
-        expect(counts(minerBody(550))).to.deep.equal({ [WORK]: 4, [CARRY]: 1, [MOVE]: 1 });
-        expect(counts(minerBody(800))).to.deep.equal({ [WORK]: 6, [CARRY]: 1, [MOVE]: 2 });
+    it("scales miner WORK with capacity and carries NOTHING — a miner only mines", () => {
+        expect(counts(minerBody(300))).to.deep.equal({ [WORK]: 2, [MOVE]: 1 });
+        // The freed slot becomes WORK: 5 at 550 where the carrying miner got 4.
+        expect(counts(minerBody(550))).to.deep.equal({ [WORK]: 5, [MOVE]: 1 });
+        expect(counts(minerBody(800))).to.deep.equal({ [WORK]: 7, [MOVE]: 2 });
         const big = counts(minerBody(2000));
-        expect(big[WORK]).to.equal(17);
-        expect(big[CARRY]).to.equal(1);
+        expect(big[WORK]).to.equal(18);
+        expect(big[CARRY]).to.equal(undefined);
         expect(big[MOVE]).to.equal(4);
+        // Harvest overflow drops into the container underfoot, so carry capacity
+        // buys no throughput — it just parks 50 energy inside the creep.
+        expect(MINER_MIN_BODY).to.deep.equal([WORK, MOVE]);
+    });
+
+    it("gives a miner exactly one CARRY when a link serves its source", () => {
+        // Somebody has to put energy INTO a source link, and it is the miner
+        // standing beside it (economy.md "Links") — the sole exception.
+        expect(counts(minerBody(550, true))).to.deep.equal({ [WORK]: 4, [CARRY]: 1, [MOVE]: 1 });
     });
 
     it("scales hauler pairs with capacity", () => {
@@ -176,7 +186,7 @@ describe("economy planner", () => {
 
     it("attaches minBody per role only while that role has zero creeps", () => {
         const empty = planRoom(input()).demands;
-        expect(empty.find(d => d.assignment.kind === AssignmentKind.Mine)?.minBody).to.deep.equal([WORK, CARRY, MOVE]);
+        expect(empty.find(d => d.assignment.kind === AssignmentKind.Mine)?.minBody).to.deep.equal([WORK, MOVE]);
         expect(empty.find(d => d.assignment.kind === AssignmentKind.Haul)?.minBody).to.deep.equal([CARRY, MOVE]);
 
         const withMiner = planRoom(input([worker(AssignmentKind.Mine, "srcA")])).demands;

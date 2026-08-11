@@ -14,21 +14,37 @@ function repeat(part: BodyPartConstant, count: number): BodyPartConstant[] {
     return new Array<BodyPartConstant>(count).fill(part);
 }
 
-/** Maximize WORK with 1 MOVE per 5 WORK plus exactly one CARRY (the container-repair
- *  buffer — a zero-CARRY creep cannot repair). Floor [W,W,C,M] = 300. */
-export function minerBody(capacity: number): BodyPartConstant[] {
-    let best = { work: 2, move: 1 };
-    for (let work = 2; ; work++) {
+/**
+ * Maximize WORK with 1 MOVE per 5 WORK. **No CARRY**: a miner only mines, and
+ * harvest overflow drops straight into the container it stands on (engine
+ * `_create-energy`), so carrying capacity buys no throughput — it costs 50
+ * energy and a body slot that could be WORK, and it parks 50 energy inside the
+ * creep where nothing can spend it. Container upkeep moves to the builder crew,
+ * which has ~25,000 ticks of slack: a container decays 10 hits/tick against
+ * 250k, far beyond a miner's 1500-tick life.
+ *
+ * The one exception is `withLink` — a source served by a link needs someone to
+ * put energy INTO it, and that is the miner standing beside it (economy.md
+ * "Links"). Exactly one CARRY, only there.
+ */
+export function minerBody(capacity: number, withLink = false): BodyPartConstant[] {
+    const carry = withLink ? 1 : 0;
+    let best = { work: 1, move: 1 };
+    for (let work = 1; ; work++) {
         const move = Math.ceil(work / 5);
-        if (work + move + 1 > MAX_BODY_PARTS || work * 100 + 50 + move * 50 > capacity) {
+        if (work + move + carry > MAX_BODY_PARTS || work * 100 + carry * 50 + move * 50 > capacity) {
             break;
         }
         best = { work, move };
     }
-    return [...repeat(WORK, best.work), CARRY, ...repeat(MOVE, best.move)];
+    return [
+        ...repeat(WORK, best.work),
+        ...repeat(CARRY, carry),
+        ...repeat(MOVE, best.move)
+    ];
 }
 
-export const MINER_MIN_BODY: BodyPartConstant[] = [WORK, CARRY, MOVE];
+export const MINER_MIN_BODY: BodyPartConstant[] = [WORK, MOVE];
 
 /** [C,M] pairs, max(2, floor(cap/100)), only the 50-part limit caps it (25 pairs). */
 export function haulerBody(capacity: number): BodyPartConstant[] {

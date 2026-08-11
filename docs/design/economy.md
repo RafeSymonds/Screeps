@@ -103,9 +103,16 @@ Slots are allocated top-down from `maxCreepsPerRoom`, and **upgraders are the re
 — income staffing is computed, and every slot not needed to produce, move, or invest
 energy upgrades the controller. That is the whole sizing policy:
 
-1. **Miners** — `{Mine, sourceId}`. Body: maximize WORK with 1 MOVE per 5 WORK **plus
-   exactly one CARRY** (the repair buffer — a zero-CARRY creep cannot repair; min
-   `[W,W,C,M]` = 300; no artificial WORK cap). Per source: miners until summed WORK ≥ 5
+1. **Miners** — `{Mine, sourceId}`. Body: maximize WORK with 1 MOVE per 5 WORK and
+   **no CARRY** — a miner only mines. Harvest overflow drops straight into the
+   container underfoot (engine `_create-energy`), so carry capacity buys no
+   throughput: it costs 50 energy, costs a body slot that could be WORK (5 WORK
+   instead of 4 at a 550 cap), and parks 50 energy inside the creep where nothing
+   can spend it. Container upkeep moves to the builder crew, which has enormous
+   slack — a container decays 10 hits/tick against 250k, i.e. ~25,000 ticks, far
+   beyond a miner's 1500-tick life. **The one exception**: a source served by a
+   link gets a one-CARRY miner, because somebody must put energy INTO the link
+   and that is the creep standing beside it (see Links). Min body `[W,M]` = 100. Per source: miners until summed WORK ≥ 5
    or adjacent walkable tiles run out. Seat: the container adjacent to the source when
    one exists — found in the room view by position (creeps.md); executors never read
    the layout slice — else any adjacent tile.

@@ -45,19 +45,41 @@ function workRoomOf(creep: CreepView, assignment: Assignment): string {
     return assignment.room;
 }
 
+/** The engine teleports ANY creep standing on a room-edge tile into the
+ *  neighbouring room, every tick, unconditionally (engine: creeps/tick.js
+ *  `isAtEdge`). A creep that idles or works there ping-pongs across the border
+ *  forever — observed with scouts, which idle the instant they arrive, i.e. on
+ *  the very tile they entered. Nothing legitimate sits at x/y 0 or 49 (the
+ *  engine keeps sources and structures off those tiles), so stepping inward is
+ *  always right. */
+const atRoomEdge = (pos: { x: number; y: number }): boolean =>
+    pos.x === 0 || pos.x === 49 || pos.y === 0 || pos.y === 49;
+
+const centerOf = (roomName: string): { x: number; y: number; roomName: string } => ({ x: 25, y: 25, roomName });
+
 function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Action {
-    // Retreat: an unsafe work room empties out (intel's persistent sighting).
     const workRoom = workRoomOf(creep, assignment);
-    if (creep.pos.roomName === workRoom && workRoom !== (creep.memory as { home?: string }).home && isUnsafe(workRoom, ctx.snapshot.time)) {
-        const home = (creep.memory as { home?: string }).home;
-        if (home) {
-            return { kind: ActionKind.MoveTo, pos: { x: 25, y: 25, roomName: home }, range: 5 };
+    const home = (creep.memory as { home?: string }).home;
+
+    // Retreat: never BE in, and never TRAVEL to, an unsafe work room. Checking
+    // only "am I in it" made the creep bounce — it retreats one step across the
+    // border, the travel rule immediately walks it back in, and it oscillates.
+    if (workRoom !== home && isUnsafe(workRoom, ctx.snapshot.time)) {
+        if (home && creep.pos.roomName !== home) {
+            return { kind: ActionKind.MoveTo, pos: centerOf(home), range: 20 };
         }
+        return { kind: ActionKind.Idle, reason: "retreated" };
+    }
+    // Step clear of the border, but ONLY once we are in the room we came for.
+    // Keying this on the room the creep is standing in instead walks a creep
+    // that is *leaving* back inside — it can never cross a border at all.
+    if (creep.pos.roomName === workRoom && atRoomEdge(creep.pos)) {
+        return { kind: ActionKind.MoveTo, pos: centerOf(workRoom), range: 20 };
     }
     // Travel preamble: outside the work room → walk there; needs no vision (the
     // M4 no-view→Idle rule deadlocked every creep whose job is somewhere unseen).
     if (creep.pos.roomName !== workRoom) {
-        return { kind: ActionKind.MoveTo, pos: { x: 25, y: 25, roomName: workRoom }, range: 20 };
+        return { kind: ActionKind.MoveTo, pos: centerOf(workRoom), range: 20 };
     }
     // Standing in the work room: its view exists by definition.
     const room = ctx.snapshot.room(creep.pos.roomName);

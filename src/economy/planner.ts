@@ -182,12 +182,19 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     });
 
     // --- Miners: per source until summed WORK ≥ 5 or seats run out -----------------
-    const idealMiner = minerBody(cap);
-    const minerWork = idealMiner.filter(p => p === WORK).length;
+    // A source served by a link gets the one-CARRY variant: someone has to put
+    // energy INTO the link, and that is the miner beside it (economy.md "Links").
+    const linkServes = (source: { pos: Pos }): boolean =>
+        (room.structures[STRUCTURE_LINK] ?? []).some(l => chebyshev(l.pos, source.pos) <= 2);
+    // Saturation is computed from the body this source will ACTUALLY get: the
+    // link variant spends a slot on CARRY, so it carries less WORK and may need
+    // one more miner to saturate.
+    const bodyFor = (source: { pos: Pos }): BodyPartConstant[] => minerBody(cap, linkServes(source));
     let minersDesiredTotal = 0;
     const minerGaps: { sourceId: Id<Source>; slot: number; globalSlot: number }[] = [];
     for (const source of sources) {
         const seats = sourceSpots[source.id] ?? 1;
+        const minerWork = bodyFor(source).filter(p => p === WORK).length;
         const desired = Math.min(seats, Math.ceil(WORK_TO_SATURATE / minerWork));
         const offset = minersDesiredTotal;
         minersDesiredTotal += desired;
@@ -253,7 +260,7 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
             home: room.name,
             owner: SubsystemId.Economy,
             assignment: { kind: AssignmentKind.Mine, room: room.name, sourceId: gap.sourceId },
-            body: idealMiner,
+            body: bodyFor(sources.find(s => s.id === gap.sourceId) ?? sources[0]),
             ...(anyMinersAlive ? {} : { minBody: MINER_MIN_BODY })
         });
     }

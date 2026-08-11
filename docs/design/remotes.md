@@ -51,7 +51,18 @@ demands for unsafe remotes.
 
 ## The two economic decisions (never assumed)
 
-1. **Adopt?** — candidate gate: `roomType == Normal`, no owner, no foreign reservation
+**Why a scouted neighbour still isn't adopted** — the gates, in one place, because
+"we aren't using remotes at all" is almost always one of these rather than a bug:
+the room is a **highway** (x or y ≡ 0 mod 10 — two of a typical room's four
+neighbours are), it has **no sources** (every seeded sim neighbour is an empty
+terrain room, so single-room scenarios can never adopt), the home's capacity is
+below `minHomeCap` (550 — an RCL1 room never qualifies), it is owned/reserved by
+someone else, it is unsafe, or **expansion is claiming it** (below).
+
+1. **Adopt?** — candidate gate: not the active expansion claim target (funding
+   miners, haulers and a reserver for a room we are about to own wastes all of
+   them the moment the claim lands — sim-observed: adopted t279, claim started
+   t267), `roomType == Normal`, no owner, no foreign reservation
    (engine-verified: harvest returns early in a room reserved by another player),
    not unsafe (intel's hostiles line: armed sighting within `unsafeMemory` (300)
    ticks, or `unsafeUntil` in the future), sources ≥ 1, home healthy (cap ≥ 550,
