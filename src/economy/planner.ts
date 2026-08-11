@@ -101,6 +101,18 @@ function assignmentOf(creep: CreepView): Assignment | undefined {
     return (creep.memory as { assignment?: Assignment }).assignment;
 }
 
+/**
+ * Does this creep actually carry enough to count as a hauler slot? An adopted
+ * generalist has ONE CARRY — 50 of the ~250 a real hauler moves. Counting it as
+ * staffed froze the roster at a fifth of the haul capacity the formula asked
+ * for, and assignments are for life, so it never corrected: sim-measured, two
+ * "haulers" against 20 e/t of production and 2.4k energy rotting on the floor.
+ */
+function fillsHaulSlot(creep: CreepView, cap: number): boolean {
+    const carry = (creep.bodyCounts[CARRY] ?? 0) * CARRY_CAPACITY;
+    return carry * 3 >= haulerCarryCapacity(cap);
+}
+
 /** Miner + hauler + builders, all at bootstrap size: enough labor to rebuild a
  *  spawn from a donor room's spawn queue. See economy.md / empire.md. */
 function rebuildSkeleton(room: RoomSnapshot, config: EconomyConfig): SpawnDemand[] {
@@ -261,7 +273,9 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
             owner: SubsystemId.Economy,
             assignment: { kind: AssignmentKind.Mine, room: room.name, sourceId: gap.sourceId },
             body: bodyFor(sources.find(s => s.id === gap.sourceId) ?? sources[0]),
-            ...(anyMinersAlive ? {} : { minBody: MINER_MIN_BODY })
+            // Same rule: a room short of miners must not wait on a body it cannot
+            // fund — an unmined source earns nothing at all.
+            ...(minersAlive < room.sources.length ? { minBody: MINER_MIN_BODY } : {})
         });
     }
 
@@ -271,7 +285,12 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
         for (const [i, source] of sources.entries()) {
             const staffed = roster.filter(c => {
                 const a = assignmentOf(c);
-                return a?.kind === AssignmentKind.Haul && a.sourceId === source.id && fillsSlot(c, config.prespawnLead);
+                return (
+                    a?.kind === AssignmentKind.Haul &&
+                    a.sourceId === source.id &&
+                    fillsSlot(c, config.prespawnLead) &&
+                    fillsHaulSlot(c, cap)
+                );
             }).length;
             for (let slot = staffed; slot < haulerTargets[i]; slot++) {
                 haulerGaps.push({ sourceId: source.id, slot, globalSlot: offset + slot });
@@ -288,7 +307,13 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
             owner: SubsystemId.Economy,
             assignment: { kind: AssignmentKind.Haul, room: room.name, sourceId: gap.sourceId },
             body: haulerBody(cap),
-            ...(anyHaulersAlive ? {} : { minBody: HAULER_MIN_BODY })
+            // Critically short → take what the room can afford NOW. Saving up for
+            // an ideal body is right when the role is nearly staffed; when it is
+            // less than half staffed the queue just blocks (or, with bounded
+            // patience, hands the slot to a cheap upgrader) while energy rots on
+            // the ground — sim-measured: 2 haulers of 7, 3,961 energy on the floor
+            // and climbing, 15 upgraders/builders.
+            ...(haulersAlive * 2 < haulersDesiredTotal ? { minBody: HAULER_MIN_BODY } : {})
         });
     }
 

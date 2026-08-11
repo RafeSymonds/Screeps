@@ -35,6 +35,8 @@ export interface RemotePlanInput {
     roster: CreepView[];
     /** Home income staffed (adapter: home miners ≥ sources && haulers ≥ 2)? */
     homeHealthy: boolean;
+    /** The counts behind homeHealthy, so the adapter can say WHY remotes are idle. */
+    health: { miners: number; minersNeeded: number; haulers: number; haulersNeeded: number };
     time: number;
     config: RemotesConfig;
 }

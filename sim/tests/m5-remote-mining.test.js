@@ -25,6 +25,16 @@ describe("m5: remote mining (remote-mining, 2000 ticks)", function () {
     expect(res.memories.bot.rooms.W1N1.remotes.rooms.W2N1, "W2N1 not adopted").to.not.equal(undefined);
   });
 
+  it("sends actual remote MINERS, not just a scout", () => {
+    // "creeps >= 2" passed while the only occupants were a scout and a hauler.
+    // Remote miners carry WORK, so they classify as miner/worker — assert those.
+    const roles = res.timeline.map(s => s.rooms.W2N1.bot.roles);
+    const miners = roles.map(r => (r.miner ?? 0) + (r.worker ?? 0));
+    expect(Math.max(...miners), `W2N1 roles: ${JSON.stringify(roles)}`).to.be.at.least(1);
+    const haulers = roles.map(r => r.hauler ?? 0);
+    expect(Math.max(...haulers), `W2N1 roles: ${JSON.stringify(roles)}`).to.be.at.least(1);
+  });
+
   it("works the remote", () => {
     const remoteCreeps = seriesOf(res.timeline, "W2N1", "bot", "creeps");
     expect(Math.max(...remoteCreeps), `W2N1 creeps series: ${remoteCreeps.join(",")}`).to.be.at.least(2);

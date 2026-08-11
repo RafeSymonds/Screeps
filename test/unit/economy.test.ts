@@ -69,7 +69,12 @@ function worker(kind: AssignmentKind, sourceId: string | undefined, overrides: P
         hitsMax: 100,
         ticksToLive: 1400,
         spawning: false,
-        bodyCounts: { [WORK]: 2, [MOVE]: 1 },
+        // A hauler-shaped body for hauler roles: a CARRY-less "hauler" is not one,
+        // and the planner now refuses to count undersized bodies as staffed.
+        bodyCounts:
+            kind === AssignmentKind.Haul
+                ? { [CARRY]: 3, [MOVE]: 3 }
+                : { [WORK]: 2, [CARRY]: 1, [MOVE]: 1 },
         store: { free: 0, used: 0, byResource: {} },
         memory: { home: "W1N1", assignment } as CreepMemory,
         ...overrides
@@ -184,14 +189,23 @@ describe("economy planner", () => {
         expect(twoMiners[1].assignment.kind).to.equal(AssignmentKind.Mine);
     });
 
-    it("attaches minBody per role only while that role has zero creeps", () => {
+    it("attaches minBody while an income role is critically short, not only at zero", () => {
         const empty = planRoom(input()).demands;
         expect(empty.find(d => d.assignment.kind === AssignmentKind.Mine)?.minBody).to.deep.equal([WORK, MOVE]);
         expect(empty.find(d => d.assignment.kind === AssignmentKind.Haul)?.minBody).to.deep.equal([CARRY, MOVE]);
 
+        // One miner of two sources is still critically short: it must be allowed
+        // to spawn whatever the room can afford rather than block for the ideal
+        // body while an unmined source earns nothing.
         const withMiner = planRoom(input([worker(AssignmentKind.Mine, "srcA")])).demands;
-        expect(withMiner.find(d => d.assignment.kind === AssignmentKind.Mine)?.minBody).to.equal(undefined);
+        expect(withMiner.find(d => d.assignment.kind === AssignmentKind.Mine)?.minBody).to.deep.equal([WORK, MOVE]);
         expect(withMiner.find(d => d.assignment.kind === AssignmentKind.Haul)?.minBody).to.deep.equal([CARRY, MOVE]);
+
+        // Fully staffed miners: back to saving up for the ideal body.
+        const staffedMiners = planRoom(
+            input([worker(AssignmentKind.Mine, "srcA"), worker(AssignmentKind.Mine, "srcB")])
+        ).demands;
+        expect(staffedMiners.find(d => d.assignment.kind === AssignmentKind.Mine)?.minBody).to.equal(undefined);
     });
 
     it("stops demanding miners at WORK saturation or seat limits", () => {

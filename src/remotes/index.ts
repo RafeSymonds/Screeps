@@ -81,7 +81,8 @@ function buildInput(ctx: TickContext, home: RoomSnapshot): RemotePlanInput {
         roster,
         homeHealthy: miners >= home.sources.length && haulers >= Math.min(2, home.sources.length),
         time: now,
-        config: REMOTES_CONFIG
+        config: REMOTES_CONFIG,
+        health: { miners, minersNeeded: home.sources.length, haulers, haulersNeeded: Math.min(2, home.sources.length) }
     };
 }
 
@@ -107,6 +108,17 @@ export function runPlan(ctx: TickContext, home: RoomSnapshot): void {
     // "Why are there no remotes?" should be answerable from the console, not by
     // reading source. Logged only while this home has none — i.e. exactly when
     // someone is asking — and only on this class-C pass, so it stays quiet.
+    // Adopted but silent: the home-health gate blocks EVERY remote demand, and a
+    // room short one miner looks identical to "remotes are broken" from outside.
+    if (Object.keys(slice.rooms).length > 0 && !input.homeHealthy) {
+        const h = input.health;
+        log.info(
+            SubsystemId.RemotesPlan,
+            () =>
+                `${home.name}: remotes idle — home not healthy (miners ${h.miners}/${h.minersNeeded}, ` +
+                `haulers ${h.haulers}/${h.haulersNeeded})`
+        );
+    }
     if (Object.keys(slice.rooms).length === 0) {
         const why =
             input.candidates.length === 0

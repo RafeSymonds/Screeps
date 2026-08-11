@@ -50,6 +50,7 @@ function input(overrides: Partial<RemotePlanInput> = {}): RemotePlanInput {
         slice: { v: 1, rooms: {} } as RemotesMemory,
         roster: [],
         homeHealthy: true,
+        health: { miners: 2, minersNeeded: 2, haulers: 2, haulersNeeded: 2 },
         time: 500,
         config: REMOTES_CONFIG,
         ...overrides

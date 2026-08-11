@@ -6,7 +6,7 @@
 import { Assignment, AssignmentKind } from "shared/assignments";
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
-import { CreepView } from "shared/views";
+import { CreepView, RoomSnapshot } from "shared/views";
 import { fortificationTargets } from "defense/index";
 import { FortifyTarget } from "defense/fortify";
 import { getUpgradeSpot } from "economy/index";
@@ -35,6 +35,42 @@ function fortifyFor(ctx: TickContext, roomName: string): FortifyTarget[] {
         fortifyMemo.set(roomName, targets);
     }
     return targets;
+}
+
+/** Per-tick memo: sourceId → the creep entitled to the container seat. A source
+ *  container is one tile, so exactly one miner may claim it; the rest drop-mine
+ *  from any adjacent tile. Preference goes to whoever already stands on it, so
+ *  the seat does not change hands when a new miner spawns; otherwise the lowest
+ *  name wins, which is arbitrary but STABLE — an unstable rule would just move
+ *  the shoving somewhere else. */
+let seatTick = -1;
+const seatMemo = new Map<string, string | undefined>();
+
+function seatOwnerFor(ctx: TickContext, room: RoomSnapshot, sourceId: string): string | undefined {
+    if (seatTick !== ctx.snapshot.time) {
+        seatMemo.clear();
+        seatTick = ctx.snapshot.time;
+    }
+    if (seatMemo.has(sourceId)) {
+        return seatMemo.get(sourceId);
+    }
+    const source = room.sources.find(s => s.id === sourceId);
+    const container = source
+        ? (room.structures[STRUCTURE_CONTAINER] ?? []).find(
+              c => Math.max(Math.abs(c.pos.x - source.pos.x), Math.abs(c.pos.y - source.pos.y)) <= 1
+          )
+        : undefined;
+    let owner: string | undefined;
+    if (container) {
+        const miners = ctx.snapshot.myCreeps.filter(c => {
+            const a = (c.memory as { assignment?: { kind?: string; sourceId?: string } }).assignment;
+            return a?.kind === AssignmentKind.Mine && a.sourceId === sourceId && !c.spawning;
+        });
+        const sitting = miners.find(c => c.pos.x === container.pos.x && c.pos.y === container.pos.y);
+        owner = sitting?.name ?? miners.map(c => c.name).sort()[0];
+    }
+    seatMemo.set(sourceId, owner);
+    return owner;
 }
 
 /** The M5 cross-room rule: for Haul, empty works in `room`, loaded in `to`. */
@@ -88,7 +124,7 @@ function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Act
     }
     switch (assignment.kind) {
         case AssignmentKind.Mine:
-            return decideMine(creep, assignment, room);
+            return decideMine(creep, assignment, room, seatOwnerFor(ctx, room, assignment.sourceId) === creep.name);
         // Room-scoped lookups key off the room being WORKED, not assignment.room:
         // a remote hauler delivering home has assignment.room = the remote, whose
         // upgrade spot is undefined — it arrived home loaded and lost both the

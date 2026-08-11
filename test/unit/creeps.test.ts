@@ -201,6 +201,23 @@ describe("mine executor with a container", () => {
         });
     });
 
+    it("sends a miner that does NOT own the seat to the source, not the container", () => {
+        // One container, one seat. When every miner targeted it, the losers parked
+        // adjacent to the container but 2 tiles from the source — never in harvest
+        // range, forever pathing onto an occupied tile. Two miners shoving, zero
+        // mining, and downstream: nothing to spawn with and nothing to haul.
+        expect(decideMine(creepAt(pos(20, 20), 0), mine, withContainer(), false)).to.deep.equal({
+            kind: ActionKind.MoveTo,
+            pos: pos(10, 40), // the source itself, range 1 — any free adjacent tile
+            range: 1
+        });
+        // And once adjacent it just mines, rather than chasing the seat.
+        expect(decideMine(creepAt(pos(10, 41), 0), mine, withContainer(), false)).to.deep.equal({
+            kind: ActionKind.Harvest,
+            targetId: "srcA"
+        });
+    });
+
     it("harvests on the container; off-seat-but-in-range miners still harvest", () => {
         expect(decideMine(creepAt(seat, 0), mine, withContainer())).to.deep.equal({
             kind: ActionKind.Harvest,
@@ -230,6 +247,22 @@ describe("mine executor with a container", () => {
 
 describe("haul executor with containers", () => {
     const seat = pos(11, 40);
+
+    it("collects a stray pile anywhere in the room, but never the upgraders' feed", () => {
+        // Source affinity is an assignment detail. Sim-measured: 2,643 energy on
+        // the ground and climbing while haulers idled "no-pile", because every
+        // pile sat more than two tiles from their own source.
+        const strayFar = roomWith({ dropped: [pile("stray", pos(40, 10), 400)] });
+        expect(decideHaul(creepAt(pos(38, 10), 0), haul, strayFar, SPOT)).to.deep.equal({
+            kind: ActionKind.MoveTo,
+            pos: pos(40, 10),
+            range: 1
+        });
+        // The pile at the upgrade spot is the upgraders' feed: taking it would
+        // just be re-dropped there next tick.
+        const feedOnly = roomWith({ dropped: [pile("feed", SPOT, 900)] });
+        expect(decideHaul(creepAt(pos(30, 30), 0), haul, feedOnly, SPOT).kind).to.equal(ActionKind.Idle);
+    });
 
     it("withdraws from the source container before chasing piles", () => {
         const room = roomWith({

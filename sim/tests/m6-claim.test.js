@@ -8,11 +8,14 @@ const { runScenario, seriesOf } = require("../lib/harness");
  * cross-room, and the target's controller becomes ours. The pioneering half (a
  * spawn built from scratch, ~5000 more ticks) lives in tests-full/m6-expand.
  */
-describe("m6: claim a second room (expand, 900 ticks)", function () {
+describe("m6: claim a second room (expand, 1500 ticks)", function () {
   this.timeout(20 * 60 * 1000);
   let res;
   before(async () => {
-    res = await runScenario({ scenario: "expand", ticks: 900, every: 50 });
+    // 1500: income comes first by policy, and the sponsor now staffs FIVE real
+    // haulers (undersized adopted bodies no longer count as staffed) before it
+    // funds a priority-60 claimer — roughly 200 ticks further right.
+    res = await runScenario({ scenario: "expand", ticks: 1500, every: 50 });
   });
 
   it("runs without engine or bot errors", () => {

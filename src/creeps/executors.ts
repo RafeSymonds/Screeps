@@ -58,14 +58,23 @@ export function spotContainer(room: RoomSnapshot, spot: Pos): StructureView | un
 
 const needsRepair = (c: StructureView): boolean => c.hits < ECONOMY_CONFIG.containerRepairFloor;
 
-export function decideMine(creep: CreepView, a: MineAssignment, room: RoomSnapshot): Action {
+/**
+ * @param hasSeat  Is this creep the one miner entitled to stand ON the source's
+ *   container? A container is ONE tile: when every miner of a source targeted it,
+ *   the losers ended up adjacent to the container but two tiles from the source,
+ *   so they never satisfied the in-range-1 harvest check and pathed onto the
+ *   occupied seat forever — two miners visibly shoving each other, mining
+ *   nothing (and, downstream, no energy to spawn or haul). Non-owners take any
+ *   adjacent tile and drop-mine.
+ */
+export function decideMine(creep: CreepView, a: MineAssignment, room: RoomSnapshot, hasSeat = true): Action {
     const source = room.sources.find(s => s.id === a.sourceId);
     if (!source) {
         return { kind: ActionKind.Idle, reason: "no-source" };
     }
-    const container = sourceContainer(room, source);
+    const container = hasSeat ? sourceContainer(room, source) : undefined;
     if (chebyshev(creep.pos, source.pos) > 1) {
-        // Seat: the container tile when one exists, else any adjacent tile.
+        // Seat: the container tile when one exists AND is ours, else any adjacent tile.
         return container
             ? { kind: ActionKind.MoveTo, pos: container.pos, range: 0 }
             : { kind: ActionKind.MoveTo, pos: source.pos, range: 1 };
@@ -126,6 +135,24 @@ export function decideHaul(
                 return { kind: ActionKind.Pickup, targetId: pile.id };
             }
             return { kind: ActionKind.MoveTo, pos: pile.pos, range: 1 };
+        }
+        // Room-wide fallback: source affinity is an assignment detail, not a reason
+        // to let energy rot. Sim-measured: 2,643 energy on the ground and climbing
+        // while two haulers idled "no-pile", because every pile was more than two
+        // tiles from their own source. Excludes the upgrade spot — that pile is the
+        // upgraders' feed, and collecting from it would just be re-dropped there.
+        const strays = room.dropped.filter(
+            d =>
+                d.resource === RESOURCE_ENERGY &&
+                d.amount >= ECONOMY_CONFIG.minPickup &&
+                (upgradeSpot === undefined || chebyshev(d.pos, upgradeSpot) > 1)
+        );
+        const stray = biggestPile(strays);
+        if (stray) {
+            if (chebyshev(creep.pos, stray.pos) <= 1) {
+                return { kind: ActionKind.Pickup, targetId: stray.id };
+            }
+            return { kind: ActionKind.MoveTo, pos: stray.pos, range: 1 };
         }
         // Storage tier (M4): the reserve funds spawning and recovery — withdraw only
         // while spawn-side has free capacity, so no hauler ever loops storage→storage.
