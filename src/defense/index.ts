@@ -2,6 +2,28 @@
  * Defense adapter: the two scheduled entries (towers class A, response class B)
  * plus the fortificationTargets accessor. Owner of Memory.rooms[name].defense.
  * See docs/design/defense.md.
+ *
+ * ## Why defense is split across two entries
+ *
+ * Towers are class A and run FIRST in the whole tick, because tower fire is both
+ * the cheapest and the most decisive defensive act available — 600 damage at
+ * range 5 for one intent, no creep required. It must never be shed under CPU
+ * pressure, and it must run before anything else has a chance to overrun the
+ * budget.
+ *
+ * Response (spawning defenders, arbitrating safe mode) is class B: slower, more
+ * expensive, and tolerable to skip for a tick. Splitting them means a CPU crisis
+ * degrades the *reaction* while the guns keep firing.
+ *
+ * The two share `lastHostile`, and the class-A entry is what stamps it — the
+ * class-B entry can be skipped, and fortification scaling must not go blind about
+ * an ongoing raid just because the response pass was shed.
+ *
+ * ## The escalation ladder
+ *
+ * Towers → defender creeps → safe mode, in that order of cost. Safe mode is
+ * last because it is per-user, limited, and on a cooldown: it is the thing you
+ * spend when losing the room is the alternative.
  */
 import { DIPLOMACY_CONFIG } from "shared/diplomacy";
 import { SubsystemId } from "shared/subsystems";
@@ -35,7 +57,10 @@ function sliceOf(roomName: string): DefenseMemory {
  *  pressure, and fortification scaling must not go blind during a raid). */
 export function runTowers(_ctx: TickContext, room: RoomSnapshot): void {
     if (room.hostiles.length === 0 && sliceOf(room.name).level === ThreatLevel.None) {
-        return; // the quiet-room fast path: one length check
+        // Almost every tick of the bot's life lands here. This entry runs first,
+        // every tick, in every room, so its quiet-room cost is a permanent tax —
+        // keep it to one array-length check plus a slice read.
+        return;
     }
     const assessment = assessThreat(room, DIPLOMACY_CONFIG, DEFENSE_CONFIG.siegeFactor);
     const slice = sliceOf(room.name);

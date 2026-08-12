@@ -1,5 +1,12 @@
 /**
  * Room lifecycle classification — pure. See docs/design/empire.md.
+ *
+ * One label per room, and it is the shared definition of "healthy" that expansion
+ * gates on and aid routes by. Keeping it in one pure function is what stops five
+ * subsystems from each inventing their own slightly different health check.
+ *
+ * Crippled specifically means "cannot fix itself": a room with no spawn cannot
+ * build a spawn, which is the situation aid exists to solve.
  */
 import { RoomSnapshot } from "shared/views";
 

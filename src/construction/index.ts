@@ -3,6 +3,11 @@
  * the snapshot + layout accessor and executes its intents, tolerating engine
  * rejections (blocked tile, global site cap) — next run recomputes everything.
  * Owner of Memory.rooms[name].build (reserved). See docs/design/construction.md.
+ *
+ * Engine rejections are logged at debug and otherwise ignored, which is safe
+ * precisely because the sequencer keeps no queue: a site that failed to place is
+ * simply still missing next run, and gets tried again. There is no bookkeeping to
+ * corrupt and no retry logic to write.
  */
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";

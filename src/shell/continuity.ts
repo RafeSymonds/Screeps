@@ -2,6 +2,25 @@
  * World continuity: room-loss detection, grace-period GC, and respawn
  * (discontinuity) handling — all diffed against the persisted owned-room
  * record, never heap state. See docs/design/shell.md.
+ *
+ * ## The scenario this exists for
+ *
+ * You can lose every room and be placed somewhere completely new. Memory survives
+ * that, so without detection the bot would spend forever acting on plans for
+ * rooms in another part of the map. Respawn is inferred rather than signalled:
+ * we owned nothing, we remember rooms, and now we own something — that
+ * combination cannot happen any other way.
+ *
+ * All detection diffs against `Memory.shell.owned`, never heap state, because
+ * the gap being detected can span hours of downtime and any number of resets.
+ *
+ * ## Losing a room is not losing the world
+ *
+ * A single room lost to a raid gets a grace period, not a reset: its slices
+ * linger for `LOST_ROOM_GRACE` ticks so post-mortem state is available and a
+ * re-claim inside the window costs nothing. Total loss deliberately does NOT
+ * reset either — we are dead awaiting respawn placement, and wiping intel then
+ * would destroy exactly what the next world wants for choosing where to expand.
  */
 import { SubsystemId } from "shared/subsystems";
 import { alert, AlertKind, log } from "telemetry/index";
@@ -23,6 +42,14 @@ function respawnReset(ownedNow: string[]): void {
     alert(AlertKind.Discontinuity, `respawn detected — new world: ${ownedNow.join(", ")}`);
 }
 
+/**
+ * Reconcile remembered ownership with reality, once per tick.
+ *
+ * `rememberedWorld` is the discriminator between "fresh world, first tick ever"
+ * (nothing remembered → just record) and "respawn" (rooms remembered but none
+ * owned until now → full reset). It also catches deploying this bot over another
+ * bot's leftover Memory, which is the same problem wearing a different hat.
+ */
 export function checkWorldContinuity(ownedNow: string[]): void {
     const shell = shellMemory();
     const rememberedWorld = Object.keys(Memory.rooms).length > 0 || Object.keys(shell.lostAt).length > 0;

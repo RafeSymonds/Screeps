@@ -3,6 +3,37 @@
  * resolved in one pass with heap-cached direction paths, an ops pool, and
  * stuck-repathing around blockers (M2's whole traffic story — shove is M4).
  * See docs/design/movement.md.
+ *
+ * ## Why movement is centralized
+ *
+ * Pathfinding is the most expensive thing a Screeps bot does, and the cost is
+ * per-call, not per-creep: twenty creeps each calling `moveTo` is twenty searches
+ * every tick forever. Collecting requests and resolving them in one place buys
+ * three things nothing else can:
+ *
+ *  1. **A budget.** `opsPoolPerTick` and `maxSearchesPerTick` are hard caps
+ *     across the whole bot. When they run out, creeps *stand* — walking late
+ *     beats skipping the rest of the tick's intents entirely (primer: exceeding
+ *     CPU truncates the tick mid-flight).
+ *  2. **Caching that survives.** A path is stored as a list of directions in heap
+ *     and replayed one step per tick, so the common case costs a `move()` intent
+ *     and nothing else. Paths are in the heap rather than Memory deliberately —
+ *     they are cheap to recompute and expensive to serialize every tick.
+ *  3. **Traffic resolution.** Because every mover is known before any of them
+ *     commits, the shove pass can see that A wants B's tile and B is idle.
+ *
+ * ## The three throttles, and why each exists
+ *
+ * They look redundant but guard different failure modes, each one sim-measured:
+ *   - `stuckCount` → repath: the creep is being physically blocked and the cached
+ *     path is now wrong.
+ *   - `searchedAt` cooldown: the path is *right* but the goal is unreachable-ish;
+ *     without it a handful of creeps re-searched every tick for 1.7 CPU/tick.
+ *   - `blockedUntil`: the search itself threw (a goal off the map). Retrying that
+ *     every tick produced an error burst that drowned real telemetry.
+ *
+ * All three live in module scope, so a global reset simply loses them and the
+ * next tick repaths — correct, just briefly more expensive.
  */
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
@@ -38,6 +69,12 @@ const goalKey = (req: MoveRequest): string => `${req.to.x},${req.to.y},${req.to.
 let matrixTick = -1;
 const matrices = new Map<string, CostMatrix>();
 
+/**
+ * Ask for a step toward `to`, stopping within `range` tiles (chebyshev). Called
+ * during creep execution; nothing moves until `resolveMoves` runs. One request
+ * per creep per tick — a later call replaces an earlier one, which is what makes
+ * "last decision wins" the rule rather than an accident of ordering.
+ */
 export function requestMove(creepName: string, to: Pos, range: number): void {
     requests.set(creepName, { to, range });
 }
@@ -75,6 +112,12 @@ const DIR_TO_DELTA: Partial<Record<DirectionConstant, [number, number]>> = {
 /** Moves issued this tick, for the shove pass. */
 const issued = new Map<string, DirectionConstant>();
 
+/**
+ * Compress a PathFinder path into replayable directions. Room transitions are
+ * skipped rather than encoded: stepping onto an edge tile teleports the creep to
+ * the neighbor room, so the border crossing has no direction of its own and
+ * emitting one would desynchronize every step after it.
+ */
 function toDirections(start: RoomPosition, path: RoomPosition[]): DirectionConstant[] {
     const steps: DirectionConstant[] = [];
     let prev = start;
@@ -131,7 +174,15 @@ function stuckMatrix(ctx: TickContext, roomName: string, selfName: string): Cost
     return matrix;
 }
 
-/** The class-A entry, after creep execution in the normative order. */
+/**
+ * The class-A entry, after creep execution in the normative order.
+ *
+ * Per creep, in order: drop the request if it's gone or already in range; skip if
+ * fatigued (a fatigued creep cannot move, so counting it as "stuck" would repath
+ * a perfectly good path); replay the cached step if the last one landed; re-issue
+ * without advancing if it didn't; repath once genuinely stuck. Only after all of
+ * that does anyone spend from the ops pool.
+ */
 export function resolveMoves(ctx: TickContext): void {
     let opsPool = CFG.opsPoolPerTick;
     let searches = 0;
@@ -155,6 +206,9 @@ export function resolveMoves(ctx: TickContext): void {
             continue; // no step, no idx advance, no stuck counting
         }
 
+        // `stamped` = "this is a stuck-repath", which both exempts the creep from
+        // the search cooldown and swaps in a matrix with other creeps marked
+        // impassable, so the new path actually routes around whatever blocked it.
         const cached = caches.get(name);
         let stamped = false;
         if (cached && sameTarget(cached, req) && cached.idx < cached.steps.length) {
@@ -197,6 +251,9 @@ export function resolveMoves(ctx: TickContext): void {
             deferred++;
             continue; // stands this tick; walking late beats blowing the budget
         }
+        // Same-room goals are pinned to maxRooms:1 — without it PathFinder will
+        // happily route out through a neighbor and back, which is both slower to
+        // search and slower to walk.
         const sameRoom = pos.roomName === req.to.roomName;
         const maxOps = Math.min(CFG.maxOpsPerSearch, opsPool);
         let result: PathFinderPath;
@@ -291,6 +348,8 @@ function shovePass(ctx: TickContext): void {
     }
 }
 
+/** Wipes all module-scope state. Tests only — production relies on a global
+ *  reset doing exactly this for free. */
 export function _clearForTest(): void {
     requests.clear();
     caches.clear();

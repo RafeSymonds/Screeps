@@ -1,6 +1,15 @@
 /**
  * Tower fire plan — every tower with a shot's worth of energy focuses ONE target
  * (kill confirms beat spread damage). Pure. See docs/design/defense.md.
+ *
+ * Focus fire is the whole strategy. Attackers bring healers, and a healer can
+ * out-repair spread damage indefinitely; concentrating every tower on one creep
+ * beats the heal rate and removes it from the fight permanently. Damage dealt
+ * across five creeps that all survive is damage wasted.
+ *
+ * Target selection maximizes *actual* damage (range-weighted, summed across
+ * towers), then prefers the most wounded — a nearly-dead creep converts the
+ * smallest investment into a kill.
  */
 import { Pos, RoomSnapshot } from "shared/views";
 import { ThreatAssessment, ThreatLevel } from "defense/threat";

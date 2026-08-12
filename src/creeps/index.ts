@@ -2,6 +2,25 @@
  * Creep execution: dispatch each creep's assignment to its pure executor, then
  * perform the returned Action — a dumb switch over game intents, with MoveTo
  * routed to movement. Executors never write assignments. See docs/design/creeps.md.
+ *
+ * ## The two halves
+ *
+ * `decide` is the shell around the pure executors: it handles everything that
+ * needs cross-room or cross-creep context (which room am I working, is it safe,
+ * am I straddling a border, do I own the container seat) and then hands a single
+ * room's view to a pure function. `perform` is deliberately mindless — it maps an
+ * Action to exactly one game call and nothing else.
+ *
+ * Keeping those apart is what stops creep logic from sprawling. Any question that
+ * can be answered from one room's data belongs in `executors.ts` where it is
+ * testable; anything needing the whole world lands here.
+ *
+ * ## Assignments are input, never output
+ *
+ * The workforce planner (economy) writes `creep.memory.assignment`; this module
+ * only reads it. That one-way flow is why a creep cannot quietly reassign itself
+ * and drift out of the planner's headcount — if behavior looks wrong, exactly one
+ * subsystem wrote the decision.
  */
 import { Assignment, AssignmentKind } from "shared/assignments";
 import { SubsystemId } from "shared/subsystems";
@@ -17,6 +36,9 @@ import { log } from "telemetry/index";
 import { Action, ActionKind } from "creeps/actions";
 import { decideBuild, decideDefend, decideHaul, decideMine, decidePioneer, decideUpgrade } from "creeps/executors";
 
+/** Why creeps did nothing, tallied by reason and logged periodically. Idleness is
+ *  the symptom every economy bug shows up as first, so the reason string is the
+ *  cheapest diagnostic in the bot — "no-pile=12" says more than a CPU graph. */
 const idleTally: Record<string, number> = {};
 
 /** Per-tick memo: the fortify accessor scans room walls once per room, not per creep. */
@@ -73,7 +95,13 @@ function seatOwnerFor(ctx: TickContext, room: RoomSnapshot, sourceId: string): s
     return owner;
 }
 
-/** The M5 cross-room rule: for Haul, empty works in `room`, loaded in `to`. */
+/**
+ * Which room is this creep's job in *right now*? Constant for every role except
+ * hauling, where the answer flips with the load: an empty remote hauler belongs
+ * at the remote's container, a full one belongs at home. Deriving it from
+ * `store.used` rather than a memory flag keeps the round trip stateless — a
+ * hauler that dies and is replaced mid-route needs no handover.
+ */
 function workRoomOf(creep: CreepView, assignment: Assignment): string {
     if (assignment.kind === AssignmentKind.Haul && creep.store.used > 0) {
         return assignment.to ?? assignment.room;
@@ -93,6 +121,15 @@ const atRoomEdge = (pos: { x: number; y: number }): boolean =>
 
 const centerOf = (roomName: string): { x: number; y: number; roomName: string } => ({ x: 25, y: 25, roomName });
 
+/**
+ * Everything a creep needs decided that a single room's view cannot answer, then
+ * delegation to the pure executor for the rest.
+ *
+ * The preamble order is fixed and each rule earns its place: retreat from unsafe
+ * rooms (before travelling into one), step off the border (only once arrived),
+ * travel to the work room (without requiring vision of it), and only then decide
+ * what to actually do there.
+ */
 function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Action {
     const workRoom = workRoomOf(creep, assignment);
     const home = (creep.memory as { home?: string }).home;
@@ -167,6 +204,14 @@ function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Act
     }
 }
 
+/**
+ * Turn one Action into one game intent. No decisions here by design — if this
+ * function ever needs a branch on world state, that branch belongs in an executor.
+ *
+ * A vanished target resolves to `undefined` and is treated as OK rather than an
+ * error: the object died between snapshot and intent, which is ordinary, and next
+ * tick's decision will simply pick something else.
+ */
 function perform(creepName: string, action: Action): void {
     if (action.kind === ActionKind.Idle) {
         idleTally[action.reason] = (idleTally[action.reason] ?? 0) + 1;

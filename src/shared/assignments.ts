@@ -2,6 +2,16 @@
  * Creep assignments — the cross-subsystem contract between planners (who write
  * them into CreepMemory at spawn) and creep execution (who performs them).
  * See docs/design/economy.md.
+ *
+ * An assignment says WHAT a creep is for, never what it should do right now. That
+ * line is deliberate and it is why these types are so small: the moment-to-moment
+ * decision is re-derived from the world every tick by the executors, so an
+ * assignment cannot go stale. A `BuildAssignment` naming a specific site would be
+ * wrong the tick that site completes; naming only the room never is.
+ *
+ * The persisted fields are exactly the ones that cannot be re-derived — which
+ * source this miner serves, which room this hauler delivers to. Everything else
+ * is recomputed.
  */
 
 export enum AssignmentKind {

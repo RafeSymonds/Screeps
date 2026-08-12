@@ -2,6 +2,30 @@
  * Empire adapter: the registry/trigger entry (class C), the aid pass (class B,
  * between the producers and spawn), and safe-mode arbitration. Owner of
  * Memory.empire. See docs/design/empire.md.
+ *
+ * ## The cross-room layer
+ *
+ * Every other subsystem reasons about one room. Empire owns the three questions
+ * that only make sense across rooms:
+ *
+ *  1. **How is each room doing?** A lifecycle label per room (Stable, Crippled,
+ *     …) that other subsystems gate on, so "is this room healthy" has one
+ *     definition rather than five.
+ *  2. **Should a healthy room pay for a sick one?** The aid pass re-homes spawn
+ *     demands: a room that lost its spawn cannot build its own rebuild crew, so
+ *     a neighbor builds it instead. It runs after every producer and before
+ *     spawn, which is the only window where the full tick's demands exist and
+ *     none has been acted on yet.
+ *  3. **Who gets safe mode?** It is per-user and precious, so arbitration cannot
+ *     live inside any one room's defense.
+ *
+ * ## Safe mode has a same-tick hazard
+ *
+ * The engine keeps only the LAST `activateSafeMode` intent of a tick. Two rooms
+ * requesting simultaneously do not queue — the second silently overwrites the
+ * first, and the room you meant to save gets nothing. `grantedOnTick` is a
+ * heap-only, deliberately non-persisted guard against exactly that: it only needs
+ * to be correct within a tick, and persisting it would be meaningless.
  */
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
@@ -58,7 +82,15 @@ export function confirmSafeMode(time: number): void {
     slice().lastSafeModeGrant = time;
 }
 
-/** Expansion reads this: empire decides WHEN, expansion decides WHERE. */
+/**
+ * Expansion reads this: empire decides WHEN, expansion decides WHERE.
+ *
+ * Three gates, all of which must pass: GCL allows another room at all, CPU has
+ * headroom to run one (a second room we cannot afford to think about is worse
+ * than no second room), and every existing room is already Stable. That last one
+ * is the important discipline — expanding out of a struggling empire produces two
+ * struggling rooms.
+ */
 export function expansionWanted(ctx: TickContext): boolean {
     const mem = slice();
     const owned = ctx.snapshot.myRooms.length;
@@ -95,7 +127,14 @@ export function runRegistry(ctx: TickContext): void {
     }
 }
 
-/** Class B (every tick), ordered after the producers and before spawn. */
+/**
+ * Class B (every tick), ordered after the producers and before spawn — the only
+ * point in the tick where every demand exists and none has been resolved.
+ *
+ * Rewrites `home` on demands from rooms that cannot fund them, pointing them at a
+ * healthy donor's spawn. The demand list is replaced in place because it is the
+ * shared per-tick channel; spawn resolution sees only the brokered result.
+ */
 export function runAid(ctx: TickContext): void {
     const mem = slice();
     if (ctx.spawnDemands.length === 0) {

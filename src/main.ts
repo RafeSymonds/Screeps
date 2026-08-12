@@ -1,3 +1,16 @@
+/**
+ * Entry point. Deliberately contains no logic: the engine calls `loop` once per
+ * tick, and everything about what a tick IS lives in shell/index.ts.
+ *
+ * What this file does own is the ambient Memory schema — the one place you can
+ * read the entire persisted shape of the bot at a glance. Each slice is declared
+ * here and owned by exactly one subsystem (architecture.md §6); every field is
+ * optional because Memory may predate the subsystem that fills it.
+ *
+ * `ErrorMapper.wrapLoop` is the outermost safety net: it catches anything that
+ * escapes the shell's own containment and maps the stack trace back through the
+ * bundle's source map, so a production stack names real files and lines.
+ */
 import { ErrorMapper } from "utils/ErrorMapper";
 import * as shell from "shell/index";
 import type { Assignment } from "shared/assignments";

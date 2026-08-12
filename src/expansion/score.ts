@@ -1,5 +1,12 @@
 /**
  * Candidate scoring — pure. See docs/design/expansion.md.
+ *
+ * Eligibility and score are separate on purpose. Eligibility is a hard filter of
+ * facts that make a room impossible or illegal to take (wrong room type, already
+ * owned, hostile, no sources); score ranks what is left. Folding a disqualifier
+ * into the score as a large negative would let a very attractive room outweigh
+ * it, which for something as expensive and slow as a claim is not a trade we ever
+ * want available.
  */
 import { RoomIntel, RoomType, roomType } from "intel/index";
 

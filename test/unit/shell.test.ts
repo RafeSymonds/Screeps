@@ -5,7 +5,7 @@ import { AlertKind } from "telemetry/index";
 import { checkWorldContinuity, LOST_ROOM_GRACE } from "shell/continuity";
 import { cleanDeadCreepMemory } from "shell/creepGc";
 import { ENTRIES } from "shell/entries";
-import { CURRENT_VERSION, ensureAndMigrate, KEEP_ON_RESET, Migration } from "shell/memory";
+import { CURRENT_VERSION, ensureMemory, KEEP_ON_RESET } from "shell/memory";
 import { makeCreep } from "../helpers/mock";
 
 function g(): Record<string, any> {
@@ -23,50 +23,35 @@ describe("shell", () => {
 
     describe("memory bootstrap", () => {
         it("initializes a fresh world with containers and version", () => {
-            ensureAndMigrate();
+            ensureMemory();
             expect(Memory.version).to.equal(CURRENT_VERSION);
             expect(Memory.rooms).to.deep.equal({});
             expect(Memory.intel).to.deep.equal({});
             expect(Memory.shell).to.deep.equal({ owned: [], lostAt: {} });
         });
 
-        it("runs the migration ladder in order and lands on CURRENT_VERSION", () => {
-            ensureAndMigrate();
-            Memory.version = 0;
-            const applied: number[] = [];
-            const synthetic: Migration[] = [
-                { to: 1, run: () => applied.push(1) }
-            ];
-            ensureAndMigrate(synthetic);
-            expect(applied).to.deep.equal([1]);
-            expect(Memory.version).to.equal(CURRENT_VERSION);
-        });
+        // We do not migrate: an OLDER version is discarded exactly like a newer
+        // one. Derived slices rebuild themselves; KEEP_ON_RESET carries the rest.
+        it("resets on an older version rather than reading it forward", () => {
+            ensureMemory();
+            Memory.rooms.W1N1 = { legacy: true } as unknown as RoomMemory;
+            Memory.version = CURRENT_VERSION - 1;
 
-        it("fails forward past a throwing migration, counting and alerting", () => {
-            ensureAndMigrate();
-            Memory.version = 0;
-            const synthetic: Migration[] = [
-                {
-                    to: 1,
-                    run: () => {
-                        throw new Error("bad migration");
-                    }
-                }
-            ];
-            expect(() => ensureAndMigrate(synthetic)).to.not.throw();
+            ensureMemory();
             expect(Memory.version).to.equal(CURRENT_VERSION);
-            expect(sent.some(m => m.includes(AlertKind.CorruptSlice))).to.equal(true);
+            expect(Memory.rooms).to.deep.equal({});
+            expect(sent.some(m => m.includes(AlertKind.Discontinuity))).to.equal(true);
         });
 
         it("resets on version rollback but keeps everything in KEEP_ON_RESET", () => {
-            ensureAndMigrate();
+            ensureMemory();
             Memory.intel = { v: 1, rooms: { W5N5: { lastSeen: 1, sources: [] } } };
             telemetry.countReset(50); // materializes Memory.stats
             const statsBefore = Memory.stats;
             Memory.rooms.W1N1 = {} as RoomMemory;
             Memory.version = CURRENT_VERSION + 5;
 
-            ensureAndMigrate();
+            ensureMemory();
             expect(Memory.version).to.equal(CURRENT_VERSION);
             expect(Memory.intel).to.deep.equal({ v: 1, rooms: { W5N5: { lastSeen: 1, sources: [] } } });
             expect(Memory.stats).to.equal(statsBefore);
@@ -76,16 +61,16 @@ describe("shell", () => {
         });
 
         it("heals a corrupt container in place", () => {
-            ensureAndMigrate();
+            ensureMemory();
             (Memory as unknown as Record<string, unknown>).shell = "garbage";
-            ensureAndMigrate();
+            ensureMemory();
             expect(Memory.shell).to.deep.equal({ owned: [], lostAt: {} });
         });
     });
 
     describe("world continuity", () => {
         beforeEach(() => {
-            ensureAndMigrate();
+            ensureMemory();
         });
 
         it("fresh world: records ownership without alerts", () => {

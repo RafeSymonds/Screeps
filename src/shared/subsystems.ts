@@ -26,6 +26,16 @@ export enum SubsystemId {
     TelemetryFlush = "telemetryFlush"
 }
 
+/**
+ * What a subsystem is allowed to cost, and therefore when it gets dropped.
+ *
+ * - **A** — never skipped. Omitting it loses creeps or rooms: tower fire, creep
+ *   execution, movement resolution.
+ * - **B** — skipped when this tick is already deep into its budget. Wants to run
+ *   every tick (spawn demands live one tick) but survives missing one.
+ * - **C** — skipped first, and also runs on an interval rather than every tick.
+ *   Planning and bookkeeping, where "a few ticks later" costs nothing.
+ */
 export enum CpuClass {
     A = "A",
     B = "B",

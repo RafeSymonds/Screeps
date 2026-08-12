@@ -2,6 +2,22 @@
  * Remotes adapter: the class-C decision entry (adopt/drop/reserve, slice writes)
  * and the class-B emission entry (demands + unsafe reporting). Owner of
  * Memory.rooms[home].remotes. See docs/design/remotes.md.
+ *
+ * ## Why two entries at different cadences
+ *
+ * Adoption is a slow, expensive judgment about which neighbors are worth mining —
+ * it changes on the scale of hundreds of ticks, so it runs on a class-C interval.
+ * Demand emission has to run every tick regardless: spawn demands live exactly
+ * one tick, and an interval entry would offer them to the resolver on a 2% duty
+ * cycle while it makes decisions every tick.
+ *
+ * ## Diagnosability is a feature here
+ *
+ * "Why are there no remotes?" has many possible answers — nothing scouted, all
+ * neighbors owned, profit below threshold, home not healthy yet — and from
+ * outside they all look identical to a broken subsystem. `rejectionReason` is a
+ * single source of truth for the gate, and this adapter logs it precisely when a
+ * home has no remotes, i.e. exactly when someone is asking.
  */
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
@@ -130,7 +146,14 @@ export function runPlan(ctx: TickContext, home: RoomSnapshot): void {
     }
 }
 
-/** Class B (every tick): unsafe reporting + demand emission. */
+/**
+ * Class B (every tick): unsafe reporting + demand emission.
+ *
+ * Our own creeps in a remote are the only eyes we have there, so this pass
+ * doubles as a tripwire — an armed hostile seen in an adopted remote flags the
+ * room unsafe through intel, which both pulls our creeps out (via the retreat
+ * rule in creep dispatch) and stops new ones being sent.
+ */
 export function runEmit(ctx: TickContext, home: RoomSnapshot): void {
     const now = ctx.snapshot.time;
     const slice = sliceOf(home.name);

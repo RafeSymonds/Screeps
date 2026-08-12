@@ -2,6 +2,13 @@
  * Expansion adapter: the class-C decision entry and the class-B emission entry
  * (demands live one tick and must precede Spawn). Owner of Memory.expansion.
  * See docs/design/expansion.md.
+ *
+ * Reads the world (intel for candidate rooms, snapshot for sponsors and target
+ * state), hands a plain input to the pure state machine, applies whatever it
+ * returns to the slice. The split is the same as everywhere else, but it matters
+ * more here than most: expansion's branches are rare and slow to reproduce
+ * live — a claimer dying, a sponsor being lost mid-claim, a target becoming
+ * ineligible — so they have to be reachable from a unit test.
  */
 import { AssignmentKind } from "shared/assignments";
 import { SubsystemId } from "shared/subsystems";
@@ -33,7 +40,14 @@ function expansionRoster(ctx: TickContext): CreepView[] {
     return ctx.snapshot.myCreeps.filter(c => (c.memory as { owner?: SubsystemId }).owner === SubsystemId.Expansion);
 }
 
-/** Class C (interval 50): the observation-driven state machine. */
+/**
+ * Class C (interval 50): the observation-driven state machine.
+ *
+ * `targetMine` is deliberately checked two ways — live vision if we can see the
+ * target, else intel's recorded owner. The claim completes at the moment a
+ * creep touches the controller, but we may lose vision of the room immediately
+ * after; without the intel fallback the phase would never advance.
+ */
 export function runDecision(ctx: TickContext, wanted: boolean): void {
     const mem = slice();
     const time = ctx.snapshot.time;

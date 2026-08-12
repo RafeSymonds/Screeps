@@ -1,6 +1,11 @@
 /**
  * Immutable terrain, copied once per room into a plain grid and heap-cached
  * forever (rebuilt lazily after a global reset). See docs/design/snapshot.md.
+ *
+ * Terrain is the one piece of world state that genuinely never changes, so this
+ * is the one cache with no invalidation and no staleness rule. It is heap-only
+ * rather than persisted because 2500 bytes per room in Memory would be
+ * re-serialized every tick to store something the engine hands back for free.
  */
 export interface TerrainGrid {
     isWall(x: number, y: number): boolean;

@@ -1,6 +1,34 @@
 /**
  * The pure expansion state machine: observation-driven phases (so a global reset
  * costs nothing) plus the demand emission. See docs/design/expansion.md.
+ *
+ * ## The arc
+ *
+ * Claiming a second room is the longest single operation the bot runs: pick a
+ * target, walk a CLAIM creep there (possibly several rooms), take the controller,
+ * then keep pioneers alive long enough to build a spawn from nothing — thousands
+ * of ticks end to end, across an unknown number of global resets.
+ *
+ * ## Phases are observed, not remembered
+ *
+ * The slice records the target, the sponsor and a phase label, but the phase
+ * *transitions* are driven by looking at the world: do we own the target's
+ * controller (→ pioneering), does it have a spawn (→ done). Nothing depends on
+ * having witnessed the moment it happened. A reset mid-claim is therefore free —
+ * the next tick re-observes the same reality and reaches the same conclusion.
+ *
+ * The one thing that genuinely cannot be re-observed is claimer *death*: the
+ * shell GCs a dead creep's memory the tick after it dies, so the recorded
+ * `claimerName` is the only evidence the creep ever existed. That is why it is
+ * persisted and the phases are not.
+ *
+ * ## Empire decides when, this decides where
+ *
+ * `wanted` comes from empire (GCL headroom, are existing rooms healthy). This
+ * module never asks whether to grow — only which room, and whether the operation
+ * in flight is still going well. Failure modes are deliberately asymmetric:
+ * before the claim it aborts freely, but a room already claimed is never
+ * abandoned, only alerted on. An abandoned claimed room decays to nothing.
  */
 import { AssignmentKind } from "shared/assignments";
 import { SpawnDemand } from "shared/spawning";
@@ -56,6 +84,11 @@ export interface ExpansionDecision {
 
 const nameOf = (c: CreepView): string => c.name;
 
+/**
+ * One tick of the expansion state machine. Returns *what changed*, not new state
+ * — the adapter applies the decision to the slice, so this stays pure and every
+ * branch is unit-testable from a plain input object.
+ */
 export function planExpansionDecision(input: ExpansionDecisionInput): ExpansionDecision {
     const { slice, wanted, candidates, ownedMinerals, sponsors, roster, targetMine, targetHasSpawn, time, config } = input;
     const claim = slice.claim;

@@ -1,6 +1,12 @@
 /**
  * Terrain-derived seat choices, computed once per room and persisted in the econ
  * slice. Pure over the TerrainGrid. See docs/design/economy.md "Memory Schema".
+ *
+ * Both answers here depend only on terrain, which never changes — so they are
+ * computed once and stored, and the storage can never go stale. Seat counts cap
+ * how many miners a source can physically hold (a source ringed by walls with one
+ * open tile takes one miner no matter what the saturation math wants), and the
+ * upgrade spot is the room's energy drop point for its entire life.
  */
 import { Pos } from "shared/views";
 import { TerrainGrid } from "snapshot/terrain";

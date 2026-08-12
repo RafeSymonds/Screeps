@@ -1,6 +1,15 @@
 /**
  * Threat assessment — pure classification of a room's hostiles by body
  * composition, filtered through the diplomacy whitelist. See docs/design/defense.md.
+ *
+ * The levels exist so the rest of defense can respond proportionally. A wandering
+ * scout (Nuisance) is not worth 10 energy a shot or an escalation; a raid is worth
+ * towers and defenders; a siege is worth spending safe mode.
+ *
+ * Bodies, not counts, drive the classification — a creep's parts are exactly what
+ * it can do to us. Siege is judged relative to our own tower count, because "more
+ * than we can shoot down" is what actually makes an attack existential, and that
+ * threshold is different for a one-tower room than a six-tower one.
  */
 import { DiplomacyConfig } from "shared/diplomacy";
 import { HostileView, RoomSnapshot } from "shared/views";

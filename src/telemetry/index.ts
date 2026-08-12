@@ -4,6 +4,35 @@
  * Game.notify alerts. Every public function traps its own errors — a broken
  * telemetry degrades to "no evidence", never to "no tick".
  * See docs/design/telemetry.md.
+ *
+ * ## The problem this solves
+ *
+ * A Screeps bot runs unattended for days at a time and nobody is watching when it
+ * breaks. So the requirement is not "logging" — it is that after the fact, from
+ * Memory alone, you can answer: what was CPU doing, which subsystem burned it,
+ * what threw, and how often did the global reset. That has to be true even for
+ * the ticks nobody saw, which rules out `console.log` as the record of truth.
+ *
+ * ## Heap window → Memory ring
+ *
+ * Accumulating per-entry stats straight into Memory would mean re-serializing the
+ * whole slice every tick — expensive, and pointless since only the aggregate
+ * matters. Instead stats accumulate in a heap `window`, and every
+ * `FLUSH_INTERVAL` ticks the window is folded into a fixed-size ring buffer in
+ * Memory. The ring is bounded, so the slice never grows; it wraps, so the recent
+ * past is always available and the distant past costs nothing.
+ *
+ * The tradeoff is real and accepted: a global reset loses up to one unflushed
+ * window. The two things a reset must NOT lose — the reset count itself and
+ * alerts — are written straight through to Memory instead, because a crash loop
+ * is exactly the case where the window never survives to be flushed.
+ *
+ * ## Everything here is guarded
+ *
+ * Every exported function wraps its body in `guard`. Telemetry sits inside the
+ * hot path of every other subsystem, and an exception raised while *recording* a
+ * problem would convert a contained failure into a dead tick. Failures degrade to
+ * a `console.log` and nothing more.
  */
 import { SchedulerReporter, SkipReason } from "shared/scheduling";
 import { SubsystemId } from "shared/subsystems";
@@ -12,6 +41,10 @@ import { log, LogLevel } from "telemetry/log";
 
 export { log, LogLevel };
 
+/**
+ * Things worth waking a human for. Each kind dedupes independently on its own
+ * timer, so a room falling over does not suppress the alert about CPU.
+ */
 export enum AlertKind {
     ErrorBurst = "errorBurst",
     CpuCeiling = "cpuCeiling",
@@ -98,6 +131,8 @@ function ensureStats(): StatsMemory {
     return (mem as { stats: StatsMemory }).stats;
 }
 
+/** Containment for telemetry itself: recording a failure must never cause one.
+ *  Deliberately falls back to raw console — the alerting path may be what broke. */
 function guard(what: string, fn: () => void): void {
     try {
         fn();
@@ -125,6 +160,12 @@ export function beginTick(time: number): void {
     });
 }
 
+/**
+ * Close the tick: fold this tick's totals into the window and check the two
+ * standing alarms. Both are evaluated on the *window*, not the tick, and only
+ * once the window has enough ticks to mean something — a single expensive tick
+ * during a base rebuild is normal, a sustained average at the ceiling is not.
+ */
 export function endTick(cpuUsed: number, limit: number, bucket: number): void {
     guard("endTick", () => {
         window.ticks += 1;
@@ -142,7 +183,12 @@ export function endTick(cpuUsed: number, limit: number, bucket: number): void {
     });
 }
 
-/** The TelemetryFlush entry's run(): fold the heap window into the ring. */
+/**
+ * The TelemetryFlush entry's run(): fold the heap window into the ring.
+ * Runs last in the normative tick order so the window it writes is complete.
+ * `head` advances modulo RING_SIZE — the ring overwrites its oldest entry rather
+ * than growing, which is what keeps the stats slice under its size budget forever.
+ */
 export function flush(): void {
     guard("flush", () => {
         if (window.ticks === 0) {
@@ -204,6 +250,12 @@ export function countError(scope: SubsystemId, err: unknown): void {
     });
 }
 
+/**
+ * Notify a human, at most once per `ALERT_DEDUPE_TICKS` per kind. The dedupe
+ * timestamp lives in Memory rather than heap on purpose: a reset loop is a
+ * condition that *causes* the heap to vanish, and a heap-based dedupe would mail
+ * on every single reset.
+ */
 export function alert(kind: AlertKind, message: string): void {
     guard("alert", () => {
         const stats = ensureStats();
@@ -216,6 +268,8 @@ export function alert(kind: AlertKind, message: string): void {
     });
 }
 
+/** The scheduler's sink. Kept as an object literal implementing a shared
+ *  interface so the scheduler depends on the contract, never on this module. */
 export const reporter: SchedulerReporter = {
     entryRan: (id: SubsystemId, _room: string | null, cpu: number): void => {
         guard("entryRan", () => {

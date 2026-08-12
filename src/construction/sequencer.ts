@@ -2,6 +2,28 @@
  * The pure build sequencer: BasePlan + current reality → at most a few site
  * creations in BUILD_PRIORITY order, plus stale-site removals. Derived fresh
  * every run — no persisted queue. See docs/design/construction.md.
+ *
+ * ## No queue, on purpose
+ *
+ * The obvious design is a persisted build queue. It is also the one that rots:
+ * sites get destroyed, RCL changes what is legal, the plan version bumps, and now
+ * the queue disagrees with reality and needs reconciliation logic nobody
+ * remembers to write. Instead the answer is recomputed from the plan and what
+ * exists right now, every run. Stateless means never wrong.
+ *
+ * ## Why so few sites at a time
+ *
+ * Open construction sites split builder attention and, worse, decay unfinished
+ * energy investment across the room. `maxOpenSites` keeps the crew converging on
+ * a few targets so things actually *finish*. The priority walk then decides which
+ * few — extensions before roads, spawn before everything.
+ *
+ * ## Placement legality
+ *
+ * The engine refuses a site on a tile already holding a non-stackable structure,
+ * in BOTH directions — ramparts and roads stack with anything, everything else
+ * with nothing. Getting this wrong produces silent per-tick failures rather than
+ * an error, which is why the occupancy check is explicit here.
  */
 import { BUILD_PRIORITY } from "shared/build";
 import { ConstructionSiteView, Pos } from "shared/views";
@@ -26,6 +48,15 @@ const STACKABLE = new Set<StructureConstant>([STRUCTURE_RAMPART, STRUCTURE_ROAD]
 
 const key = (pos: Pos): number => pos.y * 50 + pos.x;
 
+/**
+ * Decide this run's site creations and removals.
+ *
+ * Removals are computed first so the sites they free count toward this run's
+ * budget — otherwise clearing an off-plan queue would take one full run per site.
+ * Two exceptions keep removal from being destructive: a spawn site in a spawnless
+ * room is never removed (it is the room's only way back), and neither is a site
+ * already substantially built (that energy is spent either way).
+ */
 export function sequenceBuilds(input: ConstructionInput): ConstructionIntents {
     const { rcl, plan, structures, mySites, config } = input;
 
@@ -81,7 +112,9 @@ export function sequenceBuilds(input: ConstructionInput): ConstructionIntents {
     const belowRcl2 = rcl < 2;
     for (const type of BUILD_PRIORITY) {
         if (budget <= 0) break;
-        // Below RCL2 the only permitted create is the recovery spawn.
+        // Below RCL2 the only permitted create is the recovery spawn. A fresh or
+        // wiped room has one job — get a spawn up — and every other site would
+        // compete for the tiny amount of labor it has.
         if (belowRcl2 && type !== STRUCTURE_SPAWN) continue;
         const allowed = (CONTROLLER_STRUCTURES as Record<string, Record<number, number>>)[type]?.[rcl] ?? 0;
         if (allowed <= 0) continue;

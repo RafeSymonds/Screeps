@@ -1,6 +1,29 @@
 /**
  * The pure remote planner: adopt/drop/reserve decisions plus the remote
  * workforce's demands, from intel + the home snapshot. See docs/design/remotes.md.
+ *
+ * ## What a remote is
+ *
+ * A neighboring room we do not own but mine anyway. It costs creeps, travel time
+ * and risk; it pays energy. Whether that trade is positive is an actual
+ * calculation, not a judgment call, and `remoteProfit` is it: income minus body
+ * upkeep amortized over creep lifetimes, minus the decay of energy sitting on the
+ * ground between hauler visits. Below `minProfit` the room is not adopted.
+ *
+ * ## Reserving doubles the yield
+ *
+ * An unowned, unreserved source regenerates to 1500 rather than 3000 — half rate.
+ * Parking a CLAIM creep on the controller lifts it, so reservation roughly doubles
+ * a remote's income for the price of one reserver. That is why it is worth it for
+ * two-source rooms and usually not for one, and why the miner body differs
+ * between the two cases (3 WORK saturates 5 e/t, 5 WORK saturates 10).
+ *
+ * ## Home comes first, always
+ *
+ * Remote demands are only emitted while home income is fully staffed. A remote is
+ * an *expansion* of a working economy, never a substitute for one — spending the
+ * home spawn queue on remote miners while home sources sit unmined trades a sure
+ * thing for a speculative one.
  */
 import { AssignmentKind } from "shared/assignments";
 import { SpawnDemand } from "shared/spawning";
@@ -64,7 +87,15 @@ export function remoteHaulerBody(rate: number, travelTiles: number): { body: Bod
     return { body: [...new Array<BodyPartConstant>(pairs).fill(CARRY), ...new Array<BodyPartConstant>(pairs).fill(MOVE)], count };
 }
 
-/** Profit (e/t): income − miner/hauler/reserver upkeep − standing-pile decay. */
+/**
+ * Profit (e/t): income − miner/hauler/reserver upkeep − standing-pile decay.
+ *
+ * Body costs are divided by lifetime (1500 ticks, 600 for a reserver's CLAIM
+ * body) to express them as a rate, so everything in the sum is e/t and directly
+ * comparable. The pile-decay term is easy to forget and matters: energy waiting
+ * on the ground for a hauler loses ceil(amount/1000) per tick, which for one
+ * standing pile per source is about 1 e/t of pure loss.
+ */
 export function remoteProfit(sources: number, reserved: boolean, travelTiles: number, config: RemotesConfig): number {
     const rate = sources * (reserved ? RESERVED_RATE : UNRESERVED_RATE);
     const minerCost = (sources * ((reserved ? 5 : 3) * 100 + 50 + Math.ceil(((reserved ? 5 : 3) + 1) / 2) * 50)) / 1500;
@@ -119,7 +150,11 @@ function eligible(c: RemoteCandidate, config: RemotesConfig, homeCap: number): b
     return rejectionReason(c, homeCap, config) === undefined;
 }
 
-/** The class-C decision pass: adopt/drop/reserve (recorded in the slice by the adapter). */
+/**
+ * The class-C decision pass: adopt/drop/reserve (recorded in the slice by the
+ * adapter). Drops are evaluated before adoptions so a remote that just became
+ * ineligible frees its slot in the same tick something better can take it.
+ */
 export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" | "drop" | "reserve"> {
     const { candidates, slice, homeCap, config } = input;
     const adopt: string[] = [];
@@ -156,7 +191,12 @@ export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" |
     return { adopt, drop, reserve };
 }
 
-/** The class-B emission pass: gap-diff demands for every adopted, safe remote. */
+/**
+ * The class-B emission pass: gap-diff demands for every adopted, safe remote.
+ * Same diff shape as the home planner — desired minus live — but gated twice
+ * over: nothing is emitted unless home is healthy, and an individual remote is
+ * skipped the moment hostiles are sighted there rather than feeding it creeps.
+ */
 export function planRemoteDemands(input: RemotePlanInput): SpawnDemand[] {
     const { home, homeCap, candidates, slice, roster, homeHealthy, config } = input;
     const demands: SpawnDemand[] = [];

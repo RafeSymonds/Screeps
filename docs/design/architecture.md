@@ -125,8 +125,8 @@ entry list; reordering it is an architecture change and updates this file.
 4. **One owner per Memory slice.** Each subsystem owns the schema of exactly one slice
    (§6) and all writes flow through its module. Owners may expose *narrow* write accessors
    to others (e.g. `intel.reportSighting()`) — mediated writes are allowed; foreign code
-   reaching into another slice is not. Schemas are versioned and migrated or deliberately
-   reset on change.
+   reaching into another slice is not. Schemas are versioned; changing one bumps
+   `CURRENT_VERSION` and the old data is deliberately **reset**, never migrated (shell.md).
 5. **Expensive reads are wrapped once.** `room.find`, pathfinding, and scans live behind
    the snapshot and movement services, cached per tick. No ad-hoc `find` calls in logic.
 6. **Errors are contained per room and per subsystem.** The scheduler invokes per-room
@@ -168,7 +168,8 @@ These are guardrails. Do not re-litigate them in subsystem docs without updating
   subsystem reading per-room ledgers (§7), which composes instead of entangling.
 - **Implementing generic multi-resource logistics now.** We keep energy-only *logic*, but
   resource-typed *schemas* (§7). Generic logic now would be speculative complexity; but
-  energy-only schemas would force Memory migrations the moment minerals matter.
+  energy-only schemas would force a schema bump — and therefore a Memory reset, since we
+  do not migrate — the moment minerals matter.
 - **Per-tick reactive spawning** (look at the room, decide one creep at a time). Causes
   oscillation and starvation-by-noise. Spawning is demand-driven: subsystems declare a
   desired workforce; a resolver diffs desired against alive-plus-queued and fills gaps by
@@ -191,13 +192,13 @@ they don't synchronize on common divisors and spike the same tick.
 
 ### 5.1 Shell (`src/shell/`) — class A
 
-Owns `main.ts`'s loop body: Memory bootstrap and versioned migration, dead-creep memory
+Owns `main.ts`'s loop body: Memory bootstrap and version checking, dead-creep memory
 cleanup, error containment wrappers, and invoking the scheduler. Also owns **world
 discontinuity detection**, diffed against a persisted owned-room record in its slice
 (account respawn, room lost): on discontinuity it performs a *selective* Memory reset —
 wipe room plans, empire registry, and assignments that reference rooms we no longer own;
-keep intel. Schema migration and world discontinuity are different events with different
-responses; the shell doc specs both.
+keep intel. A schema-version mismatch and a world discontinuity are different events that
+happen to share the same response (reset all but `KEEP_ON_RESET`); the shell doc specs both.
 
 ### 5.2 Scheduler (`src/scheduler/`) — class A
 
@@ -411,7 +412,7 @@ risks and move to RawMemory segments when they approach theirs (§7).
 
 | Slice                          | Owner        | Notes |
 | ------------------------------ | ------------ | ----- |
-| `Memory.version`               | shell        | schema version; migrations + world-discontinuity resets run at bootstrap |
+| `Memory.version`               | shell        | schema version; version-mismatch + world-discontinuity resets run at bootstrap (no migration path by design) |
 | `Memory.shell`                 | shell        | persisted owned-room tracking (`owned`, `lostAt`) driving room-loss/respawn detection and lost-room GC — persisted because heap dies on reset |
 | `Memory.rooms[name].econ`      | economy      | static seats/spots (upgrade spot, source spots). The workforce plan itself is derived fresh each tick and never persisted — legibility comes from per-creep assignments in CreepMemory |
 | `Memory.rooms[name].layout`    | layout       | BasePlan, versioned |

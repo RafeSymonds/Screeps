@@ -2,6 +2,27 @@
  * The per-tick read model: game state becomes plain data once, here, and all
  * decision logic consumes the views. Every find constant is called at most once
  * per room per tick. See docs/design/snapshot.md.
+ *
+ * ## Why this layer exists
+ *
+ * `room.find()` is the single easiest way to burn a CPU budget: it is an
+ * uncached scan, and a bot with eight subsystems that each "just check the
+ * containers" pays for the same scan eight times. Funnelling every read through
+ * one builder makes that cost bounded *and* measurable — snapshot is metered as
+ * its own subsystem, so the price of looking at the world is a number we watch.
+ *
+ * The second reason is testability. Views are plain JSON-ish objects with no
+ * methods and no live references, so decision logic can be exercised on the host
+ * against handwritten fixtures. This is the seam that makes "pure core, thin
+ * shell" (CLAUDE.md) actually enforceable: if a planner needs a live game object,
+ * it cannot get one from here.
+ *
+ * ## Snapshots are strictly single-tick
+ *
+ * A view is a copy, and stale copies are how bots quietly command creeps that
+ * died. `assertFresh` makes that failure loud instead: holding a snapshot across
+ * a tick boundary throws rather than acting on last tick's world. Nothing here
+ * may be cached in Memory or module scope.
  */
 import {
     ControllerView,
@@ -169,6 +190,13 @@ class Snapshot implements WorldSnapshot {
     private readonly ownedRooms: RoomSnapshot[];
     private readonly creepViews: CreepView[];
 
+    /**
+     * Owned rooms and all creeps are built eagerly — every tick reads them, so
+     * laziness would only add branches. Non-owned visible rooms (remotes, scouted
+     * neighbors, expansion targets) are built on demand in `room()`, because most
+     * ticks touch none of them and a full scan of every visible room is exactly
+     * the cost this module exists to avoid.
+     */
     public constructor() {
         this.time = Game.time;
         this.creepViews = Object.values(Game.creeps).map(toCreepView);
@@ -182,6 +210,8 @@ class Snapshot implements WorldSnapshot {
         }
     }
 
+    /** Views hold dead objects the moment the tick ends; fail loudly rather than
+     *  let a subsystem issue intents against last tick's world. */
     private assertFresh(): void {
         if (Game.time !== this.time) {
             throw new Error(`stale snapshot: built at tick ${this.time}, accessed at ${Game.time}`);
@@ -198,6 +228,12 @@ class Snapshot implements WorldSnapshot {
         return this.creepViews;
     }
 
+    /**
+     * Any visible room by name, built once and memoized for the rest of the tick.
+     * `undefined` means "no visibility", which is a normal answer, not an error:
+     * remotes and expansion targets are only visible while we have a creep there,
+     * so every caller must already tolerate it (architecture §8).
+     */
     public room(name: string): RoomSnapshot | undefined {
         this.assertFresh();
         const cached = this.roomViews.get(name);

@@ -2,6 +2,15 @@
  * Cross-room spawn aid — pure. A crippled room's demands are re-homed to the
  * nearest Stable sibling; the demand's `home` field was designed for exactly
  * this (architecture §5.6). See docs/design/empire.md.
+ *
+ * A room that lost its spawn is in a deadlock it cannot break alone: rebuilding
+ * the spawn needs builders, and building builders needs a spawn. Aid breaks it by
+ * rewriting *only* the `home` field, so a neighbor's spawn funds the rebuild crew
+ * while the demand keeps its identity, priority ordering, and assignment
+ * (pointing back at the crippled room, where the creeps actually go).
+ *
+ * `aidRange` bounds it: a donor twenty rooms away would spend most of a creep's
+ * 1500-tick life walking.
  */
 import { SpawnDemand } from "shared/spawning";
 import { EmpireConfig } from "empire/config";

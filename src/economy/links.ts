@@ -2,6 +2,16 @@
  * Link logic — geometric role derivation + the pure transfer plan (economy.md
  * "Links"). Roles come from the room view, never from layout array order
  * (incorporation scrambles order in adopted bases).
+ *
+ * Links teleport energy between each other for a 3% fee and a cooldown, which is
+ * the only way to move energy without a creep. The economics are simple: a link
+ * pair replaces the haulers that would otherwise walk that route, and the further
+ * the route the better the trade. That is why the plan wires source links to the
+ * controller first — it is the longest haul in most rooms.
+ *
+ * Roles are derived from geometry every time rather than stored. A link is "the
+ * controller link" because it stands next to the controller, and that stays true
+ * through plan changes, adopted bases, and links built out of order.
  */
 import { Pos, RoomSnapshot, StructureView } from "shared/views";
 import { chebyshev } from "creeps/actions";

@@ -2,6 +2,19 @@
  * Body formulas — scale with spawn capacity, bounded only by the game's 50-part
  * limit. Bigger bodies mean fewer creeps and fewer intents (principle 8).
  * See docs/design/economy.md "Workforce model".
+ *
+ * ## Why bigger is better, up to the part limit
+ *
+ * Every creep action costs 0.2 CPU regardless of how much it accomplishes, so one
+ * 10-WORK miner harvesting 20 e/t costs a fifth of what five 2-WORK miners cost to
+ * do the same job. Bodies scale with the room's energy capacity rather than being
+ * fixed, so a room's creeps get better as it grows without any policy change.
+ *
+ * The part ratios encode movement: a creep needs 1 MOVE per 2 other parts to move
+ * at full speed on plains, but a miner that walks once and then sits for 1500
+ * ticks does not care about speed, which is why it takes 1 MOVE per 5 WORK and
+ * spends the savings on more WORK. Haulers, which move constantly, pay the full
+ * 1:1 rate.
  */
 
 export const MAX_BODY_PARTS = 50;
@@ -46,7 +59,9 @@ export function minerBody(capacity: number, withLink = false): BodyPartConstant[
 
 export const MINER_MIN_BODY: BodyPartConstant[] = [WORK, MOVE];
 
-/** [C,M] pairs, max(2, floor(cap/100)), only the 50-part limit caps it (25 pairs). */
+/** [C,M] pairs, max(2, floor(cap/100)), only the 50-part limit caps it (25 pairs).
+ *  1:1 CARRY:MOVE keeps a hauler at full speed even loaded — a hauler that halves
+ *  its speed when full has doubled its round trip, which is the whole metric. */
 export function haulerBody(capacity: number): BodyPartConstant[] {
     const pairs = Math.min(MAX_BODY_PARTS / 2, Math.max(2, Math.floor(capacity / 100)));
     return [...repeat(CARRY, pairs), ...repeat(MOVE, pairs)];

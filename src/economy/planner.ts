@@ -3,6 +3,36 @@
  * the live roster, gaps emitted as spawn demands. Upgraders are the residual —
  * every slot not needed to produce or move energy upgrades the controller.
  * See docs/design/economy.md "Workforce model" for every rule and number here.
+ *
+ * ## Derive, don't configure
+ *
+ * Nothing here is a hand-tuned headcount. Miners come from source saturation
+ * (a source yields 10 e/t, one WORK harvests 2 e/t, so 5 WORK saturates it and
+ * anything beyond is waste). Haulers come from throughput: production rate times
+ * round-trip length divided by carry capacity. Builders come from whether real
+ * construction is open. Whatever is left over upgrades the controller.
+ *
+ * That matters because rooms differ — two sources or one, spawn adjacent to a
+ * source or twenty tiles away, RCL2 or RCL8. A hardcoded roster is right for the
+ * room it was tuned in and wrong everywhere else; a derived one is right in a
+ * room nobody has seen yet, which is the case that actually comes up.
+ *
+ * ## Plan is a diff, not a command
+ *
+ * Every tick this recomputes the *desired* roster and subtracts the live one. The
+ * output is only the gap — plus adoptions (an existing homeless creep can fill a
+ * slot instantly, no spawn cycle) and reassignments (a surplus upgrader becomes a
+ * builder for free). Spawning is the last resort, because it is the slowest and
+ * the only one that costs energy.
+ *
+ * ## Slot indices are absolute
+ *
+ * Priorities are computed from a creep's *global slot number*, not its position
+ * in the gap list. That distinction was a real bug: gap-list position is
+ * memoryless, so every replan re-elected "the next miner" as top priority and the
+ * bot spawned six miners and one hauler while energy rotted on the ground. With
+ * absolute slots, filled slots permanently consume the low priority numbers and
+ * the ladder advances.
  */
 import { Assignment, AssignmentKind } from "shared/assignments";
 import { isInvestmentSite } from "shared/build";
@@ -48,7 +78,7 @@ export interface RoomPlan {
 }
 
 const SOURCE_RATE = 10; // 3000 energy / 300-tick regen
-const WORK_TO_SATURATE = 5; // 5 WORK × 2 e/t = 10 e/t
+const WORK_TO_SATURATE = 5; // 5 WORK × 2 e/t = 10 e/t — more WORK on one source is wasted
 
 /**
  * Priorities interleave income roles pairwise BY ABSOLUTE SLOT — miner slot s at
@@ -153,6 +183,15 @@ function rebuildSkeleton(room: RoomSnapshot, config: EconomyConfig): SpawnDemand
     return demands;
 }
 
+/**
+ * Plan one room's workforce. Pure — takes views and config, returns decisions;
+ * the adapter in `economy/index.ts` is what writes memory and queues spawns.
+ *
+ * Order of the computation, each stage feeding the next: miners (per source, to
+ * saturation) → haulers (throughput for those miners) → builders (is there real
+ * construction?) → upgraders (whatever headcount remains). Then the diff against
+ * the live roster, then adoption of any homeless creeps that fit.
+ */
 export function planRoom(input: RoomPlanInput): RoomPlan {
     const { room, roster, orphans, sourceSpots, upgradeSpot, allowRebuild, config } = input;
     if (room.sources.length === 0) {
@@ -246,7 +285,10 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     }
     const upgradersDesired = Math.min(residual, investmentSitesOpen ? 1 : config.maxUpgraders);
 
-    // Distribute hauler targets per source by largest remainder against the total.
+    // Distribute hauler targets per source by largest remainder (the apportionment
+    // method): floor each source's fair share, then hand the leftover seats to the
+    // sources with the largest fractional claim. Rounding each independently would
+    // over- or under-shoot the total the throughput formula actually asked for.
     const haulerTargets = sources.map(() => 0);
     {
         const total = haulersDesiredTotal;

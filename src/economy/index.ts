@@ -3,6 +3,15 @@
  * feeds the pure planner from the snapshot, pushes demands into the tick context.
  * Owner of Memory.rooms[name].econ; getUpgradeSpot is the §6-blessed accessor.
  * See docs/design/economy.md.
+ *
+ * This is the thin-shell half of the economy: it reads, it writes, it decides
+ * nothing. Everything judgemental lives in `planner.ts` as a pure function, and
+ * the split is what keeps the workforce model testable.
+ *
+ * The slice caches only what is expensive and immutable — terrain-derived seat
+ * counts per source and the upgrade spot. Terrain never changes, so computing it
+ * once and persisting it is free correctness; everything else is recomputed from
+ * the snapshot each run so it cannot go stale.
  */
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
@@ -54,7 +63,13 @@ export function getUpgradeSpot(roomName: string): Pos | undefined {
     return econ ? { x: econ.upgradeSpot.x, y: econ.upgradeSpot.y, roomName } : undefined;
 }
 
-/** The class-B perRoom entry. */
+/**
+ * The class-B perRoom entry: plan the room's workforce and act on the plan.
+ *
+ * Adoptions and reassignments are applied immediately (both are free and take
+ * effect this tick); spawn demands are pushed to the shared tick context, where
+ * empire's aid pass may re-home them before the spawn resolver sees them.
+ */
 export function runRoom(ctx: TickContext, room: RoomSnapshot): void {
     const econ = ensureEcon(room);
     if (!econ) {

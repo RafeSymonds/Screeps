@@ -6,14 +6,14 @@ Parent: [architecture.md](architecture.md) §5.1 (also §3 normative tick order,
 ## Goal
 
 The one place that knows the tick's outermost order, and the layer that makes every other
-subsystem safe to be naive: by the time anything else runs, Memory is present, versioned,
-and migrated; dead creeps are pruned; world discontinuity has been handled; and
+subsystem safe to be naive: by the time anything else runs, Memory is present and
+version-checked; dead creeps are pruned; world discontinuity has been handled; and
 everything runs inside containment. Success criteria:
 
 - `main.ts` contains no runtime logic beyond the wrap-loop shim (plus the repo-convention
   ambient Memory declarations, which grow with the schema).
-- Any Memory the bot has ever written can be loaded by current code: migrated forward,
-  or deliberately reset with an alert — never a crash loop.
+- Any Memory the bot has ever written can be loaded by current code: either it matches
+  the current version, or it is deliberately reset with an alert — never a crash loop.
 - Account respawn (world discontinuity) is detected and recovered from without human
   cleanup, preserving intel — across global resets, because detection state is persisted,
   never heap.
@@ -40,9 +40,8 @@ export const ENTRIES: ScheduledEntry[];
 export const CURRENT_VERSION: number;                 // starts at 1
 export const CONTAINERS: readonly (keyof Memory)[];   // M1: ["rooms", "intel", "shell"] —
                                                       // stats EXCLUDED: telemetry self-initializes its slice
-export function ensureAndMigrate(): void;
-export interface Migration { to: number; run(mem: Memory): void }
-export const MIGRATIONS: Migration[];                 // append-only, sequential
+export function ensureMemory(): void;                 // containers + version check
+export function resetExcept(keep: readonly string[]): void;  // shared with continuity.ts
 
 // src/shell/continuity.ts
 export function checkWorldContinuity(ownedNow: string[]): void;   // detection + GC + tracking update
@@ -84,18 +83,24 @@ interface ShellMemory {
 ### Bootstrap policies, in order of application
 
 1. **Fresh world** (no `Memory.version`): initialize containers, set
-   `version = CURRENT_VERSION`. No migrations run.
-2. **Older version**: run `MIGRATIONS` sequentially from `Memory.version` to
-   `CURRENT_VERSION`. Migrations are append-only and never deleted; each is unit-tested
-   against a fixture of the shape it migrates. (At M1 the ladder is empty; the machinery
-   is tested with a synthetic test-only migration list so it works before it matters.)
-3. **Newer version** (rolled-back deploy): reset every slice **except `KEEP_ON_RESET`**
-   (intel and stats survive — stats is the evidence layer the §2 criteria are judged on;
-   destroying it on a messy deploy would blind us exactly when we need it), set
-   `version = CURRENT_VERSION`, `alert(Discontinuity)`.
-4. **Corrupt slice** (bootstrap or a migration throws): reinitialize *that container*
-   fresh, `countError(Shell, err)`, `alert(CorruptSlice)`, continue. Fail-forward per
-   slice; never crash-loop the whole bot over one slice's bad data.
+   `version = CURRENT_VERSION`. Nothing to preserve, nothing to alert.
+2. **Version mismatch, either direction** (schema bump *or* rolled-back deploy): reset
+   every slice **except `KEEP_ON_RESET`** (intel and stats survive — stats is the evidence
+   layer the §2 criteria are judged on; destroying it on a messy deploy would blind us
+   exactly when we need it), set `version = CURRENT_VERSION`, `alert(Discontinuity)`.
+3. **Version matches**: repair containers only. The overwhelmingly common path, and cheap
+   — a handful of type checks.
+4. **Corrupt slice** (a container check throws): reinitialize *that container* fresh,
+   `countError(Shell, err)`, `alert(CorruptSlice)`, continue. Fail-forward per slice;
+   never crash-loop the whole bot over one slice's bad data.
+
+**We deliberately do not migrate.** A migration ladder only earns its complexity once
+deployed Memory holds data that cannot be recomputed; today every slice outside
+`KEEP_ON_RESET` is derived and rebuilds itself within a few hundred ticks of running. The
+version number itself is the seam that makes this safe: bumping `CURRENT_VERSION` on a
+schema change guarantees old data is *discarded* rather than silently misread. If a future
+slice ever holds something expensive enough to carry forward, migration belongs in
+`ensureMemory` between detecting the mismatch and resetting.
 
 ### World continuity (respawn, room loss)
 
@@ -137,7 +142,7 @@ The whole tick, top to bottom — this list *is* `shell.tick()`:
    detection: module-scope `booted` flag false on a fresh heap →
    `telemetry.countReset(Game.time)` (safe pre-bootstrap: telemetry self-initializes its
    slice), set flag.
-2. **Memory bootstrap**: `ensureAndMigrate()` (policies above).
+2. **Memory bootstrap**: `ensureMemory()` (policies above).
 3. **World continuity check** (+ tracking update, lost-room GC).
 4. **Dead-creep cleanup**: delete `Memory.creeps[name]` for creeps absent from
    `Game.creeps`.
@@ -169,9 +174,10 @@ memories.
 - **First tick ever / first tick after respawn placement**: fresh-world path, empty
   containers, zero creeps — every step no-ops cleanly (asserted in sim from tick 1 of the
   `default` scenario).
-- **Migration + discontinuity on the same tick** (respawn detected right after a version
-  bump): bootstrap runs first, migrations see old-world data, then discontinuity wipes
-  most of it. Wasted work, correct result — no ordering hazard.
+- **Version bump + discontinuity on the same tick** (respawn detected right after a
+  schema change): bootstrap resets first, then continuity resets again. Both reset paths
+  share `KEEP_ON_RESET`, so the result is identical either way — redundant work, no
+  ordering hazard.
 - **Spawning creeps**: exist in `Game.creeps` from the tick after `spawnCreep`, so GC
   never deletes them; the tick-T window is covered by the ordering invariant above.
 - **Re-claim within the grace window**: stale slices for the re-acquired room are older
@@ -187,10 +193,9 @@ memories.
 
 Unit (mocha, mocked `Game`/`Memory` from `test/helpers/`):
 
-- Migration ladder: synthetic migration list — fixtures at each version migrate to
-  current and pass a shape check; newer-version fixture triggers the KEEP_ON_RESET reset
-  + alert; a throwing migration reinitializes only its container and the tick continues
-  (spy ordering).
+- Version handling: a fresh world initializes containers and stamps the version; an older
+  *and* a newer version each trigger the `KEEP_ON_RESET` reset + `Discontinuity` alert; a
+  corrupt container is healed in place without touching its siblings.
 - Continuity matrix: all six cases above, asserting exactly which slices survive, that
   intel + stats are kept on discontinuity, that `CreepMemory` is wiped on respawn, that
   `RoomLost` fires once per transition (including across a simulated heap wipe — the

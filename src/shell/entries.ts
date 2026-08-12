@@ -1,6 +1,23 @@
 /**
  * THE normative tick order (architecture §3) as data. Grows per milestone;
  * changing the order is an architecture change and updates architecture.md.
+ *
+ * ## Read this list top to bottom to understand the bot
+ *
+ * Array order IS priority: under CPU pressure the tick truncates from the bottom,
+ * so this ordering encodes what the bot gives up first. Roughly, the shape is:
+ *
+ *   defense (survive) → planning (decide) → producers (want creeps) →
+ *   spawn (fund them) → creeps + movement (act) → telemetry (record)
+ *
+ * Three orderings are load-bearing rather than aesthetic, and each has a comment
+ * at its entry: every demand producer must precede Spawn (demands live exactly
+ * one tick), Empire's registry must precede Expansion (which reads it), and
+ * EmpireAid must sit between the last producer and Spawn (the only window where
+ * the full demand list exists and none of it has been spent).
+ *
+ * `interval`/`phase` stagger the class-C entries so their costs land on different
+ * ticks; the shell's wiring test asserts phases are distinct within an interval.
  */
 import { ScheduledEntry } from "shared/scheduling";
 import { CpuClass, SubsystemId } from "shared/subsystems";

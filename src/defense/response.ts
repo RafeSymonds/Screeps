@@ -1,6 +1,17 @@
 /**
  * The response ladder's pure rungs 2 and 3: defender demands when towers can't
  * carry the fight, safe-mode request on damage evidence. See docs/design/defense.md.
+ *
+ * Both rungs are gated on evidence rather than fear, and the gates are different
+ * on purpose. Defenders are spawned only when the room's towers are dry — towers
+ * are strictly better value while they have energy, and a defender that arrives
+ * 60 ticks late helps nobody.
+ *
+ * Safe mode keys on *damage already taken* (a spawn below its hits floor), not on
+ * threat level. Threat level is a prediction and predictions are wrong; a spawn
+ * losing hits is proof the defense has already failed. Since safe mode is
+ * per-user, limited, and cooldown-gated, spending it on a prediction is how you
+ * find yourself without it during the attack that mattered.
  */
 import { AssignmentKind } from "shared/assignments";
 import { SpawnDemand } from "shared/spawning";

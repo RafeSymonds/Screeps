@@ -2,6 +2,31 @@
  * Pure state machines, one per assignment kind — the entire M3 micro-policy.
  * All "nearest/biggest" choices are argmax over explicit candidates inside one
  * pure function (the only scoring the architecture permits). See docs/design/creeps.md.
+ *
+ * ## The shape
+ *
+ * Every `decideX` takes a `CreepView` plus a `RoomSnapshot` and returns a single
+ * `Action` describing what the creep should do this tick. They touch no globals,
+ * hold no state, and issue no intents — the dispatcher translates the returned
+ * Action into a game call. That is what makes creep behavior unit-testable
+ * against handwritten room fixtures instead of only observable in a live sim.
+ *
+ * ## Statelessness is the hard constraint
+ *
+ * There is no "task" persisted in creep memory that survives across ticks, so
+ * every decision is re-derived from the world each tick. That sounds wasteful and
+ * is in fact the point: a creep whose target died, whose container was destroyed,
+ * or whose room changed hands simply decides differently next tick, with no stale
+ * task to detect and clean up. The cost is that "am I filling or spending?" must
+ * be readable from the world — usually `store.used`, and where that is ambiguous
+ * (see `decidePioneer`) from position instead.
+ *
+ * ## Tie-breaking is total
+ *
+ * Where several candidates qualify, the comparison always ends in a tiebreak on
+ * `id`. Two creeps evaluating the same room must reach the same answer — and a
+ * single creep must reach the same answer on consecutive ticks, or it oscillates
+ * between two equally-good targets and never arrives at either.
  */
 import {
     AssignmentKind,
@@ -19,6 +44,8 @@ import { FortifyTarget } from "defense/fortify";
 import { ECONOMY_CONFIG } from "economy/config";
 import { Action, ActionKind, chebyshev } from "creeps/actions";
 
+/** Largest pile, ties broken by id so all callers agree. Biggest-first also fights
+ *  decay: piles lose ceil(amount/1000) per tick, so the big ones bleed fastest. */
 function biggestPile(piles: DroppedView[]): DroppedView | undefined {
     let best: DroppedView | undefined;
     for (const pile of piles) {
@@ -29,6 +56,8 @@ function biggestPile(piles: DroppedView[]): DroppedView | undefined {
     return best;
 }
 
+/** Nearest by chebyshev (creep movement is 8-way, so chebyshev IS step count).
+ *  Ties keep the first candidate, making caller-supplied order the tiebreak. */
 function nearest<T extends { pos: Pos }>(from: Pos, candidates: T[]): T | undefined {
     let best: T | undefined;
     let bestDist = Infinity;
@@ -106,6 +135,21 @@ export function decideMine(creep: CreepView, a: MineAssignment, room: RoomSnapsh
     return { kind: ActionKind.Harvest, targetId: source.id };
 }
 
+/**
+ * Haul: collect energy, then deliver it to whatever needs it most.
+ *
+ * Collect tiers: own source's container → piles near that source → **any** stray
+ * pile in the room → storage. Deliver tiers: towers (only while hostiles are
+ * present) → spawn/extensions → the controller feed if it is starving → towers →
+ * controller container → storage → dropped at the upgrade spot.
+ *
+ * Two things about that deliver ladder are load-bearing rather than arbitrary.
+ * Spawn-side outranks everything in peacetime because an empty extension means no
+ * replacement creeps, and every other problem is downstream of that. And the
+ * final rung *drops on the ground* rather than idling: dropped energy decays
+ * slowly and upgraders collect it, so a full hauler with nowhere to put its load
+ * still moves energy toward work instead of parking with it.
+ */
 export function decideHaul(
     creep: CreepView,
     a: HaulAssignment,
@@ -244,6 +288,16 @@ export function decideHaul(
     return { kind: ActionKind.MoveTo, pos: upgradeSpot, range: 1 };
 }
 
+/**
+ * Upgrade: keep the controller's progress bar moving, and its downgrade timer
+ * from ever reaching zero.
+ *
+ * Refill tiers run fresh-first — controller link, then controller container, then
+ * nearby piles — because the link is refilled continuously by miners while the
+ * container drains. Upgraders never touch spawn-side energy: that pool belongs to
+ * spawning, and an upgrader emptying an extension delays a replacement creep to
+ * buy controller progress we could have had a tick later anyway.
+ */
 export function decideUpgrade(
     creep: CreepView,
     _a: UpgradeAssignment,
@@ -295,6 +349,14 @@ export function decideUpgrade(
     return { kind: ActionKind.MoveTo, pos: pile.pos, range: 1 };
 }
 
+/**
+ * Build: construction sites and rampart upkeep, falling through to upgrading.
+ *
+ * The fallthrough matters more than it looks — labor is never stranded. A builder
+ * with no sites becomes an upgrader for that tick rather than idling, so the
+ * workforce planner can keep a stable headcount instead of churning bodies every
+ * time the construction queue empties.
+ */
 export function decideBuild(
     creep: CreepView,
     _a: BuildAssignment,
@@ -394,7 +456,11 @@ export function decideBuild(
     return decideUpgrade(creep, { kind: AssignmentKind.Upgrade, room: room.name }, room, upgradeSpot);
 }
 
-/** Defend: pursue the nearest armed hostile; park near the spawn when quiet. */
+/**
+ * Defend: pursue the nearest armed hostile; park near the spawn when quiet.
+ * "Armed" excludes bodies with none of ATTACK/RANGED_ATTACK/HEAL/WORK/CLAIM —
+ * chasing an unarmed scout across the room leaves the base uncovered for free.
+ */
 export function decideDefend(creep: CreepView, _a: DefendAssignment, room: RoomSnapshot): Action {
     const armed = room.hostiles.filter((h: HostileView) =>
         [ATTACK, RANGED_ATTACK, HEAL, WORK, CLAIM].some(p => (h.bodyCounts[p] ?? 0) > 0)

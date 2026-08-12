@@ -2,6 +2,15 @@
  * Plain-data views of game state — the contract between the snapshot and every
  * decision core. Optional fields are omitted when absent, never set to
  * `undefined`, so views JSON-round-trip exactly. See docs/design/snapshot.md.
+ *
+ * These types are the entire vocabulary decision logic is allowed to speak. No
+ * method lives on a view and no live game object is reachable through one, which
+ * is what forces planners to be pure functions: a planner physically cannot call
+ * `creep.moveTo()` because there is no creep to call it on, only a description of
+ * one. Every test fixture in the repo is a handwritten value of these types.
+ *
+ * IDs are carried through so an adapter can re-resolve the live object when it is
+ * time to issue an intent — that resolution is the one place the two worlds meet.
  */
 
 export interface Pos {
@@ -101,6 +110,8 @@ export interface DroppedView {
     amount: number;
 }
 
+/** One room, fully described, as of one tick. Everything a per-room decision
+ *  needs — nothing here requires a second `find()`. */
 export interface RoomSnapshot {
     name: string;
     my: boolean;

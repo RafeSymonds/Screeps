@@ -3,6 +3,33 @@
  * Declared direct-Game surface (snapshot exposes no visible-room enumeration):
  * iterates Game.rooms for refresh and Game.map.describeExits for targeting.
  * See docs/design/intel.md.
+ *
+ * ## Vision is the scarce resource
+ *
+ * You can only see a room while you have a creep or structure in it. Every
+ * decision about rooms we do NOT occupy — which neighbor to mine, where to
+ * expand, whether a route is dangerous — therefore has to run on remembered data.
+ * Intel is that memory: it records what was seen, when, and lets consumers judge
+ * staleness for themselves via `lastSeen`.
+ *
+ * This is why `intel` is on the KEEP_ON_RESET list. Room slices and plans are
+ * derived and rebuild themselves in a few hundred ticks; knowledge of a room we
+ * currently have no creep near cannot be recomputed at all, only re-earned by
+ * walking a scout back out there.
+ *
+ * ## Recording is opportunistic, scouting is deliberate
+ *
+ * Step 1 of the tick refreshes every room we can currently see, whatever the
+ * reason we can see it — a hauler passing through a corridor updates intel for
+ * free. Only when that leaves a neighbor stale does a 50-energy scout get
+ * dispatched. Cheap knowledge first, paid knowledge second.
+ *
+ * ## Hostile sightings are sticky
+ *
+ * A room glimpsed for one tick without hostiles is not evidence they left. Recent
+ * sightings survive a hostile-free glimpse, and `isUnsafe` treats an armed
+ * sighting as current for `armedMemory` ticks — the failure mode being guarded
+ * against is walking a fresh crew into a raid that never actually ended.
  */
 import { AssignmentKind } from "shared/assignments";
 import { SpawnDemand } from "shared/spawning";
@@ -16,7 +43,16 @@ export enum RoomType {
     Center = "center"
 }
 
-/** Pure name arithmetic — never stored. */
+/**
+ * Classify a room from its NAME alone — no vision, no memory. Screeps lays the
+ * world out on a fixed grid: coordinates divisible by 10 are highways, the 3×3
+ * block around each (5,5) holds source-keeper rooms with lethal permanent
+ * guards, and its centre is a portal room. Everything else is ordinary.
+ *
+ * Being able to rule out a room without ever seeing it is what lets expansion and
+ * remotes filter candidates for free. Never stored — it is a pure function of the
+ * name, so persisting it would only create something that can go stale.
+ */
 export function roomType(roomName: string): RoomType {
     const m = /^[WE](\d+)[NS](\d+)$/.exec(roomName);
     if (!m) {
@@ -95,6 +131,9 @@ export function isUnsafe(roomName: string, now: number, armedMemory = 300): bool
     return entry.hostiles !== undefined && entry.hostiles.armed > 0 && now - entry.hostiles.seen <= armedMemory;
 }
 
+/** Overwrite a room's intel from live vision. Rebuilt rather than merged so
+ *  removed structures/owners disappear — except the two hostile fields, which are
+ *  deliberately carried forward (see the header). */
 function refreshFrom(room: Room, now: number): void {
     const found = room.find(FIND_SOURCES);
     const entry: RoomIntel = {
@@ -132,7 +171,14 @@ function refreshFrom(room: Room, now: number): void {
     slice().rooms[room.name] = entry;
 }
 
-/** The class-C entry: refresh visible rooms, then rotate scouts (record-then-retarget). */
+/**
+ * The class-C entry: refresh visible rooms, then rotate scouts.
+ *
+ * The order is the point. Refresh runs BEFORE retargeting, so a scout that just
+ * arrived has already banked its room's intel and can be redirected on the same
+ * tick — "record then retarget". Retargeting first would send it onward before
+ * its observation was written, and the room would stay stale forever.
+ */
 export function run(ctx: TickContext): void {
     const now = ctx.snapshot.time;
     const mem = slice();

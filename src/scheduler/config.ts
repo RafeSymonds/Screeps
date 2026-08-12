@@ -13,6 +13,11 @@ export interface SchedulerConfig {
     headroomC: number;
 }
 
+/**
+ * The relative ordering is what matters, not the absolute numbers: C sheds at a
+ * much higher bucket (3000 vs 500) and a much lower headroom (0.7 vs 0.9) than B,
+ * so planning work yields long before anything that keeps creeps working does.
+ */
 export const SCHEDULER_CONFIG: SchedulerConfig = {
     bucketFloorB: 500,
     bucketFloorC: 3000,

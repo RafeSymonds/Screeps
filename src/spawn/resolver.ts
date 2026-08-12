@@ -2,6 +2,35 @@
  * Pure spawn resolution: priority-sorted demands against free spawns and one
  * shared energy pool, with deliberate head-of-line blocking and the minBody
  * bootstrap fallback. See docs/design/spawn.md "Resolution policy".
+ *
+ * ## Why anything blocks at all
+ *
+ * Spawning is the only place where "wait and do nothing" is often the right move.
+ * A room whose ideal hauler costs 1800 and which currently holds 800 should
+ * *accumulate*, not spend the 800 on a body that will underperform for its whole
+ * 1500-tick life. Head-of-line blocking is that accumulation: the top demand
+ * holds the queue closed while extensions refill.
+ *
+ * ## Why the block is time-bounded
+ *
+ * Unbounded, that same mechanism is starvation. A sponsor hovering around 800
+ * energy sat behind its own 1800-energy hauler demand indefinitely and never
+ * funded the 650-energy claimer queued behind it — expansion recorded a claim it
+ * could not act on for an entire run. `BLOCK_PATIENCE` bounds the hold, so the
+ * queue saves up when saving up is working and gives up when it plainly isn't.
+ *
+ * The wait record lives in Memory rather than the heap because the patience
+ * window (150 ticks) is far longer than the interval between global resets, and a
+ * heap-based timer would restart on every one of them — which is exactly
+ * unbounded blocking wearing a bound.
+ *
+ * ## minBody
+ *
+ * The other escape hatch, and the one that applies when the shortage is critical
+ * rather than merely inconvenient. A demand carrying `minBody` accepts a smaller
+ * body immediately instead of waiting: an unmined source earns nothing, so a bad
+ * miner now beats a good miner later. Callers attach it deliberately — economy
+ * only sets it while a role is below half staffed.
  */
 import { SpawnDemand } from "shared/spawning";
 import { RoomSnapshot } from "shared/views";
@@ -33,6 +62,14 @@ export interface SpawnDecision {
     name: string;
 }
 
+/**
+ * Decide what each free spawn should build this tick.
+ *
+ * All spawns in a room draw from ONE energy pool (`room.energyAvailable`), so
+ * `remainingEnergy` is decremented as decisions are made — two spawns must not
+ * both commit the same 300 energy. Returns the decisions plus the updated wait
+ * record, which the adapter persists.
+ */
 export function resolveSpawns(
     demands: SpawnDemand[],
     room: RoomSnapshot,

@@ -3,6 +3,32 @@
  * RCL8. Every search is 8-way (chebyshev, matching creep movement); every tie
  * breaks by ascending (y, x) so the plan is a total function of its input.
  * See docs/design/layout.md for every rule and offset here.
+ *
+ * ## Why the plan is computed all the way to RCL8 at RCL1
+ *
+ * Structures cannot be moved, only destroyed. A base laid out greedily at RCL2
+ * blocks the tiles RCL6 needs, and by then the mistake costs thousands of ticks
+ * of demolition. So the planner solves the *final* base once and the construction
+ * subsystem simply reveals more of it as RCL rises. That also makes this function
+ * a pure, replayable decision: given the same room it always returns the same
+ * plan, so a global reset or a plan-version bump recomputes rather than drifts.
+ *
+ * ## The checkerboard
+ *
+ * Buildings go only on tiles matching the anchor's `(x + y) % 2` parity. That
+ * single rule guarantees the base is fully walkable without planning a single
+ * corridor: every unbuilt tile is diagonally adjacent to every other, and creeps
+ * move diagonally. It costs half the tiles and buys back all the pathing.
+ *
+ * ## Pipeline (each step claims tiles the later steps must respect)
+ *
+ *   anchor → incorporate existing → core stamp → containers → extractor →
+ *   extensions → lab block → links → roads → ramparts
+ *
+ * Two tile sets thread through it, and the distinction matters: `claimed` is
+ * "something is planned here, don't put anything else on it", while `blocked` is
+ * the subset creeps cannot walk through. Roads and containers are claimed but not
+ * blocked, which is what lets road pathing route *over* containers.
  */
 import { Pos } from "shared/views";
 import { TerrainGrid } from "snapshot/terrain";
@@ -68,7 +94,14 @@ const OBSTACLE_TYPES = new Set<StructureConstant>([
     STRUCTURE_WALL
 ]);
 
-/** Core stamp: anchor-relative offsets, all on the anchor's checkerboard parity. */
+/**
+ * Core stamp: anchor-relative offsets, all on the anchor's checkerboard parity
+ * (every dx+dy is even). Order is deliberate — it is the order tiles get claimed,
+ * so earlier entries win contested ground. Storage/terminal/spawn sit at range 2
+ * so the hub tiles between them stay open for haulers; towers ring the core at
+ * range 1–3 because tower damage falls off with distance from the *tower*, and a
+ * central cluster covers the whole base footprint at full strength.
+ */
 const CORE_STAMP: { type: BuildableStructureConstant; dx: number; dy: number }[] = [
     { type: STRUCTURE_STORAGE, dx: 0, dy: 2 },
     { type: STRUCTURE_TERMINAL, dx: -2, dy: 0 },
@@ -210,7 +243,11 @@ export function chooseAnchor(input: LayoutInput): Pos | undefined {
     if (spawns.length > 0) {
         return spawns[0];
     }
-    // Chebyshev distance transform to nearest wall or room edge (edges count as walls).
+    // Chebyshev distance transform to nearest wall or room edge (edges count as
+    // walls, via `at()` returning 0 out of bounds). Standard two-pass algorithm:
+    // the forward pass propagates distances from the top-left half of each tile's
+    // neighborhood, the backward pass from the bottom-right half; together they
+    // see every path, in O(tiles) instead of a BFS per tile.
     const clearance = new Int32Array(2500);
     for (let y = 0; y < 50; y++) {
         for (let x = 0; x < 50; x++) {
@@ -280,7 +317,9 @@ function placeCoreStamp(ctx: Ctx, anchor: Pos): void {
             claim(ctx, type, { x: ix, y: iy, roomName: ctx.input.roomName });
             placed = true;
         } else {
-            // Nearest valid same-parity tile within chebyshev 5 of the intended offset.
+            // Terrain ate the intended tile. Search outward ring by ring for the
+            // nearest valid tile of the SAME parity — drifting off the checkerboard
+            // would punch a hole in the walkability guarantee for one building.
             for (let r = 1; r <= 5 && !placed; r++) {
                 const ring: { x: number; y: number }[] = [];
                 for (let y = iy - r; y <= iy + r; y++) {
@@ -310,7 +349,15 @@ function validContainerTile(ctx: Ctx, x: number, y: number): boolean {
     return !ctx.blocked.has(pack(x, y)) && !ctx.claimed.has(pack(x, y));
 }
 
-/** Step 4: containers — adopt-or-plan, [sources…, controller] order. */
+/**
+ * Step 4: containers — adopt-or-plan, [sources…, controller] order.
+ *
+ * "Adopt" first is the load-bearing half: a container we already own is worth more
+ * than a marginally better tile, because moving it means demolishing a structure
+ * miners are actively standing on. Sources are ordered nearest-anchor-first so
+ * that `places[CONTAINER]` index order matches build priority — the container the
+ * economy needs soonest is the one construction sees first.
+ */
 function placeContainers(ctx: Ctx): Pos | undefined {
     const { input, anchorDist } = ctx;
     const existing = input.structures.filter(s => s.type === STRUCTURE_CONTAINER).map(s => s.pos);
@@ -343,7 +390,10 @@ function placeContainers(ctx: Ctx): Pos | undefined {
             claim(ctx, STRUCTURE_CONTAINER, best);
         }
     }
-    // Controller container: adopt within range 3, else range-2 ring with ≥3 walkable neighbors.
+    // Controller container: adopt within range 3, else the range-2 ring. The ≥3
+    // walkable-neighbors test keeps upgraders from being planned into a pocket
+    // where they block each other — several creeps share this tile's surroundings
+    // for the entire life of the room.
     const ctrl = input.controller;
     let ctrlContainer = existing
         .filter(p => cheb(p.x, p.y, ctrl) <= 3 && !used.has(pack(p.x, p.y)))
@@ -389,7 +439,11 @@ function placeContainers(ctx: Ctx): Pos | undefined {
     return ctrlContainer;
 }
 
-/** Step 6: extension field — BFS order, anchor parity, first 60 valid. */
+/**
+ * Step 6: extension field — BFS order, anchor parity, first 60 valid.
+ * BFS from the anchor means extensions fill outward in rings, so the ones built
+ * first (lowest RCL, when every trip matters most) are the closest to the spawn.
+ */
 function placeExtensions(ctx: Ctx, anchor: Pos): void {
     const parity = (anchor.x + anchor.y) % 2;
     const want = 60 - (ctx.places[STRUCTURE_EXTENSION]?.length ?? 0);
@@ -403,7 +457,15 @@ function placeExtensions(ctx: Ctx, anchor: Pos): void {
     }
 }
 
-/** Step 7: the 4×3 lab block. Returns interior road tiles to append to roads. */
+/**
+ * Step 7: the 4×3 lab block. Returns interior road tiles to append to roads.
+ *
+ * Labs must reach each other to run reactions, so unlike everything else they are
+ * placed as a solid rectangle rather than on the checkerboard — the two interior
+ * tiles become roads to keep the block traversable. The first two labs in the
+ * claim order are the reaction *inputs*, so a partially-built block is still
+ * usable: whichever labs exist, indices 0 and 1 are the pair the rest can see.
+ */
 function placeLabBlock(ctx: Ctx): Pos[] {
     const want = 10 - (ctx.places[STRUCTURE_LAB]?.length ?? 0);
     if (want <= 0) return [];
@@ -518,6 +580,9 @@ function placeRoads(ctx: Ctx, anchor: Pos, ctrlContainer: Pos | undefined, labRo
     for (const target of targets) {
         const targetP = pack(target.x, target.y);
         // Dijkstra: anchor exempt from its own blocked status; containers walkable.
+        // The open set is a plain array scanned linearly rather than a heap — at
+        // 2500 tiles, run a handful of times per room per plan (and plans are
+        // recomputed only on version bumps), the constant factor beats the code.
         const dist = new Float64Array(2500).fill(Infinity);
         const prev = new Int32Array(2500).fill(-1);
         dist[startP] = 0;
@@ -537,6 +602,9 @@ function placeRoads(ctx: Ctx, anchor: Pos, ctrlContainer: Pos | undefined, labRo
                 if (nx < 1 || nx > 48 || ny < 1 || ny > 48 || input.terrain.isWall(nx, ny)) continue;
                 const np = pack(nx, ny);
                 if (ctx.blocked.has(np) && np !== targetP) continue;
+                // Existing/planned roads cost 1 vs plain 2, so successive routes
+                // merge onto shared trunk lines instead of laying parallel roads;
+                // swamp costs 10 (5× plain) to reflect its real movement penalty.
                 const cost = roadSet.has(np) ? 1 : input.terrain.isSwamp(nx, ny) ? 10 : 2;
                 if (dist[p] + cost < dist[np]) {
                     dist[np] = dist[p] + cost;
@@ -564,7 +632,12 @@ function placeRoads(ctx: Ctx, anchor: Pos, ctrlContainer: Pos | undefined, labRo
     ctx.places[STRUCTURE_ROAD] = [...existingRoads, ...plannedRoads, ...labRoads];
 }
 
-/** Step 10: ramparts on every planned/incorporated critical structure. */
+/**
+ * Step 10: ramparts on every planned/incorporated critical structure.
+ * Only the structures whose loss ends the room get one — spawns, towers, storage,
+ * terminal. Rampart hits decay continuously, so blanket-ramparting the whole base
+ * would spend the repair budget defending extensions we can rebuild for 3k energy.
+ */
 function placeRamparts(ctx: Ctx): void {
     const criticals: Pos[] = [
         ...(ctx.places[STRUCTURE_SPAWN] ?? []),
@@ -592,6 +665,13 @@ function placeRamparts(ctx: Ctx): void {
     ctx.places[STRUCTURE_RAMPART] = ramparts;
 }
 
+/**
+ * Plan the whole base. Pure: same input → same output, always. Returns undefined
+ * only when the room has no tile that can host an anchor at all (fully walled in).
+ *
+ * Step order is the contract, not an implementation detail — each step claims
+ * tiles the later ones must route around, so moving one changes the base.
+ */
 export function planBase(input: LayoutInput): BasePlan | undefined {
     const anchor = chooseAnchor(input);
     if (!anchor) {
