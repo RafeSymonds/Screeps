@@ -106,6 +106,21 @@ every tick, and multi-room scenarios fork a second engine processor. Iterate on 
 suite with `-- --grep <name>`. Keep each scenario's tick count to the minimum that
 proves the behavior — engine ticks are ~the only cost (~0.2-0.3s each).
 
+### The bundle is snapshot, not mounted (Aug 2026)
+
+`bin/sim` copies `dist/main.js` into a run-private temp directory and mounts THAT as
+`/bot`, rather than bind-mounting `dist/` itself.
+
+rollup's `clear({targets:["dist"]})` wipes `dist/` at the start of **every** build — which
+includes `npm run build` and every `./deploy`. With `dist/` mounted live, any build started
+while a run was in flight deleted the bundle out from under it, and every suite that had not
+yet loaded it died with `bot bundle not found at /bot/main.js`. That destroyed three
+separate gate runs before it was diagnosed, and the failure looks nothing like its cause —
+it reads as a broken harness rather than "somebody rebuilt".
+
+The snapshot costs about a megabyte and makes a run immune to whatever else the repo is
+doing, so you can build, deploy, or keep editing while a gate runs.
+
 ### Known flake (Aug 2026, unresolved)
 
 `fast: post-infrastructure rate → does not let energy rot on the ground` has failed once

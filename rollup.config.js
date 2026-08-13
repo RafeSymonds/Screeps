@@ -90,9 +90,42 @@ console.log(dest);
 if (!dest) {
   console.log("No destination specified - code will be compiled but not uploaded");
 } else if (dest2 !== "local") {
-  cfg = require("./screeps.json")[dest];
+  // screeps.json holds API tokens, so it is gitignored and never committed —
+  // which means a fresh clone has no prod credentials at all. Without this guard
+  // that surfaces as a bare Node MODULE_NOT_FOUND stack from deep inside rollup,
+  // which reads like a build failure rather than "you have not configured a
+  // destination yet".
+  if (!existsSync("./screeps.json")) {
+    console.error("");
+    console.error(`Cannot deploy to "${dest}": screeps.json is missing.`);
+    console.error("");
+    console.error("It holds your API token, so it is gitignored and must be created locally:");
+    console.error("  cp screeps.sample.json screeps.json");
+    console.error(`  # then edit the "${dest}" entry and paste your token`);
+    console.error("");
+    console.error("Get a token at https://screeps.com/a/#!/account/auth-tokens");
+    console.error("Deploying to a local private server instead needs no token: npm run privateServer");
+    console.error("");
+    process.exit(1);
+  }
+
+  const all = require("./screeps.json");
+  cfg = all[dest];
   if (cfg == null) {
-    throw new Error("Invalid upload destination");
+    console.error("");
+    console.error(`Cannot deploy to "${dest}": screeps.json has no "${dest}" entry.`);
+    console.error(`Found: ${Object.keys(all).join(", ") || "(nothing)"}`);
+    console.error("");
+    process.exit(1);
+  }
+  if (typeof cfg.token === "string" && cfg.token.startsWith("replace-with-your")) {
+    // Otherwise the upload runs with the placeholder and fails at the server with
+    // an auth error that looks nothing like "you forgot to paste your token".
+    console.error("");
+    console.error(`Cannot deploy to "${dest}": the token is still the sample placeholder.`);
+    console.error(`Edit screeps.json and set the "${dest}" token to a real one.`);
+    console.error("");
+    process.exit(1);
   }
 }
 

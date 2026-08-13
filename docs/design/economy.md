@@ -398,3 +398,140 @@ piles energy on the floor and starves its own spawn.
 (`[W,C,C,M]`) and upgrader (`[W,W,C,M]`) bodies optimised for a role split the planner
 could not predict, over a 1500-tick creep life against a construction queue that turns over
 in a few hundred ticks.
+
+
+## Production/consumption balance (Aug 2026)
+
+Miners are derived from source saturation and haulers from throughput. **Workers were
+derived from nothing** — they were whatever headcount the CPU allowance had left over. That
+is a production/consumption imbalance waiting to happen, and it happened: a worker's sink is
+its WORK parts (1 energy/tick each while upgrading), so at capacity 300 a worker consumes
+1 e/t and eight of them consumed 8 e/t against two sources producing 20. The surplus piled
+up at 12 e/t, forever.
+
+Workers are now sized from the room's production: `production / (WORK per worker)`, clamped
+by the CPU allowance and a `maxWorkers` safety rail. It cuts both ways, which is the point —
+at capacity 1300 a worker is 6 WORK, so the same 20 e/t wants four workers rather than
+eight, and the freed slots go back to the budget instead of crowding the controller.
+
+Early rooms still accumulate a surplus and that is correct: consuming 20 e/t at capacity 300
+would take twenty 1-WORK creeps, which the CPU rail rightly refuses. The surplus is
+self-correcting — it funds the extensions that raise capacity, which makes every worker
+bigger.
+
+## Right-sizing haulers (Aug 2026)
+
+Hauler COUNT scaled with capacity, but bodies were always built to the maximum the room
+could afford, and the count was then rounded up. Once creeps are large that over-provisions
+badly: a room needing 1040 carry at capacity 1800 rounded 1.16 haulers up to 2 and got
+2 × 900 = **1800 carry from 72 body parts**, paid for in energy every 1500 ticks and CPU
+every tick.
+
+The planner now computes required **carry capacity** (rate × round-trip), takes the fewest
+creeps that can hold it, and builds each to the share it actually hauls
+(`haulerBodyForCarry`). Same job at capacity 1800: **1100 carry from 44 parts**. Measured
+across capacities, delivered carry now tracks the requirement (1050–1250 against 1040)
+instead of ballooning to 1800.
+
+Bigger is better per-creep (principle 8) — but only up to what the room needs. Past that it
+is waste wearing the shape of efficiency. The same right-sizing applies to remote haulers,
+where long round trips make over-provisioning most expensive.
+
+
+## Maintenance repair (Aug 2026)
+
+Roads and containers decay on a timer whether or not anyone touches them, and left alone
+they do not merely degrade — they **vanish**, and then have to be rebuilt from a
+construction site at full price. A container that decays away takes the room's mining seat
+with it until something notices. "Let it break and rebuild" is the expensive option that
+merely looks like doing less.
+
+`economy/repair.ts` lists non-fortification structures below `threshold` (75%) of their
+maximum hits, ordered by **fraction remaining** — a road at 10% is closer to vanishing than
+a container at 40%, even though the container is missing far more hits in absolute terms.
+
+The worker's order of business is now:
+
+1. emergency fortify
+2. **critical repair** (below 35% — about to break)
+3. focus construction site
+4. **routine repair**
+5. fortify
+6. upgrade
+
+Critical repair outranks new construction deliberately: a structure about to disappear is
+worth more than one that does not exist yet, because repairing costs a fraction of
+replacing. Routine repair sits *below* building — worth doing, not worth stalling growth for.
+
+**Ramparts and walls are excluded**, and must stay excluded. Their `hitsMax` is 300 million,
+so any "below X% of max" rule fires permanently and would eat the entire workforce forever.
+`defense/fortify.ts` judges them against an absolute, RCL-scaled target instead.
+
+### The maintenance seat (and what kept breaking)
+
+The same bug wore three faces this session, and the third was the original one.
+
+`CONTROLLER_STRUCTURES` allows **2500 roads at every RCL**, so the planner emits road
+construction sites continuously and "are there sites?" is permanently true. The old planner
+guarded this with `investmentSitesOpen` / `maintenanceWork` — full builder crew for
+investment, exactly one builder for maintenance, upgraders take the rest. Collapsing roles
+deleted those flags, and with them the guard: at RCL2 with extensions finished, every worker
+built roads forever while the controller crawled at one creep's WORK (**1094 progress
+against 1500 required**).
+
+So there is ONE **maintenance seat** per room, holding both routine repair and maintenance
+construction (roads/ramparts/walls). Everything that *finishes* — extensions, towers,
+storage, and any repair critical enough to have a deadline — stays everybody's job.
+
+`deliveryPoint` follows the same split: haulers drop at the focus **investment** site, never
+at the road queue, or the room's energy would be parked on a permanent maintenance backlog.
+
+**The pattern worth remembering:** any work source that regenerates — decaying structures,
+road plans, walls — is unbounded, and unbounded work at the top of a ladder starves
+everything below it forever. It needs a seat, not a priority. Unit tests cannot see this;
+each creep's individual decision is correct and the failure exists only in aggregate across
+hundreds of ticks. Only the behavioral gate caught it, three times.
+
+### Routine repair gets ONE seat
+
+Roads and containers are *always* decaying, so "is anything below 75%?" is permanently true.
+Letting every worker act on that throttles the economy exactly the way maintenance
+construction sites once did — the lesson `shared/build.ts`'s `MAINTENANCE_TYPES` already
+encodes, relearned the hard way: the gate caught a controller gaining **1129 progress where
+1500 was required**, because every worker was repairing and only the upgrader seat ever
+upgraded. The room ran at exactly one creep's WORK, forever.
+
+So routine repair holds a single seat (the second worker by name, so it never collides with
+the upgrader seat). **Critical** repair — a structure about to vanish — stays everybody's
+job, because that is bounded work with a real deadline rather than an endless trickle.
+
+Two seats out of N workers is the whole coordination mechanism: one guaranteed upgrader, one
+routine repairer, everyone else self-allocating.
+
+### Towers repair too
+
+A tower with spare energy is the cheapest repair in the game — 10 energy for up to 800 hits,
+with no creep, no walk and no spawn cost. Idle towers in a quiet room now top up the most
+worn structure, throttled by `towerRepairInterval` and only above `towerRepairReserve` so the
+combat reserve is never drained to do it.
+
+
+## The upgrade floor survives the role collapse (Aug 2026)
+
+The old planner guaranteed **one upgrader, absolutely** — "if the residual is zero, the last
+hauler slot is forfeited instead". Merging builders and upgraders into a single
+self-allocating worker quietly dropped that guarantee: with any construction site open,
+every worker builds and the controller receives nothing.
+
+Sim-caught, and it is worse than it sounds: `m5-links` ran 900 ticks with a
+controller-progress series of **all zeros**. That is not a slow room, it is a stalled one —
+RCL progress halts for the entire build-out while the downgrade timer runs the whole time.
+
+One worker per room now holds a **dedicated upgrader seat** and upgrades regardless of what
+else is available. The seat goes to the lowest-named worker: arbitrary, but stable, so it
+does not change hands every tick. Self-allocation remains right for the other N−1 workers;
+this single seat is not negotiable.
+
+The general lesson is worth keeping: collapsing two roles into one also collapses any
+invariant that was expressed as a ratio between them. Those have to be re-established
+explicitly, and only the behavioral gate catches their absence.

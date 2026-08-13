@@ -258,3 +258,65 @@ destination, so there is nothing to contend over.
 `decideMine` also **re-seats a displaced miner**, which the old rule never did: it only
 moved a miner that was out of harvest range, so a creep shoved off its tile mined from
 wherever it landed and never returned, leaving its seat empty.
+
+
+## Energy reservation (Aug 2026)
+
+Executors are pure and see an identical world, so ten empty creeps evaluating the same
+30-energy pile all chose it, all walked there, and one took the lot — the other nine spent
+the trip for nothing and then re-converged on the next pile together. Each creep was
+individually correct; the fleet was collectively stupid.
+
+`creeps/ledger.ts` is a **per-tick** reservation ledger. When a creep commits to a pile or
+container it claims what it can carry; creeps deciding later in the same tick see the
+remainder and pick something else. A 30-energy pile satisfies one hauler and then reads as
+empty.
+
+It is deliberately not persisted. A reservation only means anything inside the tick that
+made it — carrying it forward would require tracking whether the creep actually arrived,
+which is exactly the stale-task bookkeeping the stateless executor design exists to avoid.
+
+## Stranded remote haulers (Aug 2026)
+
+An empty hauler whose remote has nothing to collect used to wait there indefinitely — if
+the remote's miner had died, forever.
+
+Deciding this from what the creep can currently see does not work: the moment it steps over
+the border it loses sight of the remote, the travel rule sends it straight back, and it
+oscillates on the edge tile. So the observation is stamped into creep scratch memory
+(`dryUntil`) with a 100-tick expiry: durable enough to survive the walk home, self-clearing
+so that mining resuming brings the hauler back on its own without anything having to notice.
+
+`dryUntil` is execution scratch owned by `creeps/index.ts`, NOT an assignment — the
+one-way "planners write assignments, execution only reads them" rule is unaffected.
+
+
+## Drop location follows the work (Aug 2026)
+
+Surplus energy used to be dropped at the **upgrade spot**, always — a fixed tile beside the
+controller, chosen once when the room was first seen. That is right only while the room is
+upgrading. While it is *building*, the workers are at a construction site that may be
+twenty tiles away, and every one of them had to walk to the controller and back for each
+load.
+
+`deliveryPoint(room, upgradeSpot)` now decides it from what the room is actually doing:
+
+1. **The focus construction site**, when one exists — where the workers already are.
+2. **The upgrade spot** otherwise — the controller is the work.
+
+Haulers and workers agree on which site that is because both call the same `focusSite()`.
+If they disagreed, energy would be delivered to a site nobody is building. Structures still
+win over the ground wherever they exist; this only decides where a *dropped* pile lands.
+
+## Waiting beats idling (Aug 2026)
+
+A hauler with nothing to collect used to stand still. But a miner produces continuously, so
+the useful thing is to already BE at the pickup point when the next load lands. Idle creeps
+were a large share of the fleet mostly because this rung did nothing.
+
+An empty hauler with nothing to collect now moves to **range 2** of its source: close enough
+to collect the moment there is something, far enough not to squat the miner's seat. It only
+reports genuine idleness (`waiting-at-source`) once it is in position.
+
+The same instinct drives the other idle fixes — workers self-supply by harvesting rather
+than idling `no-energy`, and stranded remote haulers head home rather than idling `no-pile`.

@@ -4,6 +4,10 @@
 import { ThreatLevel } from "defense/threat";
 
 export interface DefenseConfig {
+    /** Keep at least this much in a tower for fighting; repair only above it. */
+    towerRepairReserve: number;
+    /** Ticks between quiet-room tower repairs — a trickle, not a second economy. */
+    towerRepairInterval: number;
     /** Siege bar: armedParts > siegeFactor × (1 + towers in the room). */
     siegeFactor: number;
     /** Defenders demanded at Siege (Raid gets 1). */
@@ -23,6 +27,8 @@ export interface DefenseConfig {
 }
 
 export const DEFENSE_CONFIG: DefenseConfig = {
+    towerRepairReserve: 500,
+    towerRepairInterval: 10,
     siegeFactor: 15,
     siegeDefenders: 3,
     maxDefenderPairs: 10,

@@ -55,6 +55,9 @@ declare global {
         home?: string;
         owner?: SubsystemId;
         assignment?: Assignment;
+        /** Execution scratch (creeps/index.ts), NOT an assignment: a remote hauler
+         *  that found its remote empty waits at home until this tick. */
+        dryUntil?: number;
     }
 }
 

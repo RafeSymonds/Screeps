@@ -28,7 +28,9 @@ import { TickContext } from "shared/tick";
 import { CreepView, Pos, RoomSnapshot } from "shared/views";
 import { fortificationTargets } from "defense/index";
 import { FortifyTarget } from "defense/fortify";
+import { ECONOMY_CONFIG } from "economy/config";
 import { getUpgradeSpot } from "economy/index";
+import { RepairTarget, computeRepairTargets } from "economy/repair";
 import { isUnsafe } from "intel/index";
 import { requestMove } from "movement/index";
 import { resolve } from "snapshot/handles";
@@ -36,6 +38,7 @@ import { getTerrain } from "snapshot/terrain";
 import { log } from "telemetry/index";
 import { Action, ActionKind } from "creeps/actions";
 import { decideDefend, decideHaul, decideMine, decideWork } from "creeps/executors";
+import { EnergyLedger, createLedger } from "creeps/ledger";
 import { assignSeats, seatTiles } from "creeps/seats";
 
 /** Why creeps did nothing, tallied by reason and logged periodically. Idleness is
@@ -57,6 +60,71 @@ function fortifyFor(ctx: TickContext, roomName: string): FortifyTarget[] {
         const room = ctx.snapshot.room(roomName);
         targets = room ? fortificationTargets(roomName, room) : [];
         fortifyMemo.set(roomName, targets);
+    }
+    return targets;
+}
+
+/** Per-tick memo: which worker holds the room's guaranteed upgrader seat.
+ *  Lowest name wins — arbitrary but STABLE, so the seat does not change hands
+ *  every tick. See the upgrade-floor note in decideWork. */
+let upgraderTick = -1;
+const upgraderMemo = new Map<string, string | undefined>();
+let repairerTick = -1;
+const repairerMemo = new Map<string, string | undefined>();
+
+function workerSeatsFor(ctx: TickContext, roomName: string): string[] {
+    return ctx.snapshot.myCreeps
+        .filter(c => {
+            const a = (c.memory as { assignment?: { kind?: string; room?: string } }).assignment;
+            return a?.kind === AssignmentKind.Work && a.room === roomName && !c.spawning;
+        })
+        .map(c => c.name)
+        .sort();
+}
+
+function dedicatedUpgraderFor(ctx: TickContext, roomName: string): string | undefined {
+    if (upgraderTick !== ctx.snapshot.time) {
+        upgraderMemo.clear();
+        upgraderTick = ctx.snapshot.time;
+    }
+    if (upgraderMemo.has(roomName)) {
+        return upgraderMemo.get(roomName);
+    }
+    const owner = workerSeatsFor(ctx, roomName)[0];
+    upgraderMemo.set(roomName, owner);
+    return owner;
+}
+
+/** The room's single routine-repair seat: the SECOND worker by name, so it never
+ *  collides with the upgrader seat. One room with one worker upgrades and does not
+ *  repair — correct, since a lone worker keeping RCL alive matters more. */
+function dedicatedRepairerFor(ctx: TickContext, roomName: string): string | undefined {
+    if (repairerTick !== ctx.snapshot.time) {
+        repairerMemo.clear();
+        repairerTick = ctx.snapshot.time;
+    }
+    if (repairerMemo.has(roomName)) {
+        return repairerMemo.get(roomName);
+    }
+    const owner = workerSeatsFor(ctx, roomName)[1];
+    repairerMemo.set(roomName, owner);
+    return owner;
+}
+
+/** Per-tick memo: maintenance repair targets, scanned once per room not per creep. */
+let repairTick = -1;
+const repairMemo = new Map<string, RepairTarget[]>();
+
+function repairFor(ctx: TickContext, roomName: string): RepairTarget[] {
+    if (repairTick !== ctx.snapshot.time) {
+        repairMemo.clear();
+        repairTick = ctx.snapshot.time;
+    }
+    let targets = repairMemo.get(roomName);
+    if (!targets) {
+        const room = ctx.snapshot.room(roomName);
+        targets = room ? computeRepairTargets(room) : [];
+        repairMemo.set(roomName, targets);
     }
     return targets;
 }
@@ -125,16 +193,70 @@ function seatsFor(ctx: TickContext, room: RoomSnapshot, sourceId: string): Map<s
     return assigned;
 }
 
+/** How long a hauler stays home after finding its remote dry. Long enough to be
+ *  useful at home, short enough to come back once mining resumes. */
+const DRY_REMOTE_WAIT = 100;
+
+/** Is there anything here an empty hauler could actually pick up? */
+function hasCollectableEnergy(room: RoomSnapshot): boolean {
+    const inContainers = (room.structures[STRUCTURE_CONTAINER] ?? []).some(
+        c => (c.store?.byResource[RESOURCE_ENERGY] ?? 0) >= ECONOMY_CONFIG.minPickup
+    );
+    const onGround = room.dropped.some(d => d.resource === RESOURCE_ENERGY && d.amount >= ECONOMY_CONFIG.minPickup);
+    const inStorage = (room.structures[STRUCTURE_STORAGE] ?? []).some(
+        s => (s.store?.byResource[RESOURCE_ENERGY] ?? 0) >= ECONOMY_CONFIG.minPickup
+    );
+    return inContainers || onGround || inStorage;
+}
+
 /**
  * Which room is this creep's job in *right now*? Constant for every role except
  * hauling, where the answer flips with the load: an empty remote hauler belongs
- * at the remote's container, a full one belongs at home. Deriving it from
- * `store.used` rather than a memory flag keeps the round trip stateless — a
- * hauler that dies and is replaced mid-route needs no handover.
+ * at the remote's container, a full one belongs at home.
+ *
+ * The load half is derived from `store.used`, so the round trip needs no state —
+ * a hauler that dies and is replaced mid-route needs no handover.
+ *
+ * The DRY-REMOTE half does need a scrap of state, and this is why. A remote whose
+ * miner has died has nothing to collect, so an empty hauler sat there forever
+ * (field-reported: "haulers get stuck in another room that has no energy, they
+ * don't head back"). Deciding purely from what it can currently see does not work:
+ * the moment it steps across the border it loses sight of the remote, the travel
+ * rule sends it straight back, and it oscillates on the edge tile. So the "this
+ * remote is dry" observation is stamped into creep scratch memory with an expiry —
+ * durable enough to survive the walk home, self-clearing so mining resuming brings
+ * the hauler back on its own.
  */
-function workRoomOf(creep: CreepView, assignment: Assignment): string {
-    if (assignment.kind === AssignmentKind.Haul && creep.store.used > 0) {
+function workRoomOf(creep: CreepView, assignment: Assignment, ctx: TickContext): string {
+    if (assignment.kind !== AssignmentKind.Haul) {
+        return assignment.room;
+    }
+    if (creep.store.used > 0) {
         return assignment.to ?? assignment.room;
+    }
+    const home = assignment.to ?? assignment.room;
+    if (home === assignment.room) {
+        return assignment.room; // not a remote hauler; nothing to fall back to
+    }
+    const scratch = creep.memory as { dryUntil?: number };
+    if ((scratch.dryUntil ?? 0) > ctx.snapshot.time) {
+        return home;
+    }
+    // A remote is legitimately empty in the window while its miner is still
+    // walking there, so "no energy right now" is NOT enough to give up on it —
+    // acting on that alone makes the hauler bounce home and back on a loop. Only
+    // a remote with no energy AND nobody mining it is actually dry.
+    const minedByUs = ctx.snapshot.myCreeps.some(c => {
+        const other = (c.memory as { assignment?: { kind?: string; room?: string } }).assignment;
+        return other?.kind === AssignmentKind.Mine && other.room === assignment.room;
+    });
+    const view = ctx.snapshot.room(assignment.room);
+    if (view && !minedByUs && !hasCollectableEnergy(view)) {
+        const live = Game.creeps[creep.name];
+        if (live) {
+            live.memory.dryUntil = ctx.snapshot.time + DRY_REMOTE_WAIT;
+        }
+        return home;
     }
     return assignment.room;
 }
@@ -160,8 +282,8 @@ const centerOf = (roomName: string): { x: number; y: number; roomName: string } 
  * travel to the work room (without requiring vision of it), and only then decide
  * what to actually do there.
  */
-function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Action {
-    const workRoom = workRoomOf(creep, assignment);
+function decide(creep: CreepView, assignment: Assignment, ctx: TickContext, ledger: EnergyLedger): Action {
+    const workRoom = workRoomOf(creep, assignment, ctx);
     const home = (creep.memory as { home?: string }).home;
 
     // Retreat: never BE in, and never TRAVEL to, an unsafe work room. Checking
@@ -197,9 +319,19 @@ function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Act
         // upgrade spot is undefined — it arrived home loaded and lost both the
         // controller-feed tier and the drop fallback, and could only idle.
         case AssignmentKind.Haul:
-            return decideHaul(creep, assignment, room, getUpgradeSpot(room.name));
+            return decideHaul(creep, assignment, room, getUpgradeSpot(room.name), ledger);
         case AssignmentKind.Work:
-            return decideWork(creep, assignment, room, getUpgradeSpot(room.name), fortifyFor(ctx, room.name));
+            return decideWork(
+                creep,
+                assignment,
+                room,
+                getUpgradeSpot(room.name),
+                fortifyFor(ctx, room.name),
+                ledger,
+                repairFor(ctx, room.name),
+                dedicatedUpgraderFor(ctx, assignment.room) === creep.name,
+                dedicatedRepairerFor(ctx, assignment.room) === creep.name
+            );
         case AssignmentKind.Defend:
             return decideDefend(creep, assignment, room);
         case AssignmentKind.Scout:
@@ -314,6 +446,9 @@ function perform(creepName: string, action: Action): void {
 
 /** The class-A entry, after the per-room planners, before movement resolution. */
 export function runAll(ctx: TickContext): void {
+    // One ledger per tick: creeps decide in sequence and see each other's claims,
+    // so ten of them cannot all commit to the same 30-energy pile.
+    const ledger = createLedger();
     for (const creep of ctx.snapshot.myCreeps) {
         if (creep.spawning) {
             continue;
@@ -323,7 +458,7 @@ export function runAll(ctx: TickContext): void {
             idleTally.unassigned = (idleTally.unassigned ?? 0) + 1;
             continue;
         }
-        perform(creep.name, decide(creep, assignment, ctx));
+        perform(creep.name, decide(creep, assignment, ctx, ledger));
     }
     if (ctx.snapshot.time % 100 === 0) {
         const entries = Object.entries(idleTally);

@@ -43,6 +43,7 @@ import {
     HAULER_MIN_BODY,
     MINER_MIN_BODY,
     haulerBody,
+    haulerBodyForCarry,
     haulerCarryCapacity,
     minerBody,
     workerBody
@@ -80,6 +81,9 @@ export interface RoomPlan {
 }
 
 const SOURCE_RATE = 10; // 3000 energy / 300-tick regen
+/** UPGRADE_CONTROLLER_POWER: one WORK part spends 1 energy/tick upgrading. This is
+ *  the room's steady-state sink — building spends 5×, but only while sites exist. */
+const UPGRADE_ENERGY_PER_WORK = 1;
 const WORK_TO_SATURATE = 5; // 5 WORK × 2 e/t = 10 e/t — more WORK on one source is wasted
 
 /**
@@ -138,9 +142,9 @@ function assignmentOf(creep: CreepView): Assignment | undefined {
  * for, and assignments are for life, so it never corrected: sim-measured, two
  * "haulers" against 20 e/t of production and 2.4k energy rotting on the floor.
  */
-function fillsHaulSlot(creep: CreepView, cap: number): boolean {
+function fillsHaulSlot(creep: CreepView, wantCarry: number): boolean {
     const carry = (creep.bodyCounts[CARRY] ?? 0) * CARRY_CAPACITY;
-    return carry * 3 >= haulerCarryCapacity(cap);
+    return carry * 3 >= wantCarry;
 }
 
 /** Miner + hauler + two workers, all at bootstrap size: enough labor to rebuild
@@ -258,25 +262,50 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     }
 
     // --- Haulers: global throughput count, distributed round-robin -----------------
-    const carry = haulerCarryCapacity(cap);
-    const perSourceNeed = sources.map(s => {
+    // Required carry CAPACITY (not creep count): rate × round-trip, per source.
+    const maxCarry = haulerCarryCapacity(cap);
+    const perSourceCarry = sources.map(s => {
         const dist = chebyshev(s.pos, upgradeSpot);
         const roundTrip = 2 * dist * config.plainsFactor + config.tripOverhead;
-        return (SOURCE_RATE * roundTrip) / carry;
+        return SOURCE_RATE * roundTrip;
     });
-    let haulersDesiredTotal = Math.max(1, Math.ceil(perSourceNeed.reduce((a, b) => a + b, 0)));
+    const carryNeeded = perSourceCarry.reduce((a, b) => a + b, 0);
+    // Fewest creeps that can hold it, then RIGHT-SIZE each one to the share it
+    // actually has to carry. Rounding the count up while keeping bodies at max
+    // capacity is how a room ends up with a bunch of oversized haulers doing a
+    // fraction of their capacity — 2 × 900 carry for a 1050-carry job.
+    let haulersDesiredTotal = Math.max(1, Math.ceil(carryNeeded / maxCarry));
+    const carryPerHauler = carryNeeded / haulersDesiredTotal;
+    const perSourceNeed = perSourceCarry.map(c => c / maxCarry);
 
     // --- Workers: ONE role that builds, upgrades and, where there is no logistics
     // yet, harvests for itself. The build/upgrade split is not planned here at all
     // — a worker looks at the room each tick and does the most valuable thing
     // available, so the split tracks reality continuously instead of being guessed
-    // a creep-generation in advance. That deleted a whole conversion pass (surplus
-    // upgraders being reassigned to builders) and the regime flags that drove it.
+    // a creep-generation in advance.
     //
-    // Workers are the RESIDUAL: everything the CPU allowance has left after income
-    // is staffed. Income first is the invariant — a room that mines and hauls can
-    // always build more workers, but workers cannot fix an unstaffed source.
-    let workersDesired = creepsAllowed - minersDesiredTotal - haulersDesiredTotal;
+    // Sized to CONSUME WHAT THE ROOM PRODUCES. Miners come from source saturation
+    // and haulers from throughput; workers were the one role derived from nothing
+    // at all — just whatever headcount the CPU allowance had left. That is a
+    // production/consumption imbalance waiting to happen, and it happened: a
+    // worker's sink is its WORK parts (1 energy/tick each while upgrading), so at
+    // capacity 300 a worker consumes 1 e/t and eight of them consumed 8 e/t
+    // against two sources producing 20. The surplus piled up at 12 e/t forever.
+    //
+    // Deriving it cuts both ways, which is the point: at capacity 1300 a worker is
+    // 6 WORK, so the same 20 e/t needs four workers, not eight — and the slots go
+    // back to the CPU budget instead of crowding the controller.
+    const workPerWorker = Math.max(1, workerBody(cap).filter(part => part === WORK).length);
+    const production = room.sources.length * SOURCE_RATE;
+    const workersForProduction = Math.ceil(production / (workPerWorker * UPGRADE_ENERGY_PER_WORK));
+
+    // Income first is the invariant — a room can build more workers later, but
+    // workers cannot fix an unstaffed source.
+    let workersDesired = Math.min(
+        workersForProduction,
+        creepsAllowed - minersDesiredTotal - haulersDesiredTotal,
+        config.maxWorkers
+    );
 
     // When the allowance cannot cover income either, the squeeze order is
     // investment-before-income: workers yield first, haulers only after workers
@@ -289,7 +318,6 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
         haulersDesiredTotal = Math.max(1, haulersDesiredTotal + workersDesired - 1);
         workersDesired = 1;
     }
-    workersDesired = Math.min(workersDesired, config.maxWorkers);
 
     // Distribute hauler targets per source by largest remainder (the apportionment
     // method): floor each source's fair share, then hand the leftover seats to the
@@ -337,7 +365,7 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
                     a?.kind === AssignmentKind.Haul &&
                     a.sourceId === source.id &&
                     fillsSlot(c, config.prespawnLead) &&
-                    fillsHaulSlot(c, cap)
+                    fillsHaulSlot(c, carryPerHauler)
                 );
             }).length;
             for (let slot = staffed; slot < haulerTargets[i]; slot++) {
@@ -354,7 +382,7 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
             home: room.name,
             owner: SubsystemId.Economy,
             assignment: { kind: AssignmentKind.Haul, room: room.name, sourceId: gap.sourceId },
-            body: haulerBody(cap),
+            body: haulerBodyForCarry(carryPerHauler, cap),
             // Critically short → take what the room can afford NOW. Saving up for
             // an ideal body is right when the role is nearly staffed; when it is
             // less than half staffed the queue just blocks (or, with bounded

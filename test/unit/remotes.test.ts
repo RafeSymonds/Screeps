@@ -165,8 +165,16 @@ describe("remotes planner", () => {
         // Poor home → a body it can actually afford. The old fixed body was
         // unspawnable below 1000 energy, so remotes got miners and never haulers.
         expect(remoteMinerBody(true, 300).filter(p => p === WORK).length).to.be.lessThan(5);
-        expect(remoteHaulerBody(10, 75, 300).body).to.deep.equal(haulerBody(300));
-        expect(remoteHaulerBody(10, 75, 1300).body).to.deep.equal(haulerBody(1300));
+        // Haulers are right-sized to the carry actually required, not built to the
+        // home's full capacity and then counted up — otherwise a rich home fields
+        // oversized haulers running at a fraction of their capacity.
+        const rich = remoteHaulerBody(10, 75, 1300);
+        const richCarry = rich.body.filter(p => p === CARRY).length * CARRY_CAPACITY;
+        expect(richCarry * rich.count).to.be.at.least(10 * (2 * 75 + 10));
+        // ...and no more than one hauler's worth of slack over that requirement.
+        expect((richCarry * rich.count) - 10 * (2 * 75 + 10)).to.be.lessThan(richCarry);
+        // A poor home still gets something it can actually build.
+        expect(remoteHaulerBody(10, 75, 300).body.length).to.be.at.most(haulerBody(300).length);
     });
 
     it("emits miners per source id, haulers with to:home, reserver at 90 — all in the live band", () => {

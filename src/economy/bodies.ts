@@ -66,6 +66,27 @@ export function haulerBody(capacity: number): BodyPartConstant[] {
 
 export const HAULER_MIN_BODY: BodyPartConstant[] = [CARRY, MOVE];
 
+/**
+ * A hauler sized to carry exactly `carry` energy, never more than `capacity`
+ * affords.
+ *
+ * Always building max-size haulers and rounding the COUNT up over-provisions
+ * badly once creeps are large: a room needing 1050 carry at capacity 1800 rounds
+ * 1.16 haulers up to 2, and gets 2 × 900 = 1800 carry — 72 body parts doing the
+ * work of 1.16, paid for in energy every 1500 ticks and in CPU every tick. Bigger
+ * is better per-creep (principle 8), but only up to what the room actually needs;
+ * past that it is waste wearing the shape of efficiency.
+ *
+ * So the planner picks the minimum number of haulers, then divides the required
+ * throughput among them and asks for exactly that.
+ */
+export function haulerBodyForCarry(carry: number, capacity: number): BodyPartConstant[] {
+    const affordable = Math.min(MAX_BODY_PARTS / 2, Math.max(1, Math.floor(capacity / 100)));
+    const wanted = Math.max(1, Math.ceil(carry / CARRY_CAPACITY));
+    const pairs = Math.min(affordable, wanted);
+    return [...repeat(CARRY, pairs), ...repeat(MOVE, pairs)];
+}
+
 export function haulerCarryCapacity(capacity: number): number {
     return haulerBody(capacity).filter(p => p === CARRY).length * CARRY_CAPACITY;
 }

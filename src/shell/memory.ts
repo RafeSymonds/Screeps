@@ -113,6 +113,18 @@ export function resetExcept(keep: readonly string[]): void {
  *    containers, which is a handful of type checks.
  */
 export function ensureMemory(): void {
+    // Memory should always be an object, but a server that stored a corrupt blob
+    // can hand us something else (a private server was seen with the literal
+    // string "undefined" persisted). Rebuilding beats crash-looping: every slice
+    // outside KEEP_ON_RESET is derived and comes back on its own.
+    const root = (global as unknown as { Memory?: unknown }).Memory;
+    if (typeof root !== "object" || root === null) {
+        (global as unknown as { Memory: unknown }).Memory = {};
+        ensureContainers();
+        Memory.version = CURRENT_VERSION;
+        alert(AlertKind.CorruptSlice, "Memory was not an object — rebuilt from scratch");
+        return;
+    }
     const found = Memory.version;
     if (found === undefined) {
         ensureContainers();

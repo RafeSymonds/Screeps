@@ -33,6 +33,7 @@ import { resolve } from "snapshot/handles";
 import { confirmSafeMode, requestSafeMode } from "empire/index";
 import { alert, AlertKind, log } from "telemetry/index";
 import { DEFENSE_CONFIG } from "defense/config";
+import { computeRepairTargets } from "economy/repair";
 import { computeFortifyTargets, FortifyTarget } from "defense/fortify";
 import { planDefense } from "defense/response";
 import { planTowerFire } from "defense/towers";
@@ -55,11 +56,17 @@ function sliceOf(roomName: string): DefenseMemory {
 /** Class A, perRoom, every tick, FIRST in entry order: assess, stamp, fire.
  *  The class-A entry stamps lastHostile (the response entry sheds under CPU
  *  pressure, and fortification scaling must not go blind during a raid). */
-export function runTowers(_ctx: TickContext, room: RoomSnapshot): void {
+export function runTowers(ctx: TickContext, room: RoomSnapshot): void {
     if (room.hostiles.length === 0 && sliceOf(room.name).level === ThreatLevel.None) {
         // Almost every tick of the bot's life lands here. This entry runs first,
         // every tick, in every room, so its quiet-room cost is a permanent tax —
-        // keep it to one array-length check plus a slice read.
+        // keep it cheap: one length check, a slice read, and a throttled repair.
+        //
+        // A tower with spare energy is the cheapest repair in the game — 10 energy
+        // for up to 800 hits, with no creep, no walk and no spawn cost. Leaving it
+        // idle while roads decay is pure waste. Throttled so it sips rather than
+        // drains the tower's combat reserve.
+        maintainWithTowers(ctx, room);
         return;
     }
     const assessment = assessThreat(room, DIPLOMACY_CONFIG, DEFENSE_CONFIG.siegeFactor);
@@ -100,6 +107,32 @@ export function runResponse(ctx: TickContext, room: RoomSnapshot): void {
                 log.warn(SubsystemId.DefenseResponse, () => `${room.name}: safe mode refused (${rc})`);
             }
         }
+    }
+}
+
+/**
+ * Quiet-room tower maintenance. Only above `towerRepairReserve` energy, so the
+ * tower is never drained below what it needs to fight, and only every
+ * `towerRepairInterval` ticks so it is a trickle rather than a second economy.
+ */
+function maintainWithTowers(ctx: TickContext, room: RoomSnapshot): void {
+    if (ctx.snapshot.time % DEFENSE_CONFIG.towerRepairInterval !== 0) {
+        return;
+    }
+    const towers = (room.structures[STRUCTURE_TOWER] ?? []).filter(
+        t => (t.store?.byResource[RESOURCE_ENERGY] ?? 0) >= DEFENSE_CONFIG.towerRepairReserve
+    );
+    if (towers.length === 0) {
+        return;
+    }
+    const worn = computeRepairTargets(room)[0];
+    if (!worn) {
+        return;
+    }
+    const tower = resolve(towers[0].id);
+    const target = resolve(worn.id);
+    if (tower && target) {
+        (tower as StructureTower).repair(target);
     }
 }
 

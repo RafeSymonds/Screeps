@@ -311,6 +311,46 @@ describe("economy planner", () => {
         expect(count(tight, AssignmentKind.Haul)).to.be.greaterThan(1);
     });
 
+    it("sizes workers to CONSUME what the room produces, both directions", () => {
+        // FIELD BUG: consumption ran far behind production. Workers were the only
+        // role derived from nothing — just the CPU allowance leftover — so at
+        // capacity 300 eight 1-WORK workers consumed 8 e/t against 20 e/t of
+        // production, and the surplus piled up forever.
+        const poor = gateRoom();
+        poor.energyCapacityAvailable = 300;
+        poor.energyAvailable = 300;
+        const rich = gateRoom();
+        rich.energyCapacityAvailable = 1300;
+        rich.energyAvailable = 1300;
+
+        // Bodies are pinned to 300 while income staffing is below floor (wipe
+        // recovery), so a staffed roster is required to see capacity-sized workers.
+        const staffed = [
+            worker(AssignmentKind.Mine, "srcA"),
+            worker(AssignmentKind.Mine, "srcB"),
+            worker(AssignmentKind.Haul, "srcA"),
+            worker(AssignmentKind.Haul, "srcB")
+        ];
+        const plan = (room: RoomSnapshot) => planRoom({ ...input(staffed), room, creepsAllowed: 40 });
+        const workOf = (room: RoomSnapshot): number =>
+            plan(room)
+                .demands.filter(d => d.assignment.kind === AssignmentKind.Work)
+                .reduce((sum, d) => sum + d.body.filter(p => p === WORK).length, 0);
+        // A rich room fields enough WORK to consume its whole 20 e/t.
+        expect(workOf(rich)).to.be.at.least(20);
+        // A poor room cannot: at capacity 300 a worker is 1 WORK, so consuming
+        // 20 e/t would take 20 creeps, which is CPU-absurd and is what the
+        // maxWorkers rail exists to refuse. Early surplus is real and it is
+        // self-correcting — it funds the extensions that raise the cap, which
+        // makes each worker bigger. What matters is that it now asks for as much
+        // consumption as it is allowed, instead of an unrelated leftover.
+        expect(workOf(poor)).to.equal(ECONOMY_CONFIG.maxWorkers);
+        // ...and the rich room does it with far fewer creeps.
+        const count = (room: RoomSnapshot): number =>
+            plan(room).demands.filter(d => d.assignment.kind === AssignmentKind.Work).length;
+        expect(count(rich)).to.be.lessThan(count(poor));
+    });
+
     it("needs no reassignment pass at all — workers self-allocate", () => {
         // The old planner converted surplus upgraders into builders whenever the
         // construction regime flipped. One role means the split is decided by each

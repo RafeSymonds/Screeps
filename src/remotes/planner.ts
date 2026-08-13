@@ -29,7 +29,14 @@ import { AssignmentKind } from "shared/assignments";
 import { SpawnDemand } from "shared/spawning";
 import { SubsystemId } from "shared/subsystems";
 import { CreepView, RoomSnapshot } from "shared/views";
-import { HAULER_MIN_BODY, MINER_MIN_BODY, bodyCost, haulerBody, haulerCarryCapacity, minerBody } from "economy/bodies";
+import {
+    HAULER_MIN_BODY,
+    MINER_MIN_BODY,
+    bodyCost,
+    haulerBodyForCarry,
+    haulerCarryCapacity,
+    minerBody
+} from "economy/bodies";
 import { RoomIntel, RoomType, roomType } from "intel/index";
 import { PRIORITY_REMOTE_BASE, PRIORITY_RESERVER, RemotesConfig } from "remotes/config";
 
@@ -96,9 +103,15 @@ export function remoteHaulerBody(
     travelTiles: number,
     homeCap: number
 ): { body: BodyPartConstant[]; count: number } {
-    const carry = haulerCarryCapacity(homeCap);
+    // Same right-sizing as home hauling: fewest creeps that can hold the required
+    // carry, each built to the share it actually hauls rather than to the home's
+    // full capacity. Remote round trips are long, so over-provisioning here is the
+    // most expensive place to do it.
+    const maxCarry = haulerCarryCapacity(homeCap);
     const roundTrip = 2 * travelTiles + 10;
-    return { body: haulerBody(homeCap), count: Math.max(1, Math.ceil((rate * roundTrip) / carry)) };
+    const carryNeeded = rate * roundTrip;
+    const count = Math.max(1, Math.ceil(carryNeeded / maxCarry));
+    return { body: haulerBodyForCarry(carryNeeded / count, homeCap), count };
 }
 
 /**

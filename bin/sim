@@ -34,9 +34,31 @@ build_image() { echo "[sim] building image $IMAGE (first build compiles isolated
 ensure_image() { docker image inspect "$IMAGE" >/dev/null 2>&1 || build_image; }
 build_bot() { echo "[sim] building bot bundle (npm run build)…"; ( cd "$ROOT" && npm run build >/dev/null ) || die "bot build failed"; }
 
+# Freeze the freshly built bundle so a concurrent build/deploy cannot disturb it.
+snapshot_bot() {
+  [[ -f "$ROOT/dist/main.js" ]] || die "dist/main.js missing after build"
+  cp "$ROOT/dist/main.js" "$BUNDLE/main.js"
+  [[ -f "$ROOT/dist/main.js.map.js" ]] && cp "$ROOT/dist/main.js.map.js" "$BUNDLE/main.js.map.js"
+  echo "[sim] bundle snapshot -> $BUNDLE (immune to concurrent builds)"
+}
+
+# The bot bundle is SNAPSHOT, not mounted from dist/.
+#
+# rollup's `clear({targets:["dist"]})` wipes dist/ at the start of every build —
+# including `npm run build` and every `./deploy`. Mounting dist/ live meant any
+# build started while a run was in flight deleted the bundle out from under it,
+# and every remaining suite died with "bot bundle not found". That destroyed three
+# separate gate runs before it was diagnosed, and the failures look alarming and
+# unrelated to the code under test.
+#
+# Copying into a run-private directory costs ~1MB and makes a run immune to
+# whatever else the repo is doing. BUNDLE is set per invocation and cleaned by the
+# same trap that removes the container.
+BUNDLE="$(mktemp -d "${TMPDIR:-/tmp}/screeps-sim-bundle.XXXXXX")"
+
 # Bind-mounts shared by run/test so editing the harness/scenarios/tests needs no rebuild.
 MOUNTS=(
-  -v "$ROOT/dist:/bot:ro"
+  -v "$BUNDLE:/bot:ro"
   -v "$SIM/run.js:/sim/run.js:ro"
   -v "$SIM/lib:/sim/lib:ro"
   -v "$SIM/scenarios:/sim/scenarios:ro"
@@ -48,7 +70,10 @@ MOUNTS=(
 # is killed (Ctrl-C, `timeout`, kill) the container can keep running. So we name the
 # container and force-remove it via a trap on any exit/interrupt as a backstop.
 CONTAINER=""
-cleanup() { [[ -n "$CONTAINER" ]] && docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
+cleanup() {
+  [[ -n "$CONTAINER" ]] && docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  [[ -n "${BUNDLE:-}" && -d "$BUNDLE" ]] && rm -rf "$BUNDLE" || true
+}
 trap cleanup EXIT
 trap 'cleanup; exit 130' INT TERM
 
@@ -76,7 +101,7 @@ case "$cmd" in
     done
     ensure_image
     build_bot
-    [[ -f "$ROOT/dist/main.js" ]] || die "dist/main.js missing after build"
+    snapshot_bot
     echo "[sim] running: scenario=$scenario ticks=$ticks every=$every verbose=$verbose"
     CONTAINER="screeps-sim-run-$$"
     run_container --rm --init --name "$CONTAINER" "${MOUNTS[@]}" \
@@ -88,7 +113,7 @@ case "$cmd" in
     [[ "${1:-}" == "--" ]] && shift || true
     ensure_image
     build_bot
-    [[ -f "$ROOT/dist/main.js" ]] || die "dist/main.js missing after build"
+    snapshot_bot
     echo "[sim] running behavioral tests (real engine, this is slower than npm run test)…"
     CONTAINER="screeps-sim-test-$$"
     # Parallel by FILE: one scenario suite per test file, each runScenario isolates
@@ -110,7 +135,7 @@ case "$cmd" in
   shell)
     ensure_image
     CONTAINER="screeps-sim-shell-$$"
-    docker run --rm -it --init --name "$CONTAINER" -v "$ROOT/dist:/bot:ro" -v "$SIM:/sim" --entrypoint bash "$IMAGE"
+    docker run --rm -it --init --name "$CONTAINER" -v "$BUNDLE:/bot:ro" -v "$SIM:/sim" --entrypoint bash "$IMAGE"
     ;;
   clean) docker image rm "$IMAGE" 2>/dev/null && echo "[sim] removed $IMAGE" || echo "[sim] no image to remove" ;;
   help|-h|--help) sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;

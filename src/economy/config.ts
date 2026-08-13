@@ -2,9 +2,9 @@
  * Economy tunables — one named config, all provisional. See docs/design/economy.md.
  */
 export interface EconomyConfig {
-    /** Ceiling on the worker residual. Workers are whatever the CPU allowance has
-     *  left after income, but past a point more of them just crowd the controller
-     *  and the sites — the limit is throughput, not headcount. */
+    /** Safety ceiling only. Worker count is DERIVED from what the room produces
+     *  (planner: production / WORK-per-worker); this just stops a pathological
+     *  input from asking for a hundred creeps. It is not the sizing mechanism. */
     maxWorkers: number;
     /** Haulers/workers don't chase piles smaller than this. */
     minPickup: number;
@@ -23,7 +23,7 @@ export interface EconomyConfig {
 }
 
 export const ECONOMY_CONFIG: EconomyConfig = {
-    maxWorkers: 8,
+    maxWorkers: 16,
     minPickup: 20,
     prespawnLead: 50,
     downgradeFloor: 4000,

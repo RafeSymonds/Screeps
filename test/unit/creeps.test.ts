@@ -3,6 +3,7 @@ import { AssignmentKind, DefendAssignment, HaulAssignment, MineAssignment, WorkA
 import { ConstructionSiteView, CreepView, DroppedView, HostileView, Pos, RoomSnapshot, StructureView } from "shared/views";
 import { FortifyTarget } from "defense/fortify";
 import { ActionKind } from "creeps/actions";
+import { createLedger } from "creeps/ledger";
 import { decideDefend, decideHaul, decideMine, decideWork } from "creeps/executors";
 
 function pos(x: number, y: number): Pos {
@@ -117,11 +118,17 @@ describe("haul executor", () => {
         });
     });
 
-    it("steps off a miner seat when idle, idles elsewhere", () => {
+    it("steps off a miner seat, and otherwise WAITS at the source rather than idling", () => {
+        // Standing still is the wrong answer with nothing to collect: the miner is
+        // producing continuously, so the useful thing is to be at the pickup point
+        // when the next load lands. Idle creeps were a large share of the fleet
+        // precisely because this rung did nothing.
         const onSeat = decideHaul(creepAt(pos(11, 40), 0), haul, roomWith(), SPOT);
         expect(onSeat.kind).to.equal(ActionKind.MoveTo);
-        const offSeat = decideHaul(creepAt(pos(20, 20), 0), haul, roomWith(), SPOT);
-        expect(offSeat.kind).to.equal(ActionKind.Idle);
+        const far = decideHaul(creepAt(pos(20, 20), 0), haul, roomWith(), SPOT);
+        expect(far).to.deep.equal({ kind: ActionKind.MoveTo, pos: pos(10, 40), range: 2 });
+        // Already in position at range 2: hold there.
+        expect(decideHaul(creepAt(pos(12, 40), 0), haul, roomWith(), SPOT).kind).to.equal(ActionKind.Idle);
     });
 
     it("delivers to spawn first, then drops at the upgrade spot when sinks are full", () => {
@@ -273,7 +280,9 @@ describe("haul executor with containers", () => {
         // and re-drop it in the same place forever.
         const fed = roomWith({ dropped: [pile("feed", SPOT, 900)] });
         fed.structures[STRUCTURE_SPAWN]![0].store = { free: 0, used: 300, byResource: { energy: 300 } };
-        expect(decideHaul(creepAt(pos(30, 30), 0), haul, fed, SPOT).kind).to.equal(ActionKind.Idle);
+        // Not the feed pile: it heads back to its own source to wait instead.
+        const action = decideHaul(creepAt(pos(30, 30), 0), haul, fed, SPOT);
+        expect(action).to.deep.equal({ kind: ActionKind.MoveTo, pos: pos(10, 40), range: 2 });
     });
 
     it("withdraws from the source container before chasing piles", () => {
@@ -394,7 +403,7 @@ describe("build executor", () => {
     const roomWithSites = (sites: ConstructionSiteView[], extra: Partial<RoomSnapshot> = {}): RoomSnapshot =>
         roomWith({ myConstructionSites: sites, ...extra });
 
-    it("refills from source containers, never the controller container", () => {
+    it("refills from ANY container — they are storage, not per-task fixtures", () => {
         const sites = [site("s1", STRUCTURE_EXTENSION, pos(23, 23), 0, 3000)];
         const room = roomWithSites(sites, {
             structures: {
@@ -402,21 +411,26 @@ describe("build executor", () => {
                 [STRUCTURE_CONTAINER]: [container("srcCont", seat, 800), container("ctrlCont", SPOT, 2000)]
             }
         });
+        // Nearest wins: the source container is right here.
         expect(decideWork(creepAt(pos(12, 40), 0), build, room, SPOT)).to.deep.equal({
             kind: ActionKind.Withdraw,
             targetId: "srcCont",
             resource: RESOURCE_ENERGY
         });
-        // Only the controller container has energy → the worker will not raid the
-        // upgraders' feed; with nothing else to draw from it goes and harvests.
+        // ...and a worker standing by the controller container uses THAT one rather
+        // than crossing the room. It used to be barred from it entirely, so it
+        // would stand beside a full container and walk away.
+        expect(decideWork(creepAt(pos(25, 21), 0), build, room, SPOT)).to.deep.equal({
+            kind: ActionKind.Withdraw,
+            targetId: "ctrlCont",
+            resource: RESOURCE_ENERGY
+        });
+        // Only the controller container has energy → the worker uses it. Barring
+        // it forced a walk to the far side of the room for a pile instead.
         const dry = roomWithSites(sites, {
             structures: { ...roomWith().structures, [STRUCTURE_CONTAINER]: [container("ctrlCont", SPOT, 2000)] }
         });
-        expect(decideWork(creepAt(pos(25, 20), 0), build, dry, SPOT)).to.deep.equal({
-            kind: ActionKind.MoveTo,
-            pos: pos(10, 40),
-            range: 1
-        });
+        expect(decideWork(creepAt(pos(25, 20), 0), build, dry, SPOT).kind).to.equal(ActionKind.Withdraw);
     });
 
     it("weighs piles by energy per tick of walking, not raw size", () => {
@@ -521,6 +535,39 @@ describe("defend executor", () => {
     });
 });
 
+describe("haul executor: contention", () => {
+    it("does not send every hauler to the same small pile", () => {
+        // FIELD BUG: ten creeps converged on 30 energy, one took it all, the rest
+        // walked back empty. Each was individually correct; the fleet was not.
+        const room = roomWith({ dropped: [pile("small", pos(20, 20), 30)] });
+        const ledger = createLedger();
+        const chose = [];
+        for (let i = 0; i < 10; i++) {
+            const action = decideHaul(creepAt(pos(22, 20), 0), haul, room, SPOT, ledger);
+            const targetsPile =
+                action.kind === ActionKind.Pickup ||
+                (action.kind === ActionKind.MoveTo && action.pos.x === 20 && action.pos.y === 20);
+            if (targetsPile) {
+                chose.push(i);
+            }
+        }
+        expect(chose, "more than one hauler committed to a 30-energy pile").to.have.length(1);
+    });
+
+    it("still lets a large pile serve several haulers", () => {
+        const room = roomWith({ dropped: [pile("big", pos(20, 20), 2000)] });
+        const ledger = createLedger();
+        let served = 0;
+        for (let i = 0; i < 4; i++) {
+            const action = decideHaul(creepAt(pos(22, 20), 0), haul, room, SPOT, ledger);
+            if (action.kind === ActionKind.MoveTo && action.pos.x === 20 && action.pos.y === 20) {
+                served++;
+            }
+        }
+        expect(served).to.equal(4);
+    });
+});
+
 describe("haul executor at war and with storage", () => {
     it("promotes towers ahead of spawn while hostiles are present", () => {
         const war = roomWith({
@@ -562,15 +609,114 @@ describe("haul executor at war and with storage", () => {
             targetId: "stor1",
             resource: RESOURCE_ENERGY
         });
-        // Spawn-side full → no withdraw (step-off/idle instead)…
+        // Spawn-side full → no storage run; it goes to wait at its source instead.
         stored.structures[STRUCTURE_SPAWN]![0].store = { free: 0, used: 300, byResource: { energy: 300 } };
-        expect(decideHaul(creepAt(pos(25, 26), 0), haul, stored, SPOT).kind).to.equal(ActionKind.Idle);
+        expect(decideHaul(creepAt(pos(25, 26), 0), haul, stored, SPOT)).to.deep.equal({
+            kind: ActionKind.MoveTo,
+            pos: pos(10, 40),
+            range: 2
+        });
         // …and a carrying hauler with a fed controller deposits INTO storage before dropping.
         stored.structures[STRUCTURE_CONTAINER] = [container("ctrlCont", SPOT, 2000)]; // feed full
         expect(decideHaul(creepAt(pos(25, 26), 150), haul, stored, SPOT)).to.deep.equal({
             kind: ActionKind.Transfer,
             targetId: "stor1",
             resource: RESOURCE_ENERGY
+        });
+    });
+});
+
+describe("worker executor: the upgrade floor", () => {
+    const work: WorkAssignment = { kind: AssignmentKind.Work, room: "W1N1" };
+
+    it("the dedicated upgrader upgrades even with construction open", () => {
+        // REGRESSION: collapsing builders and upgraders into one self-allocating
+        // role dropped the old planner's absolute floor of one upgrader. With any
+        // site open EVERY worker built and the controller received nothing —
+        // m5-links ran 900 ticks with a controller-progress series of all zeros.
+        // That is a stalled room: RCL halts and the downgrade timer runs.
+        const room = roomWith({
+            myConstructionSites: [
+                {
+                    id: "s1" as Id<ConstructionSite>,
+                    pos: pos(23, 23),
+                    type: STRUCTURE_EXTENSION,
+                    progress: 0,
+                    progressTotal: 3000
+                }
+            ]
+        });
+        const loaded = creepAt(pos(25, 20), 150);
+        // Ordinary worker: builds.
+        expect(decideWork(loaded, work, room, SPOT, [], undefined, []).kind).to.equal(ActionKind.Build);
+        // The seat holder: upgrades regardless.
+        expect(decideWork(loaded, work, room, SPOT, [], undefined, [], true)).to.deep.equal({
+            kind: ActionKind.Upgrade,
+            targetId: "ctrl"
+        });
+    });
+});
+
+describe("worker executor: routine repair does not throttle the economy", () => {
+    const work: WorkAssignment = { kind: AssignmentKind.Work, room: "W1N1" };
+    const worn = [{ id: "road1" as Id<AnyStructure>, pos: pos(25, 22), hits: 2000, hitsMax: 5000 }];
+
+    it("only the repair seat does routine repair; everyone else upgrades", () => {
+        // REGRESSION: roads and containers are ALWAYS decaying, so "anything below
+        // 75%?" is permanently true. Letting every worker act on it throttles the
+        // economy exactly as maintenance construction sites once did — sim-caught
+        // as a controller gaining 1129 progress where 1500 was required, because
+        // every worker repaired and only the upgrader seat ever upgraded.
+        const loaded = creepAt(pos(25, 20), 150);
+        const room = roomWith();
+        // Not the repair seat: upgrades right past the worn road.
+        expect(decideWork(loaded, work, room, SPOT, [], undefined, worn, false, false).kind).to.equal(
+            ActionKind.Upgrade
+        );
+        // The repair seat: fixes it.
+        expect(decideWork(loaded, work, room, SPOT, [], undefined, worn, false, true)).to.deep.equal({
+            kind: ActionKind.Repair,
+            targetId: "road1"
+        });
+    });
+
+    it("road sites do not throttle upgrading — maintenance building is one seat too", () => {
+        // THE bug, third face: CONTROLLER_STRUCTURES allows 2500 roads at every
+        // RCL, so road sites are emitted forever and "are there sites?" is
+        // permanently true. Every worker built roads while the controller crawled
+        // at one creep's WORK — 1094 progress against 1500 required.
+        const roads = roomWith({
+            myConstructionSites: [site("r1", STRUCTURE_ROAD, pos(25, 22), 0, 300)]
+        });
+        const loaded = creepAt(pos(25, 20), 150);
+        // Ordinary worker: upgrades right past the road queue.
+        expect(decideWork(loaded, work, roads, SPOT, [], undefined, [], false, false).kind).to.equal(
+            ActionKind.Upgrade
+        );
+        // The maintenance seat: builds it.
+        expect(decideWork(loaded, work, roads, SPOT, [], undefined, [], false, true)).to.deep.equal({
+            kind: ActionKind.Build,
+            targetId: "r1"
+        });
+    });
+
+    it("INVESTMENT sites are still everybody's job — they finish", () => {
+        const ext = roomWith({
+            myConstructionSites: [site("e1", STRUCTURE_EXTENSION, pos(25, 22), 0, 3000)]
+        });
+        const loaded = creepAt(pos(25, 20), 150);
+        expect(decideWork(loaded, work, ext, SPOT, [], undefined, [], false, false)).to.deep.equal({
+            kind: ActionKind.Build,
+            targetId: "e1"
+        });
+    });
+
+    it("but a CRITICAL repair is everybody's job — bounded work with a deadline", () => {
+        const dying = [{ id: "road1" as Id<AnyStructure>, pos: pos(25, 22), hits: 100, hitsMax: 5000 }];
+        const loaded = creepAt(pos(25, 20), 150);
+        expect(decideWork(loaded, work, roomWith(), SPOT, [], undefined, dying, false, false)).to.deep.equal({
+            kind: ActionKind.Repair,
+            targetId: "road1"
         });
     });
 });
