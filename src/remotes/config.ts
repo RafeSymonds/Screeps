@@ -2,9 +2,6 @@
  * Remotes tunables — one named config. See docs/design/remotes.md.
  */
 export interface RemotesConfig {
-    /** §9 budgets ≤1.5 CPU for ALL of a home's remotes; one reserved 2-source
-     *  remote is ~1.3. A second remote awaits the M6 CPU-allowance input. */
-    maxRemotesPerHome: number;
     /** An armed sighting fresher than this keeps a remote unsafe (ticks). */
     unsafeMemory: number;
     /** Home must have this capacity before adopting at all. */
@@ -18,7 +15,6 @@ export interface RemotesConfig {
 }
 
 export const REMOTES_CONFIG: RemotesConfig = {
-    maxRemotesPerHome: 1,
     unsafeMemory: 300,
     minHomeCap: 550,
     reserveFloorCap: 650,

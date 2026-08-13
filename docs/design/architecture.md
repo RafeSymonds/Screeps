@@ -495,6 +495,15 @@ subscription (limit then scales with GCL), not for optimism. Movement cost lands
 the per-room all-in numbers but is instrumented separately (§5.12). If telemetry shows a
 room exceeding budget, that is a bug by definition, not a tuning opportunity.
 
+**This table is executable, not aspirational.** [budget.md](budget.md) inverts it into the
+workforce and remote caps the planners consume each tick (`shared/budget.ts`), so principle
+8's "CPU discipline is enforced upstream at planning time" is literally true. The allowance
+is *modeled* from this table and `Game.cpu.limit`, never fed back from measured CPU — that
+would turn telemetry's fault signal into a control input and oscillate on a creep-lifetime
+period. The one empirical constant, CPU-per-creep, cannot be measured in sim (the harness
+reports isolate execution time, not the game's flat 0.2/intent charge) and ships at this
+section's stated ~0.35 pending the first real MMO run.
+
 ## 10. Testing the Architecture Itself
 
 - Every subsystem's pure core: mocha unit tests (`npm run test`), no Screeps globals.

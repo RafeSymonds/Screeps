@@ -49,9 +49,7 @@ export function planTowerFire(
     }
     // A hostile on a rampart tile is untargetable — the engine redirects the shot
     // into the rampart itself.
-    const rampartTiles = new Set(
-        (room.structures[STRUCTURE_RAMPART] ?? []).map(r => r.pos.y * 50 + r.pos.x)
-    );
+    const rampartTiles = new Set((room.structures[STRUCTURE_RAMPART] ?? []).map(r => r.pos.y * 50 + r.pos.x));
     const targets = assessment.hostiles.filter(h => !rampartTiles.has(h.pos.y * 50 + h.pos.x));
     let best: { id: Id<Creep>; damage: number; hits: number } | undefined;
     for (const h of targets) {

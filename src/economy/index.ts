@@ -13,6 +13,7 @@
  * once and persisting it is free correctness; everything else is recomputed from
  * the snapshot each run so it cannot go stale.
  */
+import { computeAllowance } from "shared/budget";
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
 import { Pos, RoomSnapshot } from "shared/views";
@@ -31,7 +32,7 @@ export interface EconMemory {
 }
 
 function roomMemoryOf(roomName: string): { econ?: EconMemory } {
-    return (Memory.rooms[roomName] ??= {} as RoomMemory) as { econ?: EconMemory };
+    return (Memory.rooms[roomName] ??= {} as RoomMemory);
 }
 
 function ensureEcon(room: RoomSnapshot): EconMemory | undefined {
@@ -91,6 +92,9 @@ export function runRoom(ctx: TickContext, room: RoomSnapshot): void {
         orphans,
         sourceSpots: econ.sourceSpots,
         upgradeSpot: { x: econ.upgradeSpot.x, y: econ.upgradeSpot.y, roomName: room.name },
+        // Principle 8: the workforce cap is this room's CPU share, not a constant.
+        // It tightens automatically as the empire grows (budget.md).
+        creepsAllowed: computeAllowance(Game.cpu.limit, ctx.snapshot.myRooms.length).creepsPerRoom,
         allowRebuild: getClaimTarget() !== room.name,
         config: ECONOMY_CONFIG
     });

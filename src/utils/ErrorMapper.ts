@@ -7,7 +7,9 @@ export class ErrorMapper {
 
     public static get consumer(): SourceMapConsumer {
         if (this._consumer == null) {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            // Runtime load of the bundle's source map — must be a require, since the
+            // file is emitted beside main.js rather than imported at build time.
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
             const sourceMap = require("main.js.map") as RawSourceMap;
             this._consumer = new SourceMapConsumer(sourceMap);
         }

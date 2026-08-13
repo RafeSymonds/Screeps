@@ -59,6 +59,10 @@ export interface RoomPlanInput {
     /** Walkable tiles adjacent to each source id. */
     sourceSpots: Record<string, number>;
     upgradeSpot: Pos;
+    /** This room's CPU-derived workforce cap (shared/budget.ts, principle 8).
+     *  Replaces the old fixed `config.maxCreepsPerRoom`, which was sized for a
+     *  world with exactly one room and did not tighten when M6 added a second. */
+    creepsAllowed: number;
     /** Emit the rebuild skeleton for a spawnless room? FALSE while expansion is
      *  pioneering it — that bootstrap already has an owner, and running both
      *  would double-load the sponsor's spawn queue with two uncoordinated
@@ -193,7 +197,7 @@ function rebuildSkeleton(room: RoomSnapshot, config: EconomyConfig): SpawnDemand
  * the live roster, then adoption of any homeless creeps that fit.
  */
 export function planRoom(input: RoomPlanInput): RoomPlan {
-    const { room, roster, orphans, sourceSpots, upgradeSpot, allowRebuild, config } = input;
+    const { room, roster, orphans, sourceSpots, upgradeSpot, creepsAllowed, allowRebuild, config } = input;
     if (room.sources.length === 0) {
         return { demands: [], adoptions: [], reassignments: [] };
     }
@@ -201,7 +205,6 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     const demands: SpawnDemand[] = [];
     const minersAlive = roster.filter(c => assignmentOf(c)?.kind === AssignmentKind.Mine).length;
     const haulersAlive = roster.filter(c => assignmentOf(c)?.kind === AssignmentKind.Haul).length;
-    const anyMinersAlive = minersAlive > 0;
     const anyHaulersAlive = haulersAlive > 0;
 
     // Bootstrap sizing (economy.md, sim-caught in wiped-base): while income staffing
@@ -278,7 +281,7 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     // --- Upgraders: the residual, floor 1 absolute (a hauler slot is forfeited
     // rather than letting the residual hit zero). While investment sites are open
     // the cap is 1: construction throttles upgrading at the energy level -------------
-    let residual = config.maxCreepsPerRoom - minersDesiredTotal - haulersDesiredTotal - buildersDesired;
+    let residual = creepsAllowed - minersDesiredTotal - haulersDesiredTotal - buildersDesired;
     if (residual < 1) {
         haulersDesiredTotal = Math.max(1, haulersDesiredTotal + residual - 1);
         residual = 1;

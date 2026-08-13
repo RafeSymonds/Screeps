@@ -54,7 +54,7 @@ export function runRoom(_ctx: TickContext, room: RoomSnapshot): void {
         return;
     }
     for (const c of intents.create) {
-        const rc = liveRoom.createConstructionSite(c.pos.x, c.pos.y, c.type as BuildableStructureConstant);
+        const rc = liveRoom.createConstructionSite(c.pos.x, c.pos.y, c.type);
         if (rc !== OK) {
             log.debug(SubsystemId.Construction, () => `${room.name}: place ${c.type}@${c.pos.x},${c.pos.y} → ${rc}`);
         }

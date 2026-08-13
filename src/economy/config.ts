@@ -2,9 +2,6 @@
  * Economy tunables — one named config, all provisional. See docs/design/economy.md.
  */
 export interface EconomyConfig {
-    /** M2 CPU allowance (principle 8): generous while ONE room owns the whole 20-CPU
-     *  budget; MUST tighten when M6 makes rooms share the pie. */
-    maxCreepsPerRoom: number;
     maxUpgraders: number;
     /** Desired builders while the room has open construction sites, else 0. While
      *  sites are open, maxUpgraders is overridden to 1 and surplus upgraders convert
@@ -27,7 +24,6 @@ export interface EconomyConfig {
 }
 
 export const ECONOMY_CONFIG: EconomyConfig = {
-    maxCreepsPerRoom: 20,
     maxUpgraders: 8,
     builders: 4,
     minPickup: 20,

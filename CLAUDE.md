@@ -108,9 +108,10 @@ narrow seams.**
     Creep body design is constrained by spawn energy, fatigue, carry throughput, and lifetime.
 -   Many bugs only appear over multiple ticks. When changing scheduling, spawning, or memory
     ownership, reason across several ticks.
--   `npm run lint` is **broken repo-wide**: `Invalid value for lib provided: es2024` — the installed
-    `@typescript-eslint` parser predates es2024 and fails on every file (including untouched ones).
-    This is toolchain debt, not a code regression; build + tests are the gates.
+-   `npm run lint` is **clean and is a gate** (fixed Aug 2026: `@typescript-eslint` 7 → 8, which
+    understands the `es2024` lib; v7 failed to parse every file). `sort-imports` is deliberately
+    **off** — this repo groups imports by provenance (`shared/*` contracts, then other subsystems,
+    then the module's own files, each alphabetical by path) and the rule would scramble that.
 -   If changing deploy behavior, also inspect [rollup.config.js](rollup.config.js) and the shell
     wrappers [deploy](deploy) and [deploy_private](deploy_private).
 
@@ -121,7 +122,7 @@ narrow seams.**
 -   `npm run privateServer`: deploy to the local path controlled by `SCREEPS_LOCAL_PATH`.
 -   `npm run test`: unit and integration tests (mocha + chai, mocked Screeps globals in
     `test/helpers/`).
--   `npm run lint` / `npm run lint:fix`: ESLint on `src/**/*.ts` (see baseline note above).
+-   `npm run lint` / `npm run lint:fix`: ESLint on `src/**/*.ts`. Clean; keep it that way.
 -   `bin/sim run [ticks]`: run the real bot in the real Screeps engine **headless** (Node 24,
     in Docker) and print live per-tick room state — economy, spawns, CPU. Not unit tests;
     for watching real behavior over many ticks. See [sim/README.md](sim/README.md).

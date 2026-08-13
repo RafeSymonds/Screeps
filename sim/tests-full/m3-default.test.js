@@ -24,6 +24,7 @@ describe("sim: M3 hands-off building (default, 7500 ticks)", function () {
   it("runs without engine or bot errors", () => {
     expect(res.engineErrors, JSON.stringify(res.engineErrors)).to.have.length(0);
     expect(res.botErrors, JSON.stringify(res.botErrors)).to.have.length(0);
+    expect(res.runtimeKills, JSON.stringify(res.runtimeKills)).to.have.length(0);
     expect(res.memories.bot.stats.counters.errors).to.equal(0);
   });
 

@@ -121,9 +121,14 @@ const CORE_STAMP: { type: BuildableStructureConstant; dx: number; dy: number }[]
 
 /** Neighbor offsets in ascending (dy, dx) — BFS determinism depends on this order. */
 const NEIGHBORS: [number, number][] = [
-    [-1, -1], [0, -1], [1, -1],
-    [-1, 0], [1, 0],
-    [-1, 1], [0, 1], [1, 1]
+    [-1, -1],
+    [0, -1],
+    [1, -1],
+    [-1, 0],
+    [1, 0],
+    [-1, 1],
+    [0, 1],
+    [1, 1]
 ];
 
 const inRoom = (x: number, y: number): boolean => x >= 0 && x <= 49 && y >= 0 && y <= 49;
@@ -135,6 +140,10 @@ function bfsDistances(terrain: TerrainGrid, from: Pos): Int32Array {
     const dist = new Int32Array(2500).fill(-1);
     const queue: number[] = [pack(from.x, from.y)];
     dist[queue[0]] = 0;
+    // NOT a for-of: `queue` grows inside the loop (that IS the BFS frontier), and
+    // the index cursor makes that explicit. for-of over a mutating array happens to
+    // work, but relying on iterator semantics here would be a trap for a reader.
+    // eslint-disable-next-line @typescript-eslint/prefer-for-of
     for (let head = 0; head < queue.length; head++) {
         const p = queue[head];
         const x = p % 50;
@@ -187,6 +196,8 @@ function* bfsOrder(terrain: TerrainGrid, from: Pos): Generator<{ x: number; y: n
     const seen = new Uint8Array(2500);
     const queue: number[] = [pack(from.x, from.y)];
     seen[queue[0]] = 1;
+    // Index cursor, not for-of — see bfsDistances: the queue grows as we walk it.
+    // eslint-disable-next-line @typescript-eslint/prefer-for-of
     for (let head = 0; head < queue.length; head++) {
         const p = queue[head];
         const x = p % 50;
@@ -208,9 +219,19 @@ function* bfsOrder(terrain: TerrainGrid, from: Pos): Generator<{ x: number; y: n
 /** Step 1 (generic types only): existing structures head their arrays, tiles claimed. */
 function incorporate(ctx: Ctx): void {
     const generic = new Set<BuildableStructureConstant>([
-        STRUCTURE_SPAWN, STRUCTURE_EXTENSION, STRUCTURE_TOWER, STRUCTURE_STORAGE,
-        STRUCTURE_TERMINAL, STRUCTURE_FACTORY, STRUCTURE_OBSERVER, STRUCTURE_POWER_SPAWN,
-        STRUCTURE_NUKER, STRUCTURE_LAB, STRUCTURE_LINK, STRUCTURE_EXTRACTOR, STRUCTURE_WALL
+        STRUCTURE_SPAWN,
+        STRUCTURE_EXTENSION,
+        STRUCTURE_TOWER,
+        STRUCTURE_STORAGE,
+        STRUCTURE_TERMINAL,
+        STRUCTURE_FACTORY,
+        STRUCTURE_OBSERVER,
+        STRUCTURE_POWER_SPAWN,
+        STRUCTURE_NUKER,
+        STRUCTURE_LAB,
+        STRUCTURE_LINK,
+        STRUCTURE_EXTRACTOR,
+        STRUCTURE_WALL
     ]);
     for (const type of generic) {
         const existing = ctx.input.structures
@@ -259,14 +280,20 @@ export function chooseAnchor(input: LayoutInput): Pos | undefined {
         for (let x = 0; x < 50; x++) {
             const p = pack(x, y);
             if (clearance[p] === 0) continue;
-            clearance[p] = Math.min(clearance[p], 1 + Math.min(at(x - 1, y), at(x, y - 1), at(x - 1, y - 1), at(x + 1, y - 1)));
+            clearance[p] = Math.min(
+                clearance[p],
+                1 + Math.min(at(x - 1, y), at(x, y - 1), at(x - 1, y - 1), at(x + 1, y - 1))
+            );
         }
     }
     for (let y = 49; y >= 0; y--) {
         for (let x = 49; x >= 0; x--) {
             const p = pack(x, y);
             if (clearance[p] === 0) continue;
-            clearance[p] = Math.min(clearance[p], 1 + Math.min(at(x + 1, y), at(x, y + 1), at(x + 1, y + 1), at(x - 1, y + 1)));
+            clearance[p] = Math.min(
+                clearance[p],
+                1 + Math.min(at(x + 1, y), at(x, y + 1), at(x + 1, y + 1), at(x - 1, y + 1))
+            );
         }
     }
     // Candidate tiles: valid, non-adjacent to POIs.
@@ -294,7 +321,11 @@ export function chooseAnchor(input: LayoutInput): Pos | undefined {
     let best: { x: number; y: number; toPois: number } | undefined;
     for (const c of candidates) {
         if (c.clear < floor) continue;
-        if (!best || c.toPois < best.toPois || (c.toPois === best.toPois && (c.y < best.y || (c.y === best.y && c.x < best.x)))) {
+        if (
+            !best ||
+            c.toPois < best.toPois ||
+            (c.toPois === best.toPois && (c.y < best.y || (c.y === best.y && c.x < best.x)))
+        ) {
             best = { x: c.x, y: c.y, toPois: c.toPois };
         }
     }
@@ -368,9 +399,7 @@ function placeContainers(ctx: Ctx): Pos | undefined {
     const used = new Set<number>();
     const ordered = [...input.sources].sort((a, b) => dOf(a) - dOf(b) || byYX(a, b));
     for (const source of ordered) {
-        const adopted = existing
-            .filter(p => cheb(p.x, p.y, source) <= 1 && !used.has(pack(p.x, p.y)))
-            .sort(byYX)[0];
+        const adopted = existing.filter(p => cheb(p.x, p.y, source) <= 1 && !used.has(pack(p.x, p.y))).sort(byYX)[0];
         if (adopted) {
             used.add(pack(adopted.x, adopted.y));
             (ctx.places[STRUCTURE_CONTAINER] ??= []).push(adopted);
@@ -395,9 +424,7 @@ function placeContainers(ctx: Ctx): Pos | undefined {
     // where they block each other — several creeps share this tile's surroundings
     // for the entire life of the room.
     const ctrl = input.controller;
-    let ctrlContainer = existing
-        .filter(p => cheb(p.x, p.y, ctrl) <= 3 && !used.has(pack(p.x, p.y)))
-        .sort(byYX)[0];
+    let ctrlContainer = existing.filter(p => cheb(p.x, p.y, ctrl) <= 3 && !used.has(pack(p.x, p.y))).sort(byYX)[0];
     if (ctrlContainer) {
         used.add(pack(ctrlContainer.x, ctrlContainer.y));
         (ctx.places[STRUCTURE_CONTAINER] ??= []).push(ctrlContainer);
@@ -415,7 +442,11 @@ function placeContainers(ctx: Ctx): Pos | undefined {
                 }
                 if (walkable < 3) continue;
                 const cand = { x, y, roomName: input.roomName };
-                const dBest = best ? (anchorDist[pack(best.x, best.y)] === -1 ? Infinity : anchorDist[pack(best.x, best.y)]) : Infinity;
+                const dBest = best
+                    ? anchorDist[pack(best.x, best.y)] === -1
+                        ? Infinity
+                        : anchorDist[pack(best.x, best.y)]
+                    : Infinity;
                 const dCand = anchorDist[pack(x, y)] === -1 ? Infinity : anchorDist[pack(x, y)];
                 if (!best || dCand < dBest || (dCand === dBest && byYX(cand, best) < 0)) {
                     best = cand;

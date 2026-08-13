@@ -107,7 +107,7 @@ function slice(): IntelMemory {
     if (mem.intel?.v !== 1 || typeof mem.intel.rooms !== "object") {
         mem.intel = { v: 1, rooms: {} };
     }
-    return mem.intel as IntelMemory;
+    return mem.intel;
 }
 
 export function getIntel(roomName: string): RoomIntel | undefined {
@@ -158,7 +158,9 @@ function refreshFrom(room: Room, now: number): void {
     }
     const hostiles = room.find(FIND_HOSTILE_CREEPS);
     if (hostiles.length > 0) {
-        const armed = hostiles.filter(h => ARMED.some(p => h.getActiveBodyparts(p) > 0 || h.body.some(b => b.type === p)));
+        const armed = hostiles.filter(h =>
+            ARMED.some(p => h.getActiveBodyparts(p) > 0 || h.body.some(b => b.type === p))
+        );
         entry.hostiles = { count: hostiles.length, armed: armed.length, seen: now };
     }
     const prev = slice().rooms[room.name];
@@ -223,7 +225,8 @@ export function run(ctx: TickContext): void {
             // scout sitting in a just-recorded room may be retargeted NOW.
             const assignment = (scout.memory as { assignment?: { room?: string } }).assignment;
             const current = assignment?.room;
-            const currentStale = current !== undefined && now - (mem.rooms[current]?.lastSeen ?? -Infinity) > INTEL_CONFIG.restaleTicks;
+            const currentStale =
+                current !== undefined && now - (mem.rooms[current]?.lastSeen ?? -Infinity) > INTEL_CONFIG.restaleTicks;
             if (!currentStale && current !== targets[0].name) {
                 const live = Game.creeps[scout.name];
                 if (live) {

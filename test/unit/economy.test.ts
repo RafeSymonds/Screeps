@@ -96,9 +96,14 @@ function orphan(name: string, bodyCounts: Partial<Record<BodyPartConstant, numbe
     };
 }
 
+/** The CPU allowance the fixture plans against. Was ALLOWED
+ *  before principle 8 made the cap a computed input (shared/budget.ts). */
+const ALLOWED = 20;
+
 function input(roster: CreepView[] = []): RoomPlanInput {
     return {
         room: gateRoom(),
+        creepsAllowed: ALLOWED,
         roster,
         orphans: [],
         sourceSpots: { srcA: 3, srcB: 3 },
@@ -153,7 +158,7 @@ describe("economy planner", () => {
         expect(byKind[AssignmentKind.Mine]).to.have.length(6);
         expect(byKind[AssignmentKind.Haul]).to.have.length(7);
         expect(byKind[AssignmentKind.Upgrade]).to.have.length(7);
-        expect(demands).to.have.length(ECONOMY_CONFIG.maxCreepsPerRoom);
+        expect(demands).to.have.length(ALLOWED);
     });
 
     it("interleaves miners and haulers pairwise; upgraders last", () => {
@@ -244,7 +249,7 @@ describe("economy planner", () => {
     });
 
     it("never demands zero upgraders — a hauler slot is forfeited instead", () => {
-        const squeezed = planRoom({ ...input(), config: { ...ECONOMY_CONFIG, maxCreepsPerRoom: 13 } }).demands;
+        const squeezed = planRoom({ ...input(), creepsAllowed: 13 }).demands;
         const byKind = Object.groupBy(squeezed, d => d.assignment.kind);
         expect(byKind[AssignmentKind.Upgrade]!.length).to.be.at.least(1);
         expect(byKind[AssignmentKind.Mine]).to.have.length(6);
@@ -366,7 +371,7 @@ describe("economy planner", () => {
         expect(plan.adoptions).to.have.length(1);
         expect(plan.adoptions[0].name).to.equal("seed0");
         expect(plan.adoptions[0].assignment.kind).to.equal(AssignmentKind.Mine);
-        expect(plan.demands).to.have.length(ECONOMY_CONFIG.maxCreepsPerRoom - 1);
+        expect(plan.demands).to.have.length(ALLOWED - 1);
 
         // A CARRY-only body can't mine — it takes the first hauler gap instead.
         const ferry = planRoom({ ...input(), orphans: [orphan("boxcar", { [CARRY]: 1, [MOVE]: 1 })] });
@@ -375,7 +380,7 @@ describe("economy planner", () => {
         // A MOVE-only body fits nothing: no adoption, full demand list.
         const legs = planRoom({ ...input(), orphans: [orphan("legs", { [MOVE]: 1 })] });
         expect(legs.adoptions).to.have.length(0);
-        expect(legs.demands).to.have.length(ECONOMY_CONFIG.maxCreepsPerRoom);
+        expect(legs.demands).to.have.length(ALLOWED);
     });
 });
 

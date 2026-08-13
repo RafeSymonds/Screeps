@@ -19,6 +19,7 @@ describe("sim: M1 skeleton (default, 200 ticks)", function () {
   it("runs the bot without engine or bot errors", () => {
     expect(res.engineErrors, JSON.stringify(res.engineErrors)).to.have.length(0);
     expect(res.botErrors, JSON.stringify(res.botErrors)).to.have.length(0);
+    expect(res.runtimeKills, JSON.stringify(res.runtimeKills)).to.have.length(0);
   });
 
   it("persists versioned memory with the shell's containers", () => {
@@ -56,6 +57,7 @@ describe("sim: M1 skeleton (wiped-base, 50 ticks)", function () {
   it("ticks cleanly with structures but zero creeps", () => {
     expect(res.engineErrors, JSON.stringify(res.engineErrors)).to.have.length(0);
     expect(res.botErrors, JSON.stringify(res.botErrors)).to.have.length(0);
+    expect(res.runtimeKills, JSON.stringify(res.runtimeKills)).to.have.length(0);
     const mem = res.memories.bot;
     expect(mem.version).to.equal(1);
     expect(mem.stats.counters.errors).to.equal(0);

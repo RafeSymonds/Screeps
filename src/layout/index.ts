@@ -97,11 +97,16 @@ export function runRoom(_ctx: TickContext, room: RoomSnapshot): void {
         v: 1,
         planV: LAYOUT_PLAN_VERSION,
         anchor: pack(plan.anchor.x, plan.anchor.y),
-        ...(plan.controllerContainer ? { ctrlContainer: pack(plan.controllerContainer.x, plan.controllerContainer.y) } : {}),
+        ...(plan.controllerContainer
+            ? { ctrlContainer: pack(plan.controllerContainer.x, plan.controllerContainer.y) }
+            : {}),
         places
     };
     const count = Object.values(places).reduce((s, a) => s + (a?.length ?? 0), 0);
-    log.info(SubsystemId.Layout, () => `${room.name}: planned ${count} placements, anchor ${plan.anchor.x},${plan.anchor.y}`);
+    log.info(
+        SubsystemId.Layout,
+        () => `${room.name}: planned ${count} placements, anchor ${plan.anchor.x},${plan.anchor.y}`
+    );
 }
 
 /** §6-blessed accessor: the unpacked plan, or undefined (absent/sentinel). */

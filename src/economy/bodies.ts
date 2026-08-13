@@ -50,11 +50,7 @@ export function minerBody(capacity: number, withLink = false): BodyPartConstant[
         }
         best = { work, move };
     }
-    return [
-        ...repeat(WORK, best.work),
-        ...repeat(CARRY, carry),
-        ...repeat(MOVE, best.move)
-    ];
+    return [...repeat(WORK, best.work), ...repeat(CARRY, carry), ...repeat(MOVE, best.move)];
 }
 
 export const MINER_MIN_BODY: BodyPartConstant[] = [WORK, MOVE];

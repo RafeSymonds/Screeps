@@ -89,7 +89,12 @@ module.exports = {
     "one-var": ["error", "never"],
     "quote-props": "off",
     radix: "error",
-    "sort-imports": "warn",
+    // OFF deliberately: this repo groups imports by provenance — shared/* contracts
+    // first, then other subsystems, then the module's own files — each group
+    // alphabetical by path. That ordering is meaningful (it shows a file's
+    // dependency direction at a glance) and `sort-imports` sorts by first member
+    // name and import syntax instead, which would scramble it in every file.
+    "sort-imports": "off",
     "spaced-comment": "error",
   }
 };

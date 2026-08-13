@@ -56,7 +56,7 @@ export function runRoom(ctx: TickContext, room: RoomSnapshot): void {
                 home: decision.demand.home,
                 owner: decision.demand.owner,
                 assignment: decision.demand.assignment
-            } as CreepMemory
+            }
         });
         if (rc !== OK) {
             log.warn(SubsystemId.Spawn, () => `spawnCreep ${decision.name} failed: ${rc}`);

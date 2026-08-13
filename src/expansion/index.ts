@@ -89,7 +89,8 @@ export function runDecision(ctx: TickContext, wanted: boolean): void {
     const target = mem.claim?.target;
     const targetView = target ? ctx.snapshot.room(target) : undefined;
     const targetIntel = target ? getIntel(target) : undefined;
-    const targetMine = targetView?.controller?.my === true || (targetIntel?.owner !== undefined && targetIntel.owner === me);
+    const targetMine =
+        targetView?.controller?.my === true || (targetIntel?.owner !== undefined && targetIntel.owner === me);
     const targetHasSpawn = (targetView?.structures[STRUCTURE_SPAWN]?.length ?? 0) > 0;
 
     const decision = planExpansionDecision({

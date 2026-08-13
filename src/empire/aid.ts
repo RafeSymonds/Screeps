@@ -48,11 +48,7 @@ export function planAidRoutes(
  * encoding the origin room (it is the gap key, not an address), and the
  * resolver names the creep after the donor: cosmetic, stated, accepted.
  */
-export function brokerAid(
-    demands: SpawnDemand[],
-    routes: Record<string, string>,
-    config: EmpireConfig
-): SpawnDemand[] {
+export function brokerAid(demands: SpawnDemand[], routes: Record<string, string>, config: EmpireConfig): SpawnDemand[] {
     if (Object.keys(routes).length === 0) {
         return demands;
     }

@@ -106,6 +106,29 @@ every tick, and multi-room scenarios fork a second engine processor. Iterate on 
 suite with `-- --grep <name>`. Keep each scenario's tick count to the minimum that
 proves the behavior — engine ticks are ~the only cost (~0.2-0.3s each).
 
+### Known flake (Aug 2026, unresolved)
+
+`fast: post-infrastructure rate → does not let energy rot on the ground` has failed once
+in two full parallel runs while passing standalone (2/2, settling at 1 pile / <200 energy
+against a 1500 bound). In the failing run the room never staffed up — ground energy was a
+symptom, not the fault.
+
+**Mechanism unknown. CPU shedding is ruled out**, despite being the obvious guess: a clean
+run's telemetry shows `s: 0` on every entry in every window, `minBucket: 10000`, and
+`avgCpu ≈ 2.5`. The bot never sheds anything at these levels, so host contention is not
+reaching the scheduler's gates.
+
+The leading remaining suspect is a **runtime-killed tick** under `SIM_JOBS` contention.
+That was previously invisible here: the driver writes such a kill to the console without
+ErrorMapper's red span and raises no notification, so it looked exactly like a quiet,
+successful tick while the bot did a fraction of its work. `runScenario` now returns
+`runtimeKills` (console lines matching terminated/timed-out/interrupted/CPU-limit) and
+**every suite asserts it is empty**, so if that is the cause the next failure will name it.
+
+If a gate fails once, re-run it standalone or with `SIM_JOBS=1` before treating it as a
+regression — and if the flake reappears with `runtimeKills` still empty, the hypothesis is
+wrong and the next place to look is engine-side nondeterminism, not the bot.
+
 Tests use the shared `lib/harness.js`:
 
 ```js

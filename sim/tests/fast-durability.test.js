@@ -19,6 +19,7 @@ describe("fast: towers erase the wave (under-attack, 200 ticks)", function () {
   it("runs clean, kills fast, spends energy, loses nothing", () => {
     expect(res.engineErrors, JSON.stringify(res.engineErrors)).to.have.length(0);
     expect(res.botErrors, JSON.stringify(res.botErrors)).to.have.length(0);
+    expect(res.runtimeKills, JSON.stringify(res.runtimeKills)).to.have.length(0);
     expect(res.memories.bot.stats.counters.errors).to.equal(0);
     const hostiles = seriesOf(res.timeline, "W1N1", "bot", "hostiles");
     expect(at(hostiles, 100, 20), `hostiles series: ${hostiles.join(",")}`).to.equal(0);
@@ -39,6 +40,7 @@ describe("fast: defenders carry the towerless room (raid-early, 400 ticks)", fun
   it("runs clean, fields a combat creep, clears the raiders", () => {
     expect(res.engineErrors, JSON.stringify(res.engineErrors)).to.have.length(0);
     expect(res.botErrors, JSON.stringify(res.botErrors)).to.have.length(0);
+    expect(res.runtimeKills, JSON.stringify(res.runtimeKills)).to.have.length(0);
     expect(res.memories.bot.stats.counters.errors).to.equal(0);
     const combat = res.timeline.some(snap => (snap.rooms.W1N1.bot.roles.combat ?? 0) > 0);
     expect(combat, "no combat creep ever existed").to.equal(true);
@@ -60,6 +62,7 @@ describe("fast: wipe recovery un-wedged (wiped-base, 800 ticks)", function () {
     // tests-full/m4-wiped-base.
     expect(res.engineErrors, JSON.stringify(res.engineErrors)).to.have.length(0);
     expect(res.botErrors, JSON.stringify(res.botErrors)).to.have.length(0);
+    expect(res.runtimeKills, JSON.stringify(res.runtimeKills)).to.have.length(0);
     expect(res.memories.bot.stats.counters.errors).to.equal(0);
     const creeps = seriesOf(res.timeline, "W1N1", "bot", "creeps");
     expect(at(creeps, 300, 50), `creeps series: ${creeps.join(",")}`).to.be.at.least(2);

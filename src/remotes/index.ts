@@ -19,6 +19,7 @@
  * single source of truth for the gate, and this adapter logs it precisely when a
  * home has no remotes, i.e. exactly when someone is asking.
  */
+import { computeAllowance } from "shared/budget";
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
 import { RoomSnapshot } from "shared/views";
@@ -96,6 +97,8 @@ function buildInput(ctx: TickContext, home: RoomSnapshot): RemotePlanInput {
         slice: sliceOf(home.name),
         roster,
         homeHealthy: miners >= home.sources.length && haulers >= Math.min(2, home.sources.length),
+        // Principle 8: how many remotes this home's CPU share affords (budget.md).
+        remotesAllowed: computeAllowance(Game.cpu.limit, ctx.snapshot.myRooms.length).remotesPerHome,
         time: now,
         config: REMOTES_CONFIG,
         health: { miners, minersNeeded: home.sources.length, haulers, haulersNeeded: Math.min(2, home.sources.length) }
@@ -160,7 +163,18 @@ export function runEmit(ctx: TickContext, home: RoomSnapshot): void {
     // Report: any armed hostile visible in an adopted remote flags it via intel.
     for (const remoteName of Object.keys(slice.rooms)) {
         const view = ctx.snapshot.room(remoteName);
-        if (view && view.hostiles.some(h => (h.bodyCounts[ATTACK] ?? 0) + (h.bodyCounts[RANGED_ATTACK] ?? 0) + (h.bodyCounts[HEAL] ?? 0) + (h.bodyCounts[WORK] ?? 0) + (h.bodyCounts[CLAIM] ?? 0) > 0)) {
+        if (
+            view &&
+            view.hostiles.some(
+                h =>
+                    (h.bodyCounts[ATTACK] ?? 0) +
+                        (h.bodyCounts[RANGED_ATTACK] ?? 0) +
+                        (h.bodyCounts[HEAL] ?? 0) +
+                        (h.bodyCounts[WORK] ?? 0) +
+                        (h.bodyCounts[CLAIM] ?? 0) >
+                    0
+            )
+        ) {
             flagUnsafe(remoteName, now + 200);
         }
     }

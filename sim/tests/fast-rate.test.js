@@ -21,6 +21,7 @@ describe("fast: post-infrastructure rate (infra-built, 1400 ticks)", function ()
   it("runs without engine or bot errors", () => {
     expect(res.engineErrors, JSON.stringify(res.engineErrors)).to.have.length(0);
     expect(res.botErrors, JSON.stringify(res.botErrors)).to.have.length(0);
+    expect(res.runtimeKills, JSON.stringify(res.runtimeKills)).to.have.length(0);
     expect(res.memories.bot.stats.counters.errors).to.equal(0);
   });
 
@@ -43,9 +44,24 @@ describe("fast: post-infrastructure rate (infra-built, 1400 ticks)", function ()
     // anything dropped elsewhere was invisible to them: 2,643 energy on the
     // floor and climbing while they idled "no-pile". A healthy room keeps the
     // standing total bounded and, crucially, not monotonically rising.
+    //
+    // INTERMITTENT under parallel load (see sim/README.md "Known flake"). The
+    // context below exists to tell the two causes apart on the next failure:
+    // a staffed room that is failing to haul is a real regression, whereas a
+    // room that never reached ~5 haulers failed upstream of hauling and the
+    // pile is a symptom, not the bug. Standalone this settles at 1 pile / <200.
     const dropped = seriesOf(res.timeline, "W1N1", "bot", "droppedEnergy");
+    const piles = seriesOf(res.timeline, "W1N1", "bot", "droppedPiles");
+    const creeps = seriesOf(res.timeline, "W1N1", "bot", "creeps");
+    const roles = res.timeline.map(s => s.rooms.W1N1.bot.roles);
+    const haulers = roles.map(r => r.hauler ?? 0);
     const late = dropped.slice(Math.floor(dropped.length / 2));
-    expect(Math.max(...late), `droppedEnergy series: ${dropped.join(",")}`).to.be.at.most(1500);
+    const ctx =
+      `droppedEnergy: ${dropped.join(",")}\n` +
+      `droppedPiles:  ${piles.join(",")}\n` +
+      `creeps:        ${creeps.join(",")}\n` +
+      `haulers:       ${haulers.join(",")} (healthy runs reach ~5)`;
+    expect(Math.max(...late), ctx).to.be.at.most(1500);
   });
 
   it("works BOTH sources — miners do not pile onto one", () => {

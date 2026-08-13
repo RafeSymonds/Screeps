@@ -302,7 +302,10 @@ export function runAll(ctx: TickContext): void {
     if (ctx.snapshot.time % 100 === 0) {
         const entries = Object.entries(idleTally);
         if (entries.length > 0) {
-            log.info(SubsystemId.CreepExecution, () => `idle tallies: ${entries.map(([r, n]) => `${r}=${n}`).join(" ")}`);
+            log.info(
+                SubsystemId.CreepExecution,
+                () => `idle tallies: ${entries.map(([r, n]) => `${r}=${n}`).join(" ")}`
+            );
             for (const [reason] of entries) {
                 delete idleTally[reason];
             }

@@ -90,7 +90,8 @@ const nameOf = (c: CreepView): string => c.name;
  * branch is unit-testable from a plain input object.
  */
 export function planExpansionDecision(input: ExpansionDecisionInput): ExpansionDecision {
-    const { slice, wanted, candidates, ownedMinerals, sponsors, roster, targetMine, targetHasSpawn, time, config } = input;
+    const { slice, wanted, candidates, ownedMinerals, sponsors, roster, targetMine, targetHasSpawn, time, config } =
+        input;
     const claim = slice.claim;
 
     // --- Idle: pick a target when empire says grow -------------------------------

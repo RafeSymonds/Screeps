@@ -60,6 +60,9 @@ export interface RemotePlanInput {
     homeHealthy: boolean;
     /** The counts behind homeHealthy, so the adapter can say WHY remotes are idle. */
     health: { miners: number; minersNeeded: number; haulers: number; haulersNeeded: number };
+    /** How many remotes this home's CPU share affords (shared/budget.ts). Was a
+     *  hardcoded 1, because nothing computed what was actually affordable. */
+    remotesAllowed: number;
     time: number;
     config: RemotesConfig;
 }
@@ -84,7 +87,10 @@ export function remoteHaulerBody(rate: number, travelTiles: number): { body: Bod
     const carry = pairs * 50;
     const roundTrip = 2 * travelTiles + 10;
     const count = Math.max(1, Math.ceil((rate * roundTrip) / carry));
-    return { body: [...new Array<BodyPartConstant>(pairs).fill(CARRY), ...new Array<BodyPartConstant>(pairs).fill(MOVE)], count };
+    return {
+        body: [...new Array<BodyPartConstant>(pairs).fill(CARRY), ...new Array<BodyPartConstant>(pairs).fill(MOVE)],
+        count
+    };
 }
 
 /**
@@ -96,7 +102,7 @@ export function remoteHaulerBody(rate: number, travelTiles: number): { body: Bod
  * on the ground for a hauler loses ceil(amount/1000) per tick, which for one
  * standing pile per source is about 1 e/t of pure loss.
  */
-export function remoteProfit(sources: number, reserved: boolean, travelTiles: number, config: RemotesConfig): number {
+export function remoteProfit(sources: number, reserved: boolean, travelTiles: number): number {
     const rate = sources * (reserved ? RESERVED_RATE : UNRESERVED_RATE);
     const minerCost = (sources * ((reserved ? 5 : 3) * 100 + 50 + Math.ceil(((reserved ? 5 : 3) + 1) / 2) * 50)) / 1500;
     const hauler = remoteHaulerBody(rate, travelTiles);
@@ -139,7 +145,7 @@ export function rejectionReason(c: RemoteCandidate, homeCap: number, config: Rem
     if (homeCap < config.minHomeCap) {
         return `home capacity ${homeCap} < ${config.minHomeCap}`;
     }
-    const profit = remoteProfit(c.intel.sources.length, false, c.travelTiles, config);
+    const profit = remoteProfit(c.intel.sources.length, false, c.travelTiles);
     if (profit < config.minProfit) {
         return `profit ${profit.toFixed(1)} e/t < ${config.minProfit}`;
     }
@@ -156,7 +162,7 @@ function eligible(c: RemoteCandidate, config: RemotesConfig, homeCap: number): b
  * ineligible frees its slot in the same tick something better can take it.
  */
 export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" | "drop" | "reserve"> {
-    const { candidates, slice, homeCap, config } = input;
+    const { candidates, slice, homeCap, remotesAllowed, config } = input;
     const adopt: string[] = [];
     const drop: string[] = [];
     const reserve: Record<string, boolean> = {};
@@ -172,11 +178,11 @@ export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" |
     if (homeCap >= config.minHomeCap) {
         const pool = candidates
             .filter(c => eligible(c, config, homeCap) && !kept.includes(c.roomName))
-            .map(c => ({ c, profit: remoteProfit(c.intel.sources.length, false, c.travelTiles, config) }))
+            .map(c => ({ c, profit: remoteProfit(c.intel.sources.length, false, c.travelTiles) }))
             .filter(x => x.profit >= config.minProfit)
             .sort((a, b) => b.profit - a.profit || (a.c.roomName < b.c.roomName ? -1 : 1));
         for (const { c } of pool) {
-            if (kept.length + adopt.length >= config.maxRemotesPerHome) {
+            if (kept.length + adopt.length >= remotesAllowed) {
                 break;
             }
             adopt.push(c.roomName);

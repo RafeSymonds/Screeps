@@ -142,7 +142,19 @@ async function runScenario(opts = {}) {
   // creep attacked, ...); only error-shaped notifications count as failures.
   const engineErrors = notifications.filter((n) => /error|exception/i.test(n.message));
 
-  return { timeline, consoleLines, notifications, engineErrors, botErrors, memories };
+  // A tick the RUNTIME killed — CPU limit hit, isolate timeout, ungraceful halt.
+  // This is invisible to both checks above: the driver writes it to the console
+  // without ErrorMapper's red span, and it raises no notification. So a killed
+  // tick used to look exactly like a quiet, successful one, while the bot silently
+  // did a fraction of its work. Under `SIM_JOBS` contention that is a live
+  // possibility, and it is the leading suspect for the intermittent fast-rate
+  // failure — surfaced here so the next occurrence identifies itself instead of
+  // being re-diagnosed from scratch.
+  const runtimeKills = consoleLines.filter(
+    (c) => typeof c.line === "string" && /terminated|timed out|interrupted|CPU limit/i.test(c.line)
+  );
+
+  return { timeline, consoleLines, notifications, engineErrors, botErrors, runtimeKills, memories };
 }
 
 /** timeline -> array of one stat field over time, for a given room/bot. */

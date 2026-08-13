@@ -117,7 +117,7 @@ function toControllerView(controller: StructureController): ControllerView {
 
 function toStructureView(s: AnyStructure): StructureView {
     const view: StructureView = {
-        id: s.id as Id<AnyStructure>,
+        id: s.id,
         type: s.structureType,
         pos: toPos(s.pos),
         hits: s.hits ?? 0,
@@ -132,7 +132,7 @@ function toStructureView(s: AnyStructure): StructureView {
         view.store = toStoreView(store);
     }
     if (s.structureType === STRUCTURE_SPAWN) {
-        view.spawning = Boolean((s as StructureSpawn).spawning);
+        view.spawning = Boolean(s.spawning);
     }
     return view;
 }

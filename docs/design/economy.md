@@ -65,10 +65,6 @@ export function planRoom(input: RoomPlanInput): RoomPlan;
 
 // src/economy/config.ts — every tunable, one place, all provisional:
 export const ECONOMY_CONFIG = {
-    maxCreepsPerRoom: 20,   // CPU allowance (principle 8): ~20 intents ≈ 4–6 CPU is fine
-                            // while the whole 20-CPU budget serves ONE room. This number
-                            // deliberately exceeds the §9 multi-room per-room budget and
-                            // MUST tighten when M6 makes rooms share the pie.
     maxUpgraders: 8,        // overridden to 1 while sites are open (rule 3)
     builders: 4,            // desired while the room has open construction sites, else 0
     minPickup: 20,          // haulers/builders don't chase crumbs (creeps.md)
@@ -99,7 +95,11 @@ intents, and the upgrade pile becomes a decay-free controller container. Contain
 WORK per intent — upkeep is folded into the adjacent roles below, not a dedicated
 repairer. Bodies are sized to `energyCapacityAvailable`.
 
-Slots are allocated top-down from `maxCreepsPerRoom`, and **upgraders are the residual**
+Slots are allocated top-down from `creepsAllowed` — the room's **CPU allowance**, computed
+per tick by [budget.md](budget.md) from `Game.cpu.limit` and the owned-room count rather
+than read from a constant (principle 8). It tightens automatically as the empire grows,
+which the old fixed `maxCreepsPerRoom: 20` did not: two rooms each spent a budget sized for
+one. Upgraders are the **residual**
 — income staffing is computed, and every slot not needed to produce, move, or invest
 energy upgrades the controller. That is the whole sizing policy:
 
@@ -165,7 +165,7 @@ energy upgrades the controller. That is the whole sizing policy:
    and free where a spawn cycle costs 1500 ticks of the wrong workforce mix. When
    investment sites close, no reverse reassignment is needed: builders behave as
    upgraders/maintainers by executor fallback and are not replaced beyond the crew.
-4. **Upgraders** — `{Upgrade}`, count = `clamp(maxCreepsPerRoom − miners − haulers −
+4. **Upgraders** — `{Upgrade}`, count = `clamp(creepsAllowed − miners − haulers −
    builders, 1, investment sites open ? 1 : maxUpgraders)`. **The floor of 1 is absolute**: if
    the residual is zero, the last hauler slot is forfeited instead — a room that
    moves energy but never spends it is pointless, and this single rule is the whole

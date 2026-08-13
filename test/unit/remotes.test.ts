@@ -47,6 +47,7 @@ function input(overrides: Partial<RemotePlanInput> = {}): RemotePlanInput {
         home: home(),
         homeCap: 1300,
         candidates: [candidate("W2N1", 2)],
+        remotesAllowed: 1,
         slice: { v: 1, rooms: {} } as RemotesMemory,
         roster: [],
         homeHealthy: true,
@@ -73,10 +74,10 @@ function remoteWorker(kind: AssignmentKind, room: string, extra: Record<string, 
 }
 
 describe("remotes planner", () => {
-    it("adopts the profitable neighbor, capped at maxRemotesPerHome", () => {
+    it("adopts the profitable neighbor, capped at the CPU allowance", () => {
         const twoCands = input({ candidates: [candidate("W2N1", 2), candidate("W1N2", 2)] });
         const plan = planAdoption(twoCands);
-        expect(plan.adopt).to.have.length(REMOTES_CONFIG.maxRemotesPerHome);
+        expect(plan.adopt).to.have.length(1); // fixture's remotesAllowed
     });
 
     it("rejects hostile, owned, foreign-reserved, highway, and unsafe rooms", () => {
@@ -137,10 +138,10 @@ describe("remotes planner", () => {
     });
 
     it("profit includes pile decay and clears the bar for a 2-source neighbor", () => {
-        const near = remoteProfit(2, false, 75, REMOTES_CONFIG);
+        const near = remoteProfit(2, false, 75);
         expect(near).to.be.greaterThan(REMOTES_CONFIG.minProfit);
         // The decay term: identical setup with decay removed would differ by sources × 1.
-        expect(remoteProfit(2, true, 75, REMOTES_CONFIG)).to.be.greaterThan(near);
+        expect(remoteProfit(2, true, 75)).to.be.greaterThan(near);
     });
 
     it("sizes remote bodies for the remote, not the home cap", () => {

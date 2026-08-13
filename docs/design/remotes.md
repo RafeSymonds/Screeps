@@ -28,7 +28,9 @@ interface RemotePlanInput {
     /** Filter: memory.owner === SubsystemId.Remotes — NOT "assignment.room is a
      *  remote", which would claim intel's scouts (§6 one-writer). */
     roster: CreepView[];
-    config: RemotesConfig;   // { maxRemotesPerHome: 1, unsafeMemory: 300, ... }
+    remotesAllowed: number;  // CPU allowance from budget.md — replaces the old
+                             // hardcoded maxRemotesPerHome: 1
+    config: RemotesConfig;   // { unsafeMemory: 300, minHomeCap: 550, ... }
 }
 interface RemotePlan {
     adopt: string[];
@@ -72,10 +74,10 @@ someone else, it is unsafe, or **expansion is claiming it** (below).
    standing pile (ceil(amount/1000) physics — the dominant loss at cross-room trip
    lengths; the review caught its omission while aZERO container term was included).
    Remote containers are the obvious M6 refinement. Adopt best-first up to
-   `maxRemotesPerHome: 1` — §9 budgets ≤ 1.5 CPU for ALL of a home's remotes and one
-   reserved 2-source remote already costs ~1.3 (≈ 6.5 intents); a second remote
-   awaits the M6 CPU-allowance input (declared seam on RemotePlanInput, honest cap
-   until then).
+   `remotesAllowed`, the **CPU allowance** ([budget.md](budget.md)): §9 budgets ≤ 1.5 CPU
+   for ALL of a home's remotes, and that share is now divided by what a remote actually
+   costs instead of being pinned at 1. A single-room empire affords ~3; the number falls
+   as rooms are added, which is the behaviour the hardcoded cap could never express.
 2. **Reserve?** — engine-verified correction (architecture §5.10 updated with it): a
    **1-CLAIM reserver sustains a reservation indefinitely** (intents resolve before
    controller ticks, so +1/tick effect ≥ 1/tick decay), and ANY reservation doubles
@@ -109,9 +111,11 @@ builders 50, BEFORE upgraders 100 — marginal remote income beats marginal home
 upgrading), reserver at **90**. Remote bodies are small (450–750), so head-of-line
 stalls are short by construction.
 
-**Caps, honestly**: remote creeps are outside `maxCreepsPerRoom` (home residual math
-is untouched); the remote's own workforce is bounded by its formulas (~6 creeps for a
-reserved 2-source remote) and by `maxRemotesPerHome`. Stated, not hidden.
+**Caps, honestly**: remote creeps are outside the home's `creepsAllowed` (home residual
+math is untouched); the remote's own workforce is bounded by its formulas (~6 creeps for a
+reserved 2-source remote) and by `remotesAllowed`. Stated, not hidden. Note the two
+allowances are computed from the same §9 split, so remote creeps are budgeted — just in
+the `perRemotesShare` line rather than the room's own.
 
 ## Memory schema
 
