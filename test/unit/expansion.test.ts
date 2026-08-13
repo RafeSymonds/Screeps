@@ -157,8 +157,8 @@ describe("expansion demands", () => {
         const demands = planExpansionDemands(pioneering, 1300, []);
         expect(demands).to.have.length(EXPANSION_CONFIG.pioneers);
         expect(demands[0].priority).to.equal(PRIORITY_PIONEER);
-        expect(demands[0].assignment.kind).to.equal(AssignmentKind.Pioneer);
-        const staffed = planExpansionDemands(pioneering, 1300, [creep(AssignmentKind.Pioneer, "W2N1")]);
+        expect(demands[0].assignment.kind).to.equal(AssignmentKind.Work);
+        const staffed = planExpansionDemands(pioneering, 1300, [creep(AssignmentKind.Work, "W2N1")]);
         expect(staffed).to.have.length(EXPANSION_CONFIG.pioneers - 1);
     });
 

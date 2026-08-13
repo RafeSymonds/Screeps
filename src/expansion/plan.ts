@@ -31,6 +31,7 @@
  * abandoned, only alerted on. An abandoned claimed room decays to nothing.
  */
 import { AssignmentKind } from "shared/assignments";
+import { WORKER_MIN_BODY, workerBody } from "economy/bodies";
 import { SpawnDemand } from "shared/spawning";
 import { SubsystemId } from "shared/subsystems";
 import { CreepView } from "shared/views";
@@ -191,16 +192,17 @@ export function planExpansionDemands(
         ];
     }
 
-    const staffed = roster.filter(c => kindOf(c) === AssignmentKind.Pioneer && forTarget(c)).length;
+    const staffed = roster.filter(c => kindOf(c) === AssignmentKind.Work && forTarget(c)).length;
     const demands: SpawnDemand[] = [];
     for (let slot = staffed; slot < config.pioneers; slot++) {
         demands.push({
-            id: `pioneer:${claim.target}:${slot}`,
+            id: `work:${claim.target}:${slot}`,
             priority: PRIORITY_PIONEER,
             home: claim.sponsor,
             owner: SubsystemId.Expansion,
-            assignment: { kind: AssignmentKind.Pioneer, room: claim.target },
-            body: [WORK, WORK, CARRY, CARRY, CARRY, CARRY, MOVE, MOVE]
+            assignment: { kind: AssignmentKind.Work, room: claim.target },
+            body: workerBody(sponsorCap),
+            minBody: WORKER_MIN_BODY
         });
     }
     return demands;

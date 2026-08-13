@@ -2,12 +2,11 @@
  * Economy tunables — one named config, all provisional. See docs/design/economy.md.
  */
 export interface EconomyConfig {
-    maxUpgraders: number;
-    /** Desired builders while the room has open construction sites, else 0. While
-     *  sites are open, maxUpgraders is overridden to 1 and surplus upgraders convert
-     *  to builders (economy.md rule 3). */
-    builders: number;
-    /** Haulers/builders don't chase piles smaller than this. */
+    /** Ceiling on the worker residual. Workers are whatever the CPU allowance has
+     *  left after income, but past a point more of them just crowd the controller
+     *  and the sites — the limit is throughput, not headcount. */
+    maxWorkers: number;
+    /** Haulers/workers don't chase piles smaller than this. */
     minPickup: number;
     /** Pre-spawn lead: spawn-to-seat travel + margin (ticks). */
     prespawnLead: number;
@@ -24,8 +23,7 @@ export interface EconomyConfig {
 }
 
 export const ECONOMY_CONFIG: EconomyConfig = {
-    maxUpgraders: 8,
-    builders: 4,
+    maxWorkers: 8,
     minPickup: 20,
     prespawnLead: 50,
     downgradeFloor: 4000,

@@ -19,7 +19,7 @@
  * or whose room changed hands simply decides differently next tick, with no stale
  * task to detect and clean up. The cost is that "am I filling or spending?" must
  * be readable from the world — usually `store.used`, and where that is ambiguous
- * (see `decidePioneer`) from position instead.
+ * (a worker deciding whether to keep harvesting) from position instead.
  *
  * ## Tie-breaking is total
  *
@@ -28,15 +28,7 @@
  * single creep must reach the same answer on consecutive ticks, or it oscillates
  * between two equally-good targets and never arrives at either.
  */
-import {
-    AssignmentKind,
-    BuildAssignment,
-    DefendAssignment,
-    HaulAssignment,
-    MineAssignment,
-    PioneerAssignment,
-    UpgradeAssignment
-} from "shared/assignments";
+import { DefendAssignment, HaulAssignment, MineAssignment, WorkAssignment } from "shared/assignments";
 import { buildPriorityIndex } from "shared/build";
 import { CreepView, DroppedView, HostileView, Pos, RoomSnapshot, SourceView, StructureView } from "shared/views";
 import { DEFENSE_CONFIG } from "defense/config";
@@ -44,8 +36,35 @@ import { FortifyTarget } from "defense/fortify";
 import { ECONOMY_CONFIG } from "economy/config";
 import { Action, ActionKind, chebyshev } from "creeps/actions";
 
-/** Largest pile, ties broken by id so all callers agree. Biggest-first also fights
- *  decay: piles lose ceil(amount/1000) per tick, so the big ones bleed fastest. */
+/**
+ * Best pile for a creep standing at `from`: the one whose energy-per-tick-of-walk
+ * is highest, i.e. `amount / (distance + 1)`.
+ *
+ * Pure biggest-first ignored distance completely, which is why creeps visibly
+ * walked past energy at their feet to reach a marginally larger pile across the
+ * room — and by the time they arrived, decay had eaten the difference. Pure
+ * nearest-first is the opposite mistake: it makes creeps nibble a 20-energy crumb
+ * while thousands rot elsewhere. Dividing by distance is the honest trade, and it
+ * degenerates to "biggest" when several piles are equally close.
+ *
+ * The +1 keeps a pile underfoot (distance 0) from dividing by zero, and ties break
+ * on id so every creep evaluating the same room reaches the same answer.
+ */
+function bestPile(from: Pos, piles: DroppedView[]): DroppedView | undefined {
+    let best: DroppedView | undefined;
+    let bestScore = -1;
+    for (const pile of piles) {
+        const score = pile.amount / (chebyshev(from, pile.pos) + 1);
+        if (score > bestScore || (score === bestScore && best !== undefined && pile.id < best.id)) {
+            best = pile;
+            bestScore = score;
+        }
+    }
+    return best;
+}
+
+/** Largest pile regardless of distance — only for callers already standing at the
+ *  place they will collect from. */
 function biggestPile(piles: DroppedView[]): DroppedView | undefined {
     let best: DroppedView | undefined;
     for (const pile of piles) {
@@ -88,29 +107,38 @@ export function spotContainer(room: RoomSnapshot, spot: Pos): StructureView | un
 const needsRepair = (c: StructureView): boolean => c.hits < ECONOMY_CONFIG.containerRepairFloor;
 
 /**
- * @param hasSeat  Is this creep the one miner entitled to stand ON the source's
- *   container? A container is ONE tile: when every miner of a source targeted it,
- *   the losers ended up adjacent to the container but two tiles from the source,
- *   so they never satisfied the in-range-1 harvest check and pathed onto the
- *   occupied seat forever — two miners visibly shoving each other, mining
- *   nothing (and, downstream, no energy to spawn or haul). Non-owners take any
- *   adjacent tile and drop-mine.
+ * Mine one source from THIS miner's own tile.
+ *
+ * @param seat  The exact tile this miner owns (creeps/seats.ts), or undefined if
+ *   the room is over-staffed and there was no tile left for it.
+ *
+ * Seats are exact positions, never ranges, and that distinction is the whole fix
+ * for the miners-shoving-each-other bug. `MoveTo(source, range 1)` does not name
+ * a tile — it asks PathFinder to pick one, and PathFinder picks the same one for
+ * every miner given the same goal, so they pile onto it and alternate forever
+ * while the source goes unmined. With a seat, two miners can never be issued the
+ * same destination. See seats.ts for the full history.
  */
-export function decideMine(creep: CreepView, a: MineAssignment, room: RoomSnapshot, hasSeat = true): Action {
+export function decideMine(creep: CreepView, a: MineAssignment, room: RoomSnapshot, seat?: Pos): Action {
     const source = room.sources.find(s => s.id === a.sourceId);
     if (!source) {
         return { kind: ActionKind.Idle, reason: "no-source" };
     }
-    const container = hasSeat ? sourceContainer(room, source) : undefined;
-    if (chebyshev(creep.pos, source.pos) > 1) {
-        // Seat: the container tile when one exists AND is ours, else any adjacent tile.
-        return container
-            ? { kind: ActionKind.MoveTo, pos: container.pos, range: 0 }
-            : { kind: ActionKind.MoveTo, pos: source.pos, range: 1 };
+    if (seat) {
+        // Range 0: my tile, nobody else's. Note this also re-seats a miner that
+        // got displaced, which the old in-range-1 check never did — once a miner
+        // was anywhere adjacent it stopped caring where it stood, so a creep
+        // shoved off the container never went back.
+        if (creep.pos.x !== seat.x || creep.pos.y !== seat.y || creep.pos.roomName !== seat.roomName) {
+            return { kind: ActionKind.MoveTo, pos: seat, range: 0 };
+        }
+    } else if (chebyshev(creep.pos, source.pos) > 1) {
+        // No seat left for this miner (over-staffed). Get in range and drop-mine
+        // rather than fight for a tile it cannot have.
+        return { kind: ActionKind.MoveTo, pos: source.pos, range: 1 };
     }
-    // In harvest range: work. Off-seat-but-in-range miners drop-mine (transitional —
-    // the in-range check is the seat's range to source, not container occupancy;
-    // replacements target the container tile and consolidation ends the state).
+    const container = sourceContainer(room, source);
+    // In harvest range: work.
     // Carrying capacity is the exception now, not the rule (economy.md): a pure
     // WORK+MOVE miner can neither hold repair energy nor feed a link, and both
     // paths would otherwise burn an intent every tick on an error return.
@@ -180,16 +208,33 @@ export function decideHaul(
             }
             return { kind: ActionKind.MoveTo, pos: pile.pos, range: 1 };
         }
+        // Is anything spawn-side actually hungry? Decides both the stray rule below
+        // and the storage tier further down.
+        const spawnSideNeedy = [
+            ...(room.structures[STRUCTURE_SPAWN] ?? []),
+            ...(room.structures[STRUCTURE_EXTENSION] ?? [])
+        ].some(s => (s.store?.free ?? 0) > 0);
+
         // Room-wide fallback: source affinity is an assignment detail, not a reason
         // to let energy rot. Sim-measured: 2,643 energy on the ground and climbing
         // while two haulers idled "no-pile", because every pile was more than two
-        // tiles from their own source. Excludes the upgrade spot — that pile is the
-        // upgraders' feed, and collecting from it would just be re-dropped there.
+        // tiles from their own source.
+        //
+        // The upgrade-spot pile is normally excluded — it is the upgraders' feed,
+        // and collecting from it would just re-drop it there. But that exclusion
+        // must NOT outrank spawning. Field-reported deadlock: a hauler's own
+        // container empty, no pile near its source, and the room's only energy
+        // sitting at the upgrade spot — so it idled "no-pile" while the spawn sat
+        // at zero and nothing could be built, including the creeps that would have
+        // fixed it. Spawn-side already outranks the controller feed on the deliver
+        // ladder; the collect side has to agree or the two ladders deadlock against
+        // each other. Once spawn-side is full the exclusion returns, so there is no
+        // pick-up/re-drop loop.
         const strays = room.dropped.filter(
             d =>
                 d.resource === RESOURCE_ENERGY &&
                 d.amount >= ECONOMY_CONFIG.minPickup &&
-                (upgradeSpot === undefined || chebyshev(d.pos, upgradeSpot) > 1)
+                (spawnSideNeedy || upgradeSpot === undefined || chebyshev(d.pos, upgradeSpot) > 1)
         );
         const stray = biggestPile(strays);
         if (stray) {
@@ -200,10 +245,6 @@ export function decideHaul(
         }
         // Storage tier (M4): the reserve funds spawning and recovery — withdraw only
         // while spawn-side has free capacity, so no hauler ever loops storage→storage.
-        const spawnSideNeedy = [
-            ...(room.structures[STRUCTURE_SPAWN] ?? []),
-            ...(room.structures[STRUCTURE_EXTENSION] ?? [])
-        ].some(s => (s.store?.free ?? 0) > 0);
         const storage = (room.structures[STRUCTURE_STORAGE] ?? []).find(
             s => (s.store?.byResource[RESOURCE_ENERGY] ?? 0) >= ECONOMY_CONFIG.minPickup
         );
@@ -298,12 +339,7 @@ export function decideHaul(
  * spawning, and an upgrader emptying an extension delays a replacement creep to
  * buy controller progress we could have had a tick later anyway.
  */
-export function decideUpgrade(
-    creep: CreepView,
-    _a: UpgradeAssignment,
-    room: RoomSnapshot,
-    upgradeSpot: Pos | undefined
-): Action {
+function decideUpgradeWork(creep: CreepView, room: RoomSnapshot, upgradeSpot: Pos | undefined): Action {
     const controller = room.controller;
     if (!controller) {
         return { kind: ActionKind.Idle, reason: "no-controller" };
@@ -339,8 +375,18 @@ export function decideUpgrade(
         return { kind: ActionKind.MoveTo, pos: container.pos, range: 1 };
     }
     const piles = room.dropped.filter(d => d.resource === RESOURCE_ENERGY && chebyshev(d.pos, anchor) <= 4);
-    const pile = biggestPile(piles);
+    const pile = bestPile(creep.pos, piles);
     if (!pile) {
+        // Nothing to collect anywhere: self-supply by harvesting rather than idle.
+        // This is what lets a single worker bootstrap a freshly claimed or wiped
+        // room that has no miners, no haulers and no spawn (the old Pioneer role).
+        const src = nearest(creep.pos, room.sources);
+        if (src) {
+            if (chebyshev(creep.pos, src.pos) <= 1) {
+                return { kind: ActionKind.Harvest, targetId: src.id };
+            }
+            return { kind: ActionKind.MoveTo, pos: src.pos, range: 1 };
+        }
         return { kind: ActionKind.Idle, reason: "no-pile" };
     }
     if (chebyshev(creep.pos, pile.pos) <= 1) {
@@ -357,17 +403,32 @@ export function decideUpgrade(
  * workforce planner can keep a stable headcount instead of churning bodies every
  * time the construction queue empties.
  */
-export function decideBuild(
+export function decideWork(
     creep: CreepView,
-    _a: BuildAssignment,
+    _a: WorkAssignment,
     room: RoomSnapshot,
     upgradeSpot: Pos | undefined,
     fortifyTargets: FortifyTarget[] = []
 ): Action {
+    // Fill-then-spend. A worker that is part-full AND standing next to a source
+    // with nothing else to draw from keeps harvesting rather than trotting off to
+    // a site with four energy — the old Pioneer rule, kept because harvesting takes
+    // many ticks and "empty → collect, else deliver" would abort it immediately.
+    const selfSupplying =
+        creep.store.free > 0 &&
+        room.sources.some(sv => chebyshev(creep.pos, sv.pos) <= 1) &&
+        (room.structures[STRUCTURE_CONTAINER] ?? []).every(c => containerEnergy(c) < ECONOMY_CONFIG.minPickup) &&
+        room.dropped.every(d => d.resource !== RESOURCE_ENERGY || d.amount < ECONOMY_CONFIG.minPickup);
+    if (selfSupplying) {
+        const here = nearest(creep.pos, room.sources);
+        if (here) {
+            return { kind: ActionKind.Harvest, targetId: here.id };
+        }
+    }
     const sites = room.myConstructionSites;
     if (sites.length === 0 && fortifyTargets.length === 0) {
         // Nothing to build or maintain — labor is never stranded: upgrade.
-        return decideUpgrade(creep, { kind: AssignmentKind.Upgrade, room: room.name }, room, upgradeSpot);
+        return decideUpgradeWork(creep, room, upgradeSpot);
     }
     if (creep.store.used === 0) {
         // Refill — never from spawn/extensions/controller container (economy.md).
@@ -385,22 +446,12 @@ export function decideBuild(
             }
             return { kind: ActionKind.MoveTo, pos: container.pos, range: 1 };
         }
-        // Nearest pile, not biggest (creeps.md): the big piles sit at the sources,
-        // ~20 tiles from the sites; the haulers' upgrade-spot pile is next door and
-        // construction outranks upgrading by declared priority.
-        const piles = room.dropped.filter(d => d.resource === RESOURCE_ENERGY && d.amount >= ECONOMY_CONFIG.minPickup);
-        let pile: DroppedView | undefined;
-        for (const p of piles) {
-            if (!pile) {
-                pile = p;
-                continue;
-            }
-            const dp = chebyshev(creep.pos, p.pos);
-            const db = chebyshev(creep.pos, pile.pos);
-            if (dp < db || (dp === db && (p.amount > pile.amount || (p.amount === pile.amount && p.id < pile.id)))) {
-                pile = p;
-            }
-        }
+        // Energy per tick of walking (bestPile): a worker should not cross the room
+        // for a marginally larger pile while energy sits at its feet.
+        const pile = bestPile(
+            creep.pos,
+            room.dropped.filter(d => d.resource === RESOURCE_ENERGY && d.amount >= ECONOMY_CONFIG.minPickup)
+        );
         if (pile) {
             if (chebyshev(creep.pos, pile.pos) <= 1) {
                 return { kind: ActionKind.Pickup, targetId: pile.id };
@@ -416,6 +467,18 @@ export function decideBuild(
                 return { kind: ActionKind.Withdraw, targetId: storage.id, resource: RESOURCE_ENERGY };
             }
             return { kind: ActionKind.MoveTo, pos: storage.pos, range: 1 };
+        }
+        // SELF-SUPPLY — the old Pioneer role, folded in. A room with no miners,
+        // no haulers and no spawn (freshly claimed, or wiped) has no logistics to
+        // draw from, and a worker that idles there means the room never starts.
+        // Harvesting is slow and a last resort, which is exactly why it belongs at
+        // the bottom of the ladder rather than in a separate creep type.
+        const src = nearest(creep.pos, room.sources);
+        if (src) {
+            if (chebyshev(creep.pos, src.pos) <= 1) {
+                return { kind: ActionKind.Harvest, targetId: src.id };
+            }
+            return { kind: ActionKind.MoveTo, pos: src.pos, range: 1 };
         }
         return { kind: ActionKind.Idle, reason: "no-energy" };
     }
@@ -453,7 +516,7 @@ export function decideBuild(
         }
         return { kind: ActionKind.MoveTo, pos: target.pos, range: 3 };
     }
-    return decideUpgrade(creep, { kind: AssignmentKind.Upgrade, room: room.name }, room, upgradeSpot);
+    return decideUpgradeWork(creep, room, upgradeSpot);
 }
 
 /**
@@ -488,46 +551,4 @@ function stepAwayFrom(pos: Pos, from: Pos): Pos {
         y: Math.min(48, Math.max(1, pos.y + dy)),
         roomName: pos.roomName
     };
-}
-
-/**
- * Pioneer (M6): the ONE role that harvests and builds and upgrades, because a
- * freshly claimed room has no miners, no haulers, and no spawn to make them.
- * Precedence: refill by harvesting → build the spawn site → upgrade (which at
- * level 1 is not polish: the 20k downgrade timer runs down while we build, and
- * expiry unclaims the room outright).
- */
-export function decidePioneer(creep: CreepView, _a: PioneerAssignment, room: RoomSnapshot): Action {
-    // Fill-then-spend, statelessly: harvesting takes many ticks, so "empty →
-    // collect, else deliver" (every other executor's rule) would send a pioneer
-    // to the site after ONE tick of harvest carrying 4 energy. Position closes
-    // the loop instead — adjacent to a source and not full means keep harvesting;
-    // away from a source with a load means go spend it.
-    if (creep.store.free > 0) {
-        const source = nearest(creep.pos, room.sources);
-        if (source && chebyshev(creep.pos, source.pos) <= 1) {
-            return { kind: ActionKind.Harvest, targetId: source.id };
-        }
-        if (creep.store.used === 0) {
-            if (!source) {
-                return { kind: ActionKind.Idle, reason: "no-source" };
-            }
-            return { kind: ActionKind.MoveTo, pos: source.pos, range: 1 };
-        }
-    }
-    const site = room.myConstructionSites.find(s => s.type === STRUCTURE_SPAWN) ?? room.myConstructionSites[0];
-    if (site) {
-        if (chebyshev(creep.pos, site.pos) <= 3) {
-            return { kind: ActionKind.Build, targetId: site.id };
-        }
-        return { kind: ActionKind.MoveTo, pos: site.pos, range: 3 };
-    }
-    const controller = room.controller;
-    if (!controller) {
-        return { kind: ActionKind.Idle, reason: "no-controller" };
-    }
-    if (chebyshev(creep.pos, controller.pos) <= 3) {
-        return { kind: ActionKind.Upgrade, targetId: controller.id };
-    }
-    return { kind: ActionKind.MoveTo, pos: controller.pos, range: 3 };
 }

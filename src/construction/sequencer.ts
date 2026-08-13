@@ -116,6 +116,8 @@ export function sequenceBuilds(input: ConstructionInput): ConstructionIntents {
         // wiped room has one job — get a spawn up — and every other site would
         // compete for the tiny amount of labor it has.
         if (belowRcl2 && type !== STRUCTURE_SPAWN) continue;
+        // Build-order floor (config.minRcl) on top of the engine's legality rule.
+        if (rcl < (config.minRcl[type] ?? 0)) continue;
         const allowed = (CONTROLLER_STRUCTURES as Record<string, Record<number, number>>)[type]?.[rcl] ?? 0;
         if (allowed <= 0) continue;
         let total = (structureCount.get(type) ?? 0) + (siteCount.get(type) ?? 0);

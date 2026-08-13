@@ -35,7 +35,6 @@
  * the ladder advances.
  */
 import { Assignment, AssignmentKind } from "shared/assignments";
-import { isInvestmentSite } from "shared/build";
 import { SpawnDemand } from "shared/spawning";
 import { SubsystemId } from "shared/subsystems";
 import { CreepView, Pos, RoomSnapshot } from "shared/views";
@@ -43,11 +42,10 @@ import { EconomyConfig } from "economy/config";
 import {
     HAULER_MIN_BODY,
     MINER_MIN_BODY,
-    builderBody,
     haulerBody,
     haulerCarryCapacity,
     minerBody,
-    upgraderBody
+    workerBody
 } from "economy/bodies";
 
 export interface RoomPlanInput {
@@ -94,8 +92,7 @@ const WORK_TO_SATURATE = 5; // 5 WORK × 2 e/t = 10 e/t — more WORK on one sou
  */
 const PRIORITY_BOOTSTRAP_MINER = 1;
 const PRIORITY_BOOTSTRAP_HAULER = 2;
-const PRIORITY_BUILDER = 50;
-const PRIORITY_UPGRADER = 100;
+const PRIORITY_WORKER = 50;
 const minerPriority = (slot: number): number => 3 + 2 * slot;
 const haulerPriority = (slot: number): number => 4 + 2 * slot;
 
@@ -107,8 +104,7 @@ function bodyFits(creep: CreepView, kind: AssignmentKind): boolean {
             return has(WORK) && has(MOVE);
         case AssignmentKind.Haul:
             return has(CARRY) && has(MOVE);
-        case AssignmentKind.Build:
-        case AssignmentKind.Upgrade:
+        case AssignmentKind.Work:
             return has(WORK) && has(CARRY) && has(MOVE);
         default:
             return false;
@@ -147,9 +143,9 @@ function fillsHaulSlot(creep: CreepView, cap: number): boolean {
     return carry * 3 >= haulerCarryCapacity(cap);
 }
 
-/** Miner + hauler + builders, all at bootstrap size: enough labor to rebuild a
- *  spawn from a donor room's spawn queue. See economy.md / empire.md. */
-function rebuildSkeleton(room: RoomSnapshot, config: EconomyConfig): SpawnDemand[] {
+/** Miner + hauler + two workers, all at bootstrap size: enough labor to rebuild
+ *  a spawn from a donor room's spawn queue. See economy.md / empire.md. */
+function rebuildSkeleton(room: RoomSnapshot): SpawnDemand[] {
     const source = room.sources[0];
     if (!source) {
         return [];
@@ -174,14 +170,14 @@ function rebuildSkeleton(room: RoomSnapshot, config: EconomyConfig): SpawnDemand
             minBody: HAULER_MIN_BODY
         }
     ];
-    for (let slot = 0; slot < config.builders; slot++) {
+    for (let slot = 0; slot < 2; slot++) {
         demands.push({
-            id: `build:${room.name}:rebuild:${slot}`,
-            priority: PRIORITY_BUILDER,
+            id: `work:${room.name}:rebuild:${slot}`,
+            priority: PRIORITY_WORKER,
             home: room.name,
             owner: SubsystemId.Economy,
-            assignment: { kind: AssignmentKind.Build, room: room.name },
-            body: builderBody(300)
+            assignment: { kind: AssignmentKind.Work, room: room.name },
+            body: workerBody(300)
         });
     }
     return demands;
@@ -223,7 +219,7 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
         // (Returning [] here made brokerAid a guaranteed no-op: the canonical
         // crippled room emitted nothing to broker.)
         return {
-            demands: allowRebuild ? rebuildSkeleton(room, config) : [],
+            demands: allowRebuild ? rebuildSkeleton(room) : [],
             adoptions: [],
             reassignments: []
         };
@@ -243,7 +239,7 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     // Saturation is computed from the body this source will ACTUALLY get: the
     // link variant spends a slot on CARRY, so it carries less WORK and may need
     // one more miner to saturate.
-    const bodyFor = (source: { pos: Pos }): BodyPartConstant[] => minerBody(cap, linkServes(source));
+    const bodyFor = (source: { pos: Pos }): BodyPartConstant[] => minerBody(cap, { withLink: linkServes(source) });
     let minersDesiredTotal = 0;
     const minerGaps: { sourceId: Id<Source>; slot: number; globalSlot: number }[] = [];
     for (const source of sources) {
@@ -270,23 +266,30 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     });
     let haulersDesiredTotal = Math.max(1, Math.ceil(perSourceNeed.reduce((a, b) => a + b, 0)));
 
-    // --- Builders: a full crew while INVESTMENT sites are open; a 1-builder
-    // maintenance crew while only maintenance work (roads/ramparts/walls) exists.
-    // Maintenance sites recur forever, so they must not throttle the economy
-    // (economy.md rule 3; sim-caught livelock) --------------------------------------
-    const investmentSitesOpen = room.myConstructionSites.some(s => isInvestmentSite(s.type));
-    const maintenanceWork = room.myConstructionSites.length > 0;
-    const buildersDesired = investmentSitesOpen ? config.builders : maintenanceWork ? 1 : 0;
+    // --- Workers: ONE role that builds, upgrades and, where there is no logistics
+    // yet, harvests for itself. The build/upgrade split is not planned here at all
+    // — a worker looks at the room each tick and does the most valuable thing
+    // available, so the split tracks reality continuously instead of being guessed
+    // a creep-generation in advance. That deleted a whole conversion pass (surplus
+    // upgraders being reassigned to builders) and the regime flags that drove it.
+    //
+    // Workers are the RESIDUAL: everything the CPU allowance has left after income
+    // is staffed. Income first is the invariant — a room that mines and hauls can
+    // always build more workers, but workers cannot fix an unstaffed source.
+    let workersDesired = creepsAllowed - minersDesiredTotal - haulersDesiredTotal;
 
-    // --- Upgraders: the residual, floor 1 absolute (a hauler slot is forfeited
-    // rather than letting the residual hit zero). While investment sites are open
-    // the cap is 1: construction throttles upgrading at the energy level -------------
-    let residual = creepsAllowed - minersDesiredTotal - haulersDesiredTotal - buildersDesired;
-    if (residual < 1) {
-        haulersDesiredTotal = Math.max(1, haulersDesiredTotal + residual - 1);
-        residual = 1;
+    // When the allowance cannot cover income either, the squeeze order is
+    // investment-before-income: workers yield first, haulers only after workers
+    // are gone. Getting this backwards is a room-killer and it was live — with the
+    // allowance at 9 against 4 miners / 7 haulers / 4 builders, the old rule put
+    // the entire shortfall on haulers and cut them to ONE while leaving four
+    // builders untouched. A room that mines but cannot move what it mines piles
+    // energy on the floor and starves its own spawn.
+    if (workersDesired < 1) {
+        haulersDesiredTotal = Math.max(1, haulersDesiredTotal + workersDesired - 1);
+        workersDesired = 1;
     }
-    const upgradersDesired = Math.min(residual, investmentSitesOpen ? 1 : config.maxUpgraders);
+    workersDesired = Math.min(workersDesired, config.maxWorkers);
 
     // Distribute hauler targets per source by largest remainder (the apportionment
     // method): floor each source's fair share, then hand the leftover seats to the
@@ -362,48 +365,17 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
         });
     }
 
-    const buildersStaffed = roster.filter(
-        c => assignmentOf(c)?.kind === AssignmentKind.Build && fillsSlot(c, config.prespawnLead)
+    const workersStaffed = roster.filter(
+        c => assignmentOf(c)?.kind === AssignmentKind.Work && fillsSlot(c, config.prespawnLead)
     ).length;
-
-    // --- Upgrader → builder conversion: surplus live upgraders fill builder gaps
-    // before any spawn does (instant, free; a spawn cycle lags a regime change by a
-    // whole generation). Freshest first, deterministic. Economy.md rule 3. ----------
-    const reassignments: RoomPlan["reassignments"] = [];
-    const liveUpgraders = roster.filter(
-        c => assignmentOf(c)?.kind === AssignmentKind.Upgrade && fillsSlot(c, config.prespawnLead)
-    );
-    let buildersFilled = buildersStaffed;
-    if (buildersFilled < buildersDesired && liveUpgraders.length > upgradersDesired) {
-        const surplus = [...liveUpgraders].sort(
-            (a, b) => (b.ticksToLive ?? Infinity) - (a.ticksToLive ?? Infinity) || (a.name < b.name ? -1 : 1)
-        );
-        const convertible = Math.min(liveUpgraders.length - upgradersDesired, buildersDesired - buildersFilled);
-        for (const creep of surplus.slice(0, convertible)) {
-            reassignments.push({ name: creep.name, assignment: { kind: AssignmentKind.Build, room: room.name } });
-            buildersFilled++;
-        }
-    }
-    for (let slot = buildersFilled; slot < buildersDesired; slot++) {
+    for (let slot = workersStaffed; slot < workersDesired; slot++) {
         demands.push({
-            id: `build:${room.name}:${slot}`,
-            priority: PRIORITY_BUILDER,
+            id: `work:${room.name}:${slot}`,
+            priority: PRIORITY_WORKER,
             home: room.name,
             owner: SubsystemId.Economy,
-            assignment: { kind: AssignmentKind.Build, room: room.name },
-            body: builderBody(cap)
-        });
-    }
-
-    const upgradersStaffed = liveUpgraders.length - reassignments.length;
-    for (let slot = upgradersStaffed; slot < upgradersDesired; slot++) {
-        demands.push({
-            id: `upgrade:${room.name}:${slot}`,
-            priority: PRIORITY_UPGRADER,
-            home: room.name,
-            owner: SubsystemId.Economy,
-            assignment: { kind: AssignmentKind.Upgrade, room: room.name },
-            body: upgraderBody(cap)
+            assignment: { kind: AssignmentKind.Work, room: room.name },
+            body: workerBody(cap)
         });
     }
 
@@ -423,7 +395,7 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
                 unused.splice(i, 1);
             }
         }
-        return { demands: remaining, adoptions, reassignments };
+        return { demands: remaining, adoptions, reassignments: [] };
     }
-    return { demands, adoptions, reassignments };
+    return { demands, adoptions, reassignments: [] };
 }

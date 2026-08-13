@@ -64,6 +64,34 @@ describe("fast: post-infrastructure rate (infra-built, 1400 ticks)", function ()
     expect(Math.max(...late), ctx).to.be.at.most(1500);
   });
 
+  it("never deadlocks with a starving spawn and energy on the ground", () => {
+    // FIELD BUG this exists to catch. Haulers idled "no-pile" while the spawn sat
+    // at zero, because the room's only energy was the upgrade-spot pile and the
+    // stray-pile fallback excluded that unconditionally. Nothing could be built —
+    // including the creeps that would have dug the room out.
+    //
+    // The older assertions all PASSED through this: they bound total ground energy
+    // and check upgrade progress, but nothing asserted the room could still SPAWN.
+    // An aggregate can look healthy while the economy is wedged.
+    const spawnE = seriesOf(res.timeline, "W1N1", "bot", "spawnEnergy");
+    const extE = seriesOf(res.timeline, "W1N1", "bot", "extEnergy");
+    const dropped = seriesOf(res.timeline, "W1N1", "bot", "droppedEnergy");
+    // Momentary zero is normal (energy was just spent). Sustained zero WHILE
+    // energy lies on the floor is the deadlock.
+    let run = 0;
+    let worst = 0;
+    for (let i = 0; i < spawnE.length; i++) {
+      const starving = (spawnE[i] ?? 0) + (extE[i] ?? 0) === 0 && (dropped[i] ?? 0) > 500;
+      run = starving ? run + 1 : 0;
+      worst = Math.max(worst, run);
+    }
+    const ctx =
+      `spawnEnergy: ${spawnE.join(",")}\n` +
+      `extEnergy:   ${extE.join(",")}\n` +
+      `dropped:     ${dropped.join(",")}`;
+    expect(worst, `spawn-side starved for ${worst} samples with energy on the ground\n${ctx}`).to.be.at.most(2);
+  });
+
   it("works BOTH sources — miners do not pile onto one", () => {
     // One container is one seat. When every miner of a source targeted it, the
     // losers parked two tiles out, never in harvest range, shoving forever.

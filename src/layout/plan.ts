@@ -50,8 +50,9 @@ export interface BasePlan {
 }
 
 /** Bump when the algorithm changes shape; forces a recompute (layout.md).
- *  v2 (M5): link array order became [controller, farthest-source, hub, rest]. */
-export const LAYOUT_PLAN_VERSION = 2;
+ *  v2 (M5): link array order became [controller, farthest-source, hub, rest].
+ *  v3 (Aug 2026): swamp road cost 10 → 3; roads no longer detour around swamp. */
+export const LAYOUT_PLAN_VERSION = 3;
 
 /** Packing matches snapshot/terrain's grid index convention. */
 export const pack = (x: number, y: number): number => y * 50 + x;
@@ -634,9 +635,18 @@ function placeRoads(ctx: Ctx, anchor: Pos, ctrlContainer: Pos | undefined, labRo
                 const np = pack(nx, ny);
                 if (ctx.blocked.has(np) && np !== targetP) continue;
                 // Existing/planned roads cost 1 vs plain 2, so successive routes
-                // merge onto shared trunk lines instead of laying parallel roads;
-                // swamp costs 10 (5× plain) to reflect its real movement penalty.
-                const cost = roadSet.has(np) ? 1 : input.terrain.isSwamp(nx, ny) ? 10 : 2;
+                // merge onto shared trunk lines instead of laying parallel roads.
+                //
+                // Swamp is only a SMALL premium (3 vs 2), NOT the 5× movement
+                // penalty it used to carry. A road ON swamp removes the movement
+                // penalty completely — creeps travel at road speed over it — so the
+                // only real cost is construction: 5× energy, paid once. Pricing it
+                // at 10 made the planner detour up to five tiles to dodge a single
+                // swamp tile, which costs MORE to build and then charges every creep
+                // five extra ticks per trip forever. Measured: a swamp band between
+                // anchor and source produced a 35-tile road for a 14-tile route,
+                // arcing 20 tiles off-course and laying zero tiles on swamp.
+                const cost = roadSet.has(np) ? 1 : input.terrain.isSwamp(nx, ny) ? 3 : 2;
                 if (dist[p] + cost < dist[np]) {
                     dist[np] = dist[p] + cost;
                     prev[np] = p;

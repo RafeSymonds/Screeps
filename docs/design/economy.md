@@ -360,3 +360,41 @@ Sim: the M3 gate (construction.md) is the milestone's definition of done for the
 economy+construction loop. The M2-era default gate (RCL2 by 1200, generational
 continuity) survives inside it; the pre-container rate assertion does not (the same
 scenario now builds infrastructure mid-run, invalidating the era's ceiling).
+
+
+## Roles collapsed to miner / hauler / worker (Aug 2026)
+
+There are now exactly **three** economy roles. `Build` and `Upgrade` were merged into a
+single `Work` assignment, and expansion's `Pioneer` was folded into it as well.
+
+**Why.** The old split forced the planner to guess a build/upgrade headcount *ahead of
+time*, and that guess was wrong the moment the construction queue emptied or filled. It
+needed a whole conversion pass (surplus upgraders reassigned to builders when the regime
+flipped) plus the `investmentSitesOpen` / `maintenanceWork` flags that drove it — all to
+approximate something a creep can decide for itself by looking at the room. A worker builds
+if there is anything to build, fortifies if walls are low, upgrades otherwise, and harvests
+for itself if the room has no logistics yet. The split is now continuous and free, and the
+conversion pass is deleted.
+
+One consequence worth stating: **`Pioneer` no longer exists**. A freshly claimed room gets
+ordinary workers, which self-supply by harvesting because that room has no containers,
+piles or storage to draw from. The behavior is identical; the role is not special.
+
+### Sizing and the squeeze order
+
+Workers are the **residual**: `creepsAllowed − miners − haulers`, capped by `maxWorkers`.
+When the CPU allowance cannot cover everything, the squeeze order is
+**investment-before-income** — workers yield first, haulers only after workers are at their
+floor.
+
+Getting that backwards was a live room-killer: with the allowance at 9 against 4 miners /
+7 haulers / 4 builders, the old rule put the entire shortfall on haulers and cut them to
+**one**, leaving four builders untouched. A room that mines but cannot move what it mines
+piles energy on the floor and starves its own spawn.
+
+### One body
+
+`workerBody` is balanced `[W, C, M]` units at 200 energy each. Separate builder
+(`[W,C,C,M]`) and upgrader (`[W,W,C,M]`) bodies optimised for a role split the planner
+could not predict, over a 1500-tick creep life against a construction queue that turns over
+in a few hundred ticks.

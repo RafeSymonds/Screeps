@@ -51,7 +51,7 @@ function demand(home: string, priority: number, id = `d-${home}-${priority}`): S
         priority,
         home,
         owner: SubsystemId.Economy,
-        assignment: { kind: AssignmentKind.Upgrade, room: home },
+        assignment: { kind: AssignmentKind.Work, room: home },
         body: [WORK, CARRY, MOVE]
     };
 }

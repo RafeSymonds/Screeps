@@ -227,3 +227,34 @@ Unit (pure executors, mocked views):
 
 Sim: the M3 gate (construction.md) — containers fill and drain, sites complete
 sequentially, upgrade throughput steps up as infrastructure lands.
+
+
+## Miner seats (revised Aug 2026)
+
+Each miner of a source is assigned its **own exact tile** by `creeps/seats.ts` (pure),
+and moves to it with `range: 0`.
+
+This replaced two successive weaker rules, both of which shipped and both of which the
+field disproved:
+
+1. *Every miner targets the container.* A container is one tile, so the losers ended up
+   adjacent to the container but two tiles from the source — never in harvest range,
+   pathing onto an occupied tile forever.
+2. *One "seat owner" gets the container, everyone else gets `MoveTo(source, range 1)`.*
+   Still broken, in two ways. A range goal does not name a tile: PathFinder chooses, and it
+   chooses **identically for every miner given the same goal**, so the non-owners still
+   converged — sometimes onto the container itself, since containers are walkable and
+   nothing excluded that tile. And with **no container at all** (early RCL, every remote
+   before its container is built) there was no owner, so *every* miner fell to the same
+   range-1 goal. The differentiation only existed in the case that already mostly worked.
+
+The rule now: `seatTiles()` enumerates the source's legal adjacent tiles (open terrain, no
+blocking structure, never a room-edge tile — the engine teleports creeps off those), with
+the container first since mining from it drops straight into the container. `assignSeats()`
+hands them out sticky-first (a miner already on a seat keeps it, so a new spawn never
+evicts a working creep), then by name for the rest. Two miners can never be issued the same
+destination, so there is nothing to contend over.
+
+`decideMine` also **re-seats a displaced miner**, which the old rule never did: it only
+moved a miner that was out of harvest range, so a creep shoved off its tile mined from
+wherever it landed and never returned, leaving its seat empty.

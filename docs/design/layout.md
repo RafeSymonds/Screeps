@@ -247,3 +247,20 @@ Unit (`test/unit/layout.test.ts`), on synthetic terrain grids:
 
 Sim: the `growth` gate (construction.md's test plan) proves anchoring end-to-end — plan
 anchored on the pre-existing spawn at (25,25), sites placed and built around it.
+
+
+## Road cost: swamp is a build premium, not a movement penalty (v3, Aug 2026)
+
+Road pathing priced swamp at **10** against plain **2** — the creep *movement* penalty. That
+is the wrong model, because **a road on swamp removes the movement penalty entirely**:
+creeps travel at road speed over it. The only real difference is construction cost (5×
+energy, paid once) and faster decay.
+
+At 10, the planner would detour up to five tiles to avoid a single swamp tile — which costs
+*more* energy to build and then charges every creep five extra ticks per trip, forever.
+Measured on a synthetic room with a swamp band between anchor and source: a 14-tile route
+produced a **35-tile road** that arced 20 tiles off-course and laid **zero** tiles on swamp.
+
+Swamp now costs **3** vs plain 2: enough to break ties toward dry ground, not enough to
+buy a detour. The same route now plans **20 tiles**, crossing the swamp directly.
+`LAYOUT_PLAN_VERSION` is bumped to 3 so existing rooms recompute.

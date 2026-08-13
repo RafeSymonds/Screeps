@@ -14,16 +14,26 @@
  * is recomputed.
  */
 
+/**
+ * There are exactly three economy roles — **miner, hauler, worker** — plus the
+ * few genuinely non-economy specialists (defend/scout/reserve/claim, which need
+ * bodies no economy creep has).
+ *
+ * `Work` deliberately covers building, upgrading AND self-supply by harvesting.
+ * Splitting them was a mistake: it forced the planner to guess a build/upgrade
+ * headcount split ahead of time, and that guess was wrong the moment the
+ * construction queue emptied or filled — leaving upgraders idle beside open sites
+ * or builders with nothing to build. A worker just looks at the room and does the
+ * most valuable thing available, so the split is continuous and free.
+ */
 export enum AssignmentKind {
     Mine = "mine",
     Haul = "haul",
-    Upgrade = "upgrade",
-    Build = "build",
+    Work = "work",
     Defend = "defend",
     Scout = "scout",
     Reserve = "reserve",
-    Claim = "claim",
-    Pioneer = "pioneer"
+    Claim = "claim"
 }
 
 export interface MineAssignment {
@@ -38,18 +48,6 @@ export interface HaulAssignment {
     sourceId: Id<Source>;
     /** Deliver into this room's sinks (remote hauling, M5); defaults to `room`. */
     to?: string;
-}
-
-export interface UpgradeAssignment {
-    kind: AssignmentKind.Upgrade;
-    room: string;
-}
-
-/** Roomwide — the focus site is derived from the snapshot each tick (creeps.md);
- *  a persisted site id would go stale the moment a site completes. */
-export interface BuildAssignment {
-    kind: AssignmentKind.Build;
-    room: string;
 }
 
 /** Roomwide — the target hostile is derived each tick (defense.md). */
@@ -69,25 +67,27 @@ export interface ReserveAssignment {
     room: string;
 }
 
-/** Expansion (M6): claim the target's controller, then bootstrap it by hand
- *  until its own spawn stands. */
+/** Expansion (M6): take the target room's controller. */
 export interface ClaimAssignment {
     kind: AssignmentKind.Claim;
     room: string;
 }
 
-export interface PioneerAssignment {
-    kind: AssignmentKind.Pioneer;
+/**
+ * Roomwide — every target (which site, which pile, whether to harvest for itself)
+ * is derived from the snapshot each tick. A persisted target would go stale the
+ * moment a site completes or a pile is taken.
+ */
+export interface WorkAssignment {
+    kind: AssignmentKind.Work;
     room: string;
 }
 
 export type Assignment =
     | MineAssignment
     | HaulAssignment
-    | UpgradeAssignment
-    | BuildAssignment
+    | WorkAssignment
     | DefendAssignment
     | ScoutAssignment
     | ReserveAssignment
-    | ClaimAssignment
-    | PioneerAssignment;
+    | ClaimAssignment;

@@ -201,3 +201,14 @@ Architecture §8's M3 row updated to match.
   progress non-decreasing and net-positive. Note: the seed generalists start parked
   on core-stamp tiles, and obstacle sites can't complete under creeps — assertions
   must not depend on any specific core structure completing early.
+
+
+## Build-order floors (`config.minRcl`, Aug 2026)
+
+`CONTROLLER_STRUCTURES` says what is *legal* at an RCL; it says nothing about what is
+*wise*. `minRcl` adds a per-type floor on top of it, expressing build ORDER.
+
+Ramparts and walls are gated to **RCL4**. The engine permits them from RCL2, and taking that
+permission literally spent a young room's only workers on decaying insurance while the
+extensions that make everything else affordable went unbuilt. Ramparts are also a permanent
+sink — they decay forever — so starting them early is not a one-off cost.

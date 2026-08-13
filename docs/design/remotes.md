@@ -30,7 +30,7 @@ interface RemotePlanInput {
     roster: CreepView[];
     remotesAllowed: number;  // CPU allowance from budget.md — replaces the old
                              // hardcoded maxRemotesPerHome: 1
-    config: RemotesConfig;   // { unsafeMemory: 300, minHomeCap: 550, ... }
+    config: RemotesConfig;   // { unsafeMemory: 300, reserveFloorCap: 650, ... }
 }
 interface RemotePlan {
     adopt: string[];
@@ -116,6 +116,29 @@ math is untouched); the remote's own workforce is bounded by its formulas (~6 cr
 reserved 2-source remote) and by `remotesAllowed`. Stated, not hidden. Note the two
 allowances are computed from the same §9 split, so remote creeps are budgeted — just in
 the `perRemotesShare` line rather than the room's own.
+
+### When to adopt (revised Aug 2026)
+
+**There is no energy-wealth gate.** A remote is simply worth doing once home mining is
+staffed: more energy is strictly better, and a neighbour's sources are the cheapest source
+of it. The old `minHomeCap: 550` threshold delayed remotes for no stated reason and is gone.
+
+What remains, and why each is not a wealth policy:
+
+1. **Home mining staffed** (`homeHealthy`: every home source has its miners, plus the
+   haulers to move what they produce). Remotes extend a working economy; they do not
+   substitute for one.
+2. **Capability floor** (`MIN_REMOTE_CAP`, *derived* as `bodyCost(remoteMinerBody(false))`
+   = 450). Below this the home cannot physically build a remote miner, so adopting would
+   only emit demands the spawn can never fund and head-of-line block the queue.
+3. **Count cap** — the CPU allowance ([budget.md](budget.md)), not a constant.
+4. **Profit** ≥ `minProfit`, unchanged.
+
+**"Not ahead of internal improvements" is handled by priority, not by a gate.** Spawn
+priorities are: home income 1–20, **home builders 50, remotes 60**, reserver 90, upgraders
+100. Remote creeps therefore queue *behind* home construction and *ahead* of upgrading,
+which is exactly the intent — a gate would have blocked remotes entirely, since a growing
+room almost always has construction open.
 
 ## Memory schema
 

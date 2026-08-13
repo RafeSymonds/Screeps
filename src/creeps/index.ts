@@ -25,16 +25,18 @@
 import { Assignment, AssignmentKind } from "shared/assignments";
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
-import { CreepView, RoomSnapshot } from "shared/views";
+import { CreepView, Pos, RoomSnapshot } from "shared/views";
 import { fortificationTargets } from "defense/index";
 import { FortifyTarget } from "defense/fortify";
 import { getUpgradeSpot } from "economy/index";
 import { isUnsafe } from "intel/index";
 import { requestMove } from "movement/index";
 import { resolve } from "snapshot/handles";
+import { getTerrain } from "snapshot/terrain";
 import { log } from "telemetry/index";
 import { Action, ActionKind } from "creeps/actions";
-import { decideBuild, decideDefend, decideHaul, decideMine, decidePioneer, decideUpgrade } from "creeps/executors";
+import { decideDefend, decideHaul, decideMine, decideWork } from "creeps/executors";
+import { assignSeats, seatTiles } from "creeps/seats";
 
 /** Why creeps did nothing, tallied by reason and logged periodically. Idleness is
  *  the symptom every economy bug shows up as first, so the reason string is the
@@ -59,40 +61,68 @@ function fortifyFor(ctx: TickContext, roomName: string): FortifyTarget[] {
     return targets;
 }
 
-/** Per-tick memo: sourceId → the creep entitled to the container seat. A source
- *  container is one tile, so exactly one miner may claim it; the rest drop-mine
- *  from any adjacent tile. Preference goes to whoever already stands on it, so
- *  the seat does not change hands when a new miner spawns; otherwise the lowest
- *  name wins, which is arbitrary but STABLE — an unstable rule would just move
- *  the shoving somewhere else. */
-let seatTick = -1;
-const seatMemo = new Map<string, string | undefined>();
+/** Structure types a creep cannot stand on — a seat under one is not a seat. */
+const SEAT_BLOCKING: ReadonlySet<StructureConstant> = new Set<StructureConstant>([
+    STRUCTURE_SPAWN,
+    STRUCTURE_EXTENSION,
+    STRUCTURE_TOWER,
+    STRUCTURE_STORAGE,
+    STRUCTURE_TERMINAL,
+    STRUCTURE_FACTORY,
+    STRUCTURE_OBSERVER,
+    STRUCTURE_POWER_SPAWN,
+    STRUCTURE_NUKER,
+    STRUCTURE_LAB,
+    STRUCTURE_LINK,
+    STRUCTURE_EXTRACTOR,
+    STRUCTURE_WALL
+]);
 
-function seatOwnerFor(ctx: TickContext, room: RoomSnapshot, sourceId: string): string | undefined {
+/** Per-tick memo: sourceId → every miner's own seat tile. Computed once per
+ *  source per tick because every miner of that source needs the same map, and
+ *  they must all agree on it — recomputing per creep would be both wasteful and
+ *  a chance to disagree. */
+let seatTick = -1;
+const seatMemo = new Map<string, Map<string, Pos>>();
+
+function seatsFor(ctx: TickContext, room: RoomSnapshot, sourceId: string): Map<string, Pos> {
     if (seatTick !== ctx.snapshot.time) {
         seatMemo.clear();
         seatTick = ctx.snapshot.time;
     }
-    if (seatMemo.has(sourceId)) {
-        return seatMemo.get(sourceId);
+    const cached = seatMemo.get(sourceId);
+    if (cached) {
+        return cached;
     }
     const source = room.sources.find(s => s.id === sourceId);
-    const container = source
-        ? (room.structures[STRUCTURE_CONTAINER] ?? []).find(
-              c => Math.max(Math.abs(c.pos.x - source.pos.x), Math.abs(c.pos.y - source.pos.y)) <= 1
-          )
-        : undefined;
-    let owner: string | undefined;
-    if (container) {
-        const miners = ctx.snapshot.myCreeps.filter(c => {
-            const a = (c.memory as { assignment?: { kind?: string; sourceId?: string } }).assignment;
-            return a?.kind === AssignmentKind.Mine && a.sourceId === sourceId && !c.spawning;
+    let assigned = new Map<string, Pos>();
+    if (source) {
+        const blocked = new Set<number>();
+        for (const [type, views] of Object.entries(room.structures)) {
+            if (!SEAT_BLOCKING.has(type as StructureConstant)) continue;
+            for (const v of views ?? []) {
+                blocked.add(v.pos.y * 50 + v.pos.x);
+            }
+        }
+        const container = (room.structures[STRUCTURE_CONTAINER] ?? []).find(
+            c => Math.max(Math.abs(c.pos.x - source.pos.x), Math.abs(c.pos.y - source.pos.y)) <= 1
+        );
+        const seats = seatTiles({
+            source: source.pos,
+            terrain: getTerrain(room.name),
+            blocked,
+            ...(container ? { container: container.pos } : {})
         });
-        const sitting = miners.find(c => c.pos.x === container.pos.x && c.pos.y === container.pos.y);
-        owner = sitting?.name ?? miners.map(c => c.name).sort()[0];
+        const miners = ctx.snapshot.myCreeps
+            .filter(c => {
+                const a = (c.memory as { assignment?: { kind?: string; sourceId?: string } }).assignment;
+                return a?.kind === AssignmentKind.Mine && a.sourceId === sourceId && !c.spawning;
+            })
+            .map(c => ({ name: c.name, pos: c.pos }));
+        assigned = assignSeats(seats, miners);
     }
-    seatMemo.set(sourceId, owner);
-    return owner;
+    seatMemo.set(sourceId, assigned);
+    return assigned;
 }
 
 /**
@@ -161,17 +191,15 @@ function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Act
     }
     switch (assignment.kind) {
         case AssignmentKind.Mine:
-            return decideMine(creep, assignment, room, seatOwnerFor(ctx, room, assignment.sourceId) === creep.name);
+            return decideMine(creep, assignment, room, seatsFor(ctx, room, assignment.sourceId).get(creep.name));
         // Room-scoped lookups key off the room being WORKED, not assignment.room:
         // a remote hauler delivering home has assignment.room = the remote, whose
         // upgrade spot is undefined — it arrived home loaded and lost both the
         // controller-feed tier and the drop fallback, and could only idle.
         case AssignmentKind.Haul:
             return decideHaul(creep, assignment, room, getUpgradeSpot(room.name));
-        case AssignmentKind.Upgrade:
-            return decideUpgrade(creep, assignment, room, getUpgradeSpot(room.name));
-        case AssignmentKind.Build:
-            return decideBuild(creep, assignment, room, getUpgradeSpot(room.name), fortifyFor(ctx, room.name));
+        case AssignmentKind.Work:
+            return decideWork(creep, assignment, room, getUpgradeSpot(room.name), fortifyFor(ctx, room.name));
         case AssignmentKind.Defend:
             return decideDefend(creep, assignment, room);
         case AssignmentKind.Scout:
@@ -197,8 +225,6 @@ function decide(creep: CreepView, assignment: Assignment, ctx: TickContext): Act
             }
             return { kind: ActionKind.MoveTo, pos: controller.pos, range: 1 };
         }
-        case AssignmentKind.Pioneer:
-            return decidePioneer(creep, assignment, room);
         default:
             return { kind: ActionKind.Idle, reason: "unknown-kind" };
     }

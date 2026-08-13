@@ -1,14 +1,17 @@
 import { expect } from "../helpers/chai";
 import { AssignmentKind } from "shared/assignments";
 import { CreepView, RoomSnapshot } from "shared/views";
+import { haulerBody } from "economy/bodies";
 import { RoomIntel } from "intel/index";
 import { PRIORITY_REMOTE_BASE, PRIORITY_RESERVER, REMOTES_CONFIG } from "remotes/config";
 import {
+    MIN_REMOTE_CAP,
     rejectionReason,
     planAdoption,
     planRemoteDemands,
     RemoteCandidate,
     RemotePlanInput,
+    remoteHaulerBody,
     remoteMinerBody,
     remoteProfit,
     RemotesMemory,
@@ -105,7 +108,9 @@ describe("remotes planner", () => {
         // safety, and — the usual answer in a seeded sim world — no sources.
         expect(planAdoption(input()).adopt).to.deep.equal(["W2N1"]);
         expect(planAdoption(input({ candidates: [candidate("W2N1", 0)] })).adopt).to.have.length(0);
-        expect(planAdoption(input({ homeCap: REMOTES_CONFIG.minHomeCap - 1 })).adopt).to.have.length(0);
+        // Capability floor only — below the cost of a remote miner body we cannot
+        // field one. There is no wealth policy above that any more.
+        expect(planAdoption(input({ homeCap: MIN_REMOTE_CAP - 1 })).adopt).to.have.length(0);
     });
 
     it("names the gate that rejected a neighbour, so 'why no remotes?' is answerable", () => {
@@ -116,7 +121,7 @@ describe("remotes planner", () => {
         expect(rejectionReason(candidate("W2N1", 2, { unsafe: true }), 1300, cfg)).to.equal("hostiles sighted");
         expect(rejectionReason(candidate("W2N1", 2, { foreignReserved: true }), 1300, cfg)).to.contain("reserved by");
         expect(rejectionReason({ ...candidate("W2N1", 2), intel: intelOf(2, { owner: "Them" }) }, 1300, cfg)).to.equal("owned by Them");
-        expect(rejectionReason(candidate("W2N1", 2), 300, cfg)).to.contain("home capacity 300");
+        expect(rejectionReason(candidate("W2N1", 2), 200, cfg)).to.contain("home capacity 200");
     });
 
     it("drops an adopted remote that stops qualifying", () => {
@@ -126,11 +131,17 @@ describe("remotes planner", () => {
     });
 
     it("reserves 2-source remotes from the 650 floor; slack body at 1300", () => {
-        expect(planAdoption(input({ homeCap: 649 })).reserve.W2N1).to.equal(false); // adopted (≥550) but below the 650 reserve floor
+        expect(planAdoption(input({ homeCap: 649 })).reserve.W2N1).to.equal(false); // adopted, but below the 650 reserve floor
         const at650 = planAdoption(input({ homeCap: 650, slice: { v: 1, rooms: { W2N1: { reserved: false, adoptedAt: 1 } } } }));
         expect(at650.reserve.W2N1).to.equal(true);
+        // Close enough to clear the profit bar — a ONE-source remote at range 75
+        // nets 1.97 e/t against a 2.0 threshold, so it is (correctly) not worth
+        // taking at all; this case is about reserving, not about adoption.
         const oneSource = planAdoption(
-            input({ candidates: [candidate("W2N1", 1)], slice: { v: 1, rooms: { W2N1: { reserved: false, adoptedAt: 1 } } } })
+            input({
+                candidates: [candidate("W2N1", 1, { travelTiles: 25 })],
+                slice: { v: 1, rooms: { W2N1: { reserved: false, adoptedAt: 1 } } }
+            })
         );
         expect(oneSource.reserve.W2N1).to.equal(false);
         expect(reserverBody(650, REMOTES_CONFIG)).to.deep.equal([CLAIM, MOVE]);
@@ -138,17 +149,24 @@ describe("remotes planner", () => {
     });
 
     it("profit includes pile decay and clears the bar for a 2-source neighbor", () => {
-        const near = remoteProfit(2, false, 75);
+        const near = remoteProfit(2, false, 75, 1300);
         expect(near).to.be.greaterThan(REMOTES_CONFIG.minProfit);
         // The decay term: identical setup with decay removed would differ by sources × 1.
-        expect(remoteProfit(2, true, 75)).to.be.greaterThan(near);
+        expect(remoteProfit(2, true, 75, 1300)).to.be.greaterThan(near);
     });
 
-    it("sizes remote bodies for the remote, not the home cap", () => {
-        expect(remoteMinerBody(false).filter(p => p === WORK)).to.have.length(3);
-        expect(remoteMinerBody(true).filter(p => p === WORK)).to.have.length(5);
-        // Full speed: MOVE covers (WORK+CARRY+1)/2.
-        expect(remoteMinerBody(true).filter(p => p === MOVE)).to.have.length(3);
+    it("uses ORDINARY miner/hauler bodies, scaled to the home cap", () => {
+        // There is no such thing as a "remote miner body" any more — a remote miner
+        // is a miner. The only remote-specific input is the WORK ceiling, because
+        // one miner works a remote source alone and yield caps at 3 WORK unreserved
+        // / 5 reserved; buying WORK past that is pure waste.
+        expect(remoteMinerBody(false, 1300).filter(p => p === WORK)).to.have.length(3);
+        expect(remoteMinerBody(true, 1300).filter(p => p === WORK)).to.have.length(5);
+        // Poor home → a body it can actually afford. The old fixed body was
+        // unspawnable below 1000 energy, so remotes got miners and never haulers.
+        expect(remoteMinerBody(true, 300).filter(p => p === WORK).length).to.be.lessThan(5);
+        expect(remoteHaulerBody(10, 75, 300).body).to.deep.equal(haulerBody(300));
+        expect(remoteHaulerBody(10, 75, 1300).body).to.deep.equal(haulerBody(1300));
     });
 
     it("emits miners per source id, haulers with to:home, reserver at 90 — all in the live band", () => {

@@ -40,10 +40,11 @@ function repeat(part: BodyPartConstant, count: number): BodyPartConstant[] {
  * put energy INTO it, and that is the miner standing beside it (economy.md
  * "Links"). Exactly one CARRY, only there.
  */
-export function minerBody(capacity: number, withLink = false): BodyPartConstant[] {
-    const carry = withLink ? 1 : 0;
+export function minerBody(capacity: number, opts: { withLink?: boolean; maxWork?: number } = {}): BodyPartConstant[] {
+    const carry = opts.withLink ? 1 : 0;
+    const ceiling = opts.maxWork ?? Infinity;
     let best = { work: 1, move: 1 };
-    for (let work = 1; ; work++) {
+    for (let work = 1; work <= ceiling; work++) {
         const move = Math.ceil(work / 5);
         if (work + move + carry > MAX_BODY_PARTS || work * 100 + carry * 50 + move * 50 > capacity) {
             break;
@@ -69,14 +70,20 @@ export function haulerCarryCapacity(capacity: number): number {
     return haulerBody(capacity).filter(p => p === CARRY).length * CARRY_CAPACITY;
 }
 
-/** [W,W,C,M] units (300 each, 2 WORK), max(1, floor(cap/300)), 50-part limit (12 units). */
-export function upgraderBody(capacity: number): BodyPartConstant[] {
-    const units = Math.min(12, Math.max(1, Math.floor(capacity / 300)));
-    return [...repeat(WORK, units * 2), ...repeat(CARRY, units), ...repeat(MOVE, units)];
+/**
+ * [W,C,M] units (200 each) — THE worker body. One role builds, upgrades and (in a
+ * room with no logistics yet) harvests for itself, so one body has to serve all
+ * three. 1:1:1 is the honest compromise: WORK sets both build and upgrade
+ * throughput, CARRY sets how much a trip to a distant site is worth, and 1 MOVE
+ * per 2 other parts keeps it at full speed on roads.
+ *
+ * Separate builder/upgrader bodies were a false economy — they optimised for a
+ * role split the planner could not predict, and a creep lives 1500 ticks while
+ * the construction queue turns over in a few hundred.
+ */
+export function workerBody(capacity: number): BodyPartConstant[] {
+    const units = Math.min(16, Math.max(1, Math.floor(capacity / 200)));
+    return [...repeat(WORK, units), ...repeat(CARRY, units), ...repeat(MOVE, units)];
 }
 
-/** [W,C,C,M] units (250 each, 1 WORK = 5 build-e/t), max(1, floor(cap/250)), 50-part limit. */
-export function builderBody(capacity: number): BodyPartConstant[] {
-    const units = Math.min(12, Math.max(1, Math.floor(capacity / 250)));
-    return [...repeat(WORK, units), ...repeat(CARRY, units * 2), ...repeat(MOVE, units)];
-}
+export const WORKER_MIN_BODY: BodyPartConstant[] = [WORK, CARRY, MOVE];

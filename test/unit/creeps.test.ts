@@ -1,17 +1,9 @@
 import { expect } from "../helpers/chai";
-import {
-    AssignmentKind,
-    BuildAssignment,
-    DefendAssignment,
-    HaulAssignment,
-    MineAssignment,
-    PioneerAssignment,
-    UpgradeAssignment
-} from "shared/assignments";
+import { AssignmentKind, DefendAssignment, HaulAssignment, MineAssignment, WorkAssignment } from "shared/assignments";
 import { ConstructionSiteView, CreepView, DroppedView, HostileView, Pos, RoomSnapshot, StructureView } from "shared/views";
 import { FortifyTarget } from "defense/fortify";
 import { ActionKind } from "creeps/actions";
-import { decideBuild, decideDefend, decideHaul, decideMine, decidePioneer, decideUpgrade } from "creeps/executors";
+import { decideDefend, decideHaul, decideMine, decideWork } from "creeps/executors";
 
 function pos(x: number, y: number): Pos {
     return { x, y, roomName: "W1N1" };
@@ -75,8 +67,8 @@ function roomWith(overrides: Partial<RoomSnapshot> = {}): RoomSnapshot {
 
 const mine: MineAssignment = { kind: AssignmentKind.Mine, room: "W1N1", sourceId: "srcA" as Id<Source> };
 const haul: HaulAssignment = { kind: AssignmentKind.Haul, room: "W1N1", sourceId: "srcA" as Id<Source> };
-const upgrade: UpgradeAssignment = { kind: AssignmentKind.Upgrade, room: "W1N1" };
-const build: BuildAssignment = { kind: AssignmentKind.Build, room: "W1N1" };
+const upgrade: WorkAssignment = { kind: AssignmentKind.Work, room: "W1N1" };
+const build: WorkAssignment = { kind: AssignmentKind.Work, room: "W1N1" };
 const SPOT = pos(25, 21);
 
 function container(id: string, p: Pos, energy: number, hits = 250000): StructureView {
@@ -157,11 +149,11 @@ describe("haul executor", () => {
 
 describe("upgrade executor", () => {
     it("upgrades in range 3, moves to the controller otherwise", () => {
-        expect(decideUpgrade(creepAt(pos(25, 20), 50), upgrade, roomWith(), SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 20), 50), upgrade, roomWith(), SPOT)).to.deep.equal({
             kind: ActionKind.Upgrade,
             targetId: "ctrl"
         });
-        expect(decideUpgrade(creepAt(pos(40, 40), 50), upgrade, roomWith(), SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(40, 40), 50), upgrade, roomWith(), SPOT)).to.deep.equal({
             kind: ActionKind.MoveTo,
             pos: pos(25, 18),
             range: 3
@@ -170,19 +162,20 @@ describe("upgrade executor", () => {
 
     it("refills from the pile near the spot, falling back to the controller anchor", () => {
         const room = roomWith({ dropped: [pile("p1", pos(25, 21), 400)] });
-        expect(decideUpgrade(creepAt(pos(25, 22), 0), upgrade, room, SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 22), 0), upgrade, room, SPOT)).to.deep.equal({
             kind: ActionKind.Pickup,
             targetId: "p1"
         });
-        expect(decideUpgrade(creepAt(pos(25, 22), 0), upgrade, room, undefined)).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 22), 0), upgrade, room, undefined)).to.deep.equal({
             kind: ActionKind.Pickup,
             targetId: "p1" // pile is within 4 of the controller too
         });
-        expect(decideUpgrade(creepAt(pos(25, 22), 0), upgrade, roomWith(), SPOT).kind).to.equal(ActionKind.Idle);
+        // Nothing to collect anywhere → self-supply rather than idle.
+        expect(decideWork(creepAt(pos(25, 22), 0), upgrade, roomWith(), SPOT).kind).to.equal(ActionKind.MoveTo);
     });
 
     it("idles without a controller", () => {
-        expect(decideUpgrade(creepAt(pos(25, 22), 50), upgrade, roomWith({ controller: undefined }), SPOT).kind).to.equal(
+        expect(decideWork(creepAt(pos(25, 22), 50), upgrade, roomWith({ controller: undefined }), SPOT).kind).to.equal(
             ActionKind.Idle
         );
     });
@@ -193,35 +186,34 @@ describe("mine executor with a container", () => {
     const withContainer = (energy = 0, hits = 250000): RoomSnapshot =>
         roomWith({ structures: { ...roomWith().structures, [STRUCTURE_CONTAINER]: [container("cont1", seat, energy, hits)] } });
 
-    it("targets the container tile as its seat when approaching", () => {
+    it("walks to its OWN seat tile with range 0, never a range-based goal", () => {
+        // Range 0 is the whole fix. A range-1 goal does not name a tile — it asks
+        // PathFinder to choose, and PathFinder chooses identically for every miner
+        // given the same goal, so they converge on one tile and shove forever.
+        const action = decideMine(creepAt(pos(20, 20), 0), mine, withContainer(), seat);
+        expect(action).to.deep.equal({ kind: ActionKind.MoveTo, pos: seat, range: 0 });
+    });
+
+    it("re-seats a miner that got displaced off its tile", () => {
+        // FIELD BUG: the old rule only moved a miner that was OUT of harvest range,
+        // so a creep shoved off the container simply mined from wherever it landed
+        // and never went back — leaving its seat empty and the pair alternating.
+        const displaced = decideMine(creepAt(pos(10, 41), 0), mine, withContainer(), seat);
+        expect(displaced).to.deep.equal({ kind: ActionKind.MoveTo, pos: seat, range: 0 });
+    });
+
+    it("harvests once it is standing on its own seat", () => {
+        expect(decideMine(creepAt(seat, 0), mine, withContainer(), seat)).to.deep.equal({
+            kind: ActionKind.Harvest,
+            targetId: "srcA"
+        });
+    });
+
+    it("a seatless (over-staffed) miner closes to range 1 and drop-mines", () => {
         expect(decideMine(creepAt(pos(20, 20), 0), mine, withContainer())).to.deep.equal({
             kind: ActionKind.MoveTo,
-            pos: seat,
-            range: 0
-        });
-    });
-
-    it("sends a miner that does NOT own the seat to the source, not the container", () => {
-        // One container, one seat. When every miner targeted it, the losers parked
-        // adjacent to the container but 2 tiles from the source — never in harvest
-        // range, forever pathing onto an occupied tile. Two miners shoving, zero
-        // mining, and downstream: nothing to spawn with and nothing to haul.
-        expect(decideMine(creepAt(pos(20, 20), 0), mine, withContainer(), false)).to.deep.equal({
-            kind: ActionKind.MoveTo,
-            pos: pos(10, 40), // the source itself, range 1 — any free adjacent tile
+            pos: pos(10, 40),
             range: 1
-        });
-        // And once adjacent it just mines, rather than chasing the seat.
-        expect(decideMine(creepAt(pos(10, 41), 0), mine, withContainer(), false)).to.deep.equal({
-            kind: ActionKind.Harvest,
-            targetId: "srcA"
-        });
-    });
-
-    it("harvests on the container; off-seat-but-in-range miners still harvest", () => {
-        expect(decideMine(creepAt(seat, 0), mine, withContainer())).to.deep.equal({
-            kind: ActionKind.Harvest,
-            targetId: "srcA"
         });
         expect(decideMine(creepAt(pos(10, 41), 0), mine, withContainer())).to.deep.equal({
             kind: ActionKind.Harvest,
@@ -248,7 +240,7 @@ describe("mine executor with a container", () => {
 describe("haul executor with containers", () => {
     const seat = pos(11, 40);
 
-    it("collects a stray pile anywhere in the room, but never the upgraders' feed", () => {
+    it("collects a stray pile anywhere in the room", () => {
         // Source affinity is an assignment detail. Sim-measured: 2,643 energy on
         // the ground and climbing while haulers idled "no-pile", because every
         // pile sat more than two tiles from their own source.
@@ -258,10 +250,30 @@ describe("haul executor with containers", () => {
             pos: pos(40, 10),
             range: 1
         });
-        // The pile at the upgrade spot is the upgraders' feed: taking it would
-        // just be re-dropped there next tick.
+    });
+
+    it("takes the upgraders' feed when spawn-side is starving", () => {
+        // FIELD BUG (deadlock): the upgrade-spot pile used to be excluded from the
+        // stray fallback unconditionally. With an empty container, no pile near its
+        // source, and the room's only energy at the spot, a hauler idled "no-pile"
+        // while the spawn sat at zero — so nothing could be built, including the
+        // creeps that would have fixed it. Spawn-side outranks the controller feed
+        // on the deliver ladder; the collect side has to agree.
         const feedOnly = roomWith({ dropped: [pile("feed", SPOT, 900)] });
-        expect(decideHaul(creepAt(pos(30, 30), 0), haul, feedOnly, SPOT).kind).to.equal(ActionKind.Idle);
+        expect(feedOnly.structures[STRUCTURE_SPAWN]![0].store!.free).to.be.greaterThan(0);
+        expect(decideHaul(creepAt(pos(30, 30), 0), haul, feedOnly, SPOT)).to.deep.equal({
+            kind: ActionKind.MoveTo,
+            pos: SPOT,
+            range: 1
+        });
+    });
+
+    it("leaves the upgraders' feed alone once spawn-side is full", () => {
+        // The exclusion still exists — without it a hauler would pick the feed up
+        // and re-drop it in the same place forever.
+        const fed = roomWith({ dropped: [pile("feed", SPOT, 900)] });
+        fed.structures[STRUCTURE_SPAWN]![0].store = { free: 0, used: 300, byResource: { energy: 300 } };
+        expect(decideHaul(creepAt(pos(30, 30), 0), haul, fed, SPOT).kind).to.equal(ActionKind.Idle);
     });
 
     it("withdraws from the source container before chasing piles", () => {
@@ -354,20 +366,23 @@ describe("upgrade executor with a controller container", () => {
         roomWith({ structures: { ...roomWith().structures, [STRUCTURE_CONTAINER]: [container("ctrlCont", SPOT, energy, hits)] } });
 
     it("withdraws from the container before pile-scanning", () => {
-        expect(decideUpgrade(creepAt(pos(25, 22), 0), upgrade, withCtrlContainer(500), SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 22), 0), upgrade, withCtrlContainer(500), SPOT)).to.deep.equal({
             kind: ActionKind.Withdraw,
             targetId: "ctrlCont",
             resource: RESOURCE_ENERGY
         });
-        expect(decideUpgrade(creepAt(pos(25, 22), 0), upgrade, withCtrlContainer(0), SPOT).kind).to.equal(ActionKind.Idle);
+        // Empty container and no piles → self-supply rather than idle.
+        expect(decideWork(creepAt(pos(25, 22), 0), upgrade, withCtrlContainer(0), SPOT).kind).to.equal(
+            ActionKind.MoveTo
+        );
     });
 
     it("repairs the container below the floor while carrying", () => {
-        expect(decideUpgrade(creepAt(pos(25, 22), 50), upgrade, withCtrlContainer(500, 90000), SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 22), 50), upgrade, withCtrlContainer(500, 90000), SPOT)).to.deep.equal({
             kind: ActionKind.Repair,
             targetId: "ctrlCont"
         });
-        expect(decideUpgrade(creepAt(pos(25, 20), 50), upgrade, withCtrlContainer(500), SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 20), 50), upgrade, withCtrlContainer(500), SPOT)).to.deep.equal({
             kind: ActionKind.Upgrade,
             targetId: "ctrl"
         });
@@ -387,26 +402,40 @@ describe("build executor", () => {
                 [STRUCTURE_CONTAINER]: [container("srcCont", seat, 800), container("ctrlCont", SPOT, 2000)]
             }
         });
-        expect(decideBuild(creepAt(pos(12, 40), 0), build, room, SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(12, 40), 0), build, room, SPOT)).to.deep.equal({
             kind: ActionKind.Withdraw,
             targetId: "srcCont",
             resource: RESOURCE_ENERGY
         });
-        // Only the controller container has energy → pile fallback, else idle.
+        // Only the controller container has energy → the worker will not raid the
+        // upgraders' feed; with nothing else to draw from it goes and harvests.
         const dry = roomWithSites(sites, {
             structures: { ...roomWith().structures, [STRUCTURE_CONTAINER]: [container("ctrlCont", SPOT, 2000)] }
         });
-        expect(decideBuild(creepAt(pos(25, 20), 0), build, dry, SPOT).kind).to.equal(ActionKind.Idle);
+        expect(decideWork(creepAt(pos(25, 20), 0), build, dry, SPOT)).to.deep.equal({
+            kind: ActionKind.MoveTo,
+            pos: pos(10, 40),
+            range: 1
+        });
     });
 
-    it("refills from the nearest pile, not the biggest", () => {
+    it("weighs piles by energy per tick of walking, not raw size", () => {
+        // FIELD REPORT: creeps walked past energy at their feet to reach a bigger
+        // pile across the room. Neither pure-nearest nor pure-biggest is right —
+        // amount / (distance + 1) is.
         const sites = [site("s1", STRUCTURE_EXTENSION, pos(23, 23), 0, 3000)];
-        const room = roomWithSites(sites, {
-            dropped: [pile("far-big", pos(10, 41), 900), pile("near-small", pos(24, 21), 60)]
+        // A crumb underfoot loses to a real pile a few tiles away...
+        const crumb = roomWithSites(sites, {
+            dropped: [pile("worth-it", pos(21, 22), 900), pile("crumb", pos(24, 21), 60)]
         });
-        expect(decideBuild(creepAt(pos(25, 22), 0), build, room, SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 22), 0), build, crumb, SPOT).kind).to.equal(ActionKind.MoveTo);
+        // ...but a comparable pile underfoot wins over one across the room.
+        const adjacent = roomWithSites(sites, {
+            dropped: [pile("far", pos(10, 41), 900), pile("here", pos(24, 21), 400)]
+        });
+        expect(decideWork(creepAt(pos(25, 22), 0), build, adjacent, SPOT)).to.deep.equal({
             kind: ActionKind.Pickup,
-            targetId: "near-small"
+            targetId: "here"
         });
     });
 
@@ -416,11 +445,11 @@ describe("build executor", () => {
             site("ext1", STRUCTURE_EXTENSION, pos(23, 23), 100, 3000),
             site("ext2", STRUCTURE_EXTENSION, pos(27, 23), 2900, 3000) // 100 remaining — the focus
         ];
-        expect(decideBuild(creepAt(pos(25, 24), 50), build, roomWithSites(sites), SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 24), 50), build, roomWithSites(sites), SPOT)).to.deep.equal({
             kind: ActionKind.Build,
             targetId: "ext2"
         });
-        expect(decideBuild(creepAt(pos(40, 40), 50), build, roomWithSites(sites), SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(40, 40), 50), build, roomWithSites(sites), SPOT)).to.deep.equal({
             kind: ActionKind.MoveTo,
             pos: pos(27, 23),
             range: 3
@@ -428,7 +457,7 @@ describe("build executor", () => {
     });
 
     it("acts as an upgrader when no sites exist", () => {
-        expect(decideBuild(creepAt(pos(25, 20), 50), build, roomWith(), SPOT)).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 20), 50), build, roomWith(), SPOT)).to.deep.equal({
             kind: ActionKind.Upgrade,
             targetId: "ctrl"
         });
@@ -439,17 +468,17 @@ describe("build executor", () => {
         const healthy: FortifyTarget = { id: "ram2" as Id<AnyStructure>, pos: pos(26, 24), hits: 8000, targetHits: 10000 };
         const sites = [site("s1", STRUCTURE_EXTENSION, pos(23, 23), 0, 3000)];
         // Emergency (1 hit) outranks the site.
-        expect(decideBuild(creepAt(pos(25, 24), 50), build, roomWithSites(sites), SPOT, [fresh])).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 24), 50), build, roomWithSites(sites), SPOT, [fresh])).to.deep.equal({
             kind: ActionKind.Repair,
             targetId: "ram1"
         });
         // Above the emergency floor: the site wins.
-        expect(decideBuild(creepAt(pos(25, 24), 50), build, roomWithSites(sites), SPOT, [healthy])).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 24), 50), build, roomWithSites(sites), SPOT, [healthy])).to.deep.equal({
             kind: ActionKind.Build,
             targetId: "s1"
         });
         // No sites: fortify the neediest target.
-        expect(decideBuild(creepAt(pos(25, 24), 50), build, roomWith(), SPOT, [healthy])).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 24), 50), build, roomWith(), SPOT, [healthy])).to.deep.equal({
             kind: ActionKind.Repair,
             targetId: "ram2"
         });
@@ -546,8 +575,8 @@ describe("haul executor at war and with storage", () => {
     });
 });
 
-describe("pioneer executor", () => {
-    const pioneer: PioneerAssignment = { kind: AssignmentKind.Pioneer, room: "W1N1" };
+describe("worker executor: self-supply (the old pioneer role)", () => {
+    const pioneer: WorkAssignment = { kind: AssignmentKind.Work, room: "W1N1" };
     // 200 capacity: 4 CARRY, like the real body.
     const carrying = (used: number): CreepView => ({ ...creepAt(pos(11, 40), 0), store: { free: 200 - used, used, byResource: used > 0 ? { energy: used } : {} } });
 
@@ -555,12 +584,12 @@ describe("pioneer executor", () => {
         const room = roomWith();
         // Adjacent and partially loaded: KEEP harvesting (the "empty → collect"
         // rule every other executor uses would leave with 4 energy).
-        expect(decidePioneer(carrying(50), pioneer, room)).to.deep.equal({
+        expect(decideWork(carrying(50), pioneer, room, undefined)).to.deep.equal({
             kind: ActionKind.Harvest,
             targetId: "srcA"
         });
         // Empty and away: go get some.
-        expect(decidePioneer(creepAt(pos(25, 25), 0), pioneer, room)).to.deep.equal({
+        expect(decideWork(creepAt(pos(25, 25), 0), pioneer, room, undefined)).to.deep.equal({
             kind: ActionKind.MoveTo,
             pos: pos(10, 40),
             range: 1
@@ -575,13 +604,13 @@ describe("pioneer executor", () => {
             ]
         });
         const loaded = { ...carrying(200), pos: pos(25, 24) };
-        expect(decidePioneer(loaded, pioneer, withSite)).to.deep.equal({
+        expect(decideWork(loaded, pioneer, withSite, undefined)).to.deep.equal({
             kind: ActionKind.Build,
             targetId: "spawnSite"
         });
         // No sites: upgrade — at RCL1 that is what keeps the claim from expiring.
         const noSites = { ...carrying(200), pos: pos(25, 20) };
-        expect(decidePioneer(noSites, pioneer, roomWith())).to.deep.equal({
+        expect(decideWork(noSites, pioneer, roomWith(), undefined)).to.deep.equal({
             kind: ActionKind.Upgrade,
             targetId: "ctrl"
         });

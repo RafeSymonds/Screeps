@@ -29,6 +29,7 @@ import { AssignmentKind } from "shared/assignments";
 import { SpawnDemand } from "shared/spawning";
 import { SubsystemId } from "shared/subsystems";
 import { CreepView, RoomSnapshot } from "shared/views";
+import { HAULER_MIN_BODY, MINER_MIN_BODY, bodyCost, haulerBody, haulerCarryCapacity, minerBody } from "economy/bodies";
 import { RoomIntel, RoomType, roomType } from "intel/index";
 import { PRIORITY_REMOTE_BASE, PRIORITY_RESERVER, RemotesConfig } from "remotes/config";
 
@@ -71,26 +72,33 @@ export interface RemotePlanInput {
 const UNRESERVED_RATE = 5;
 const RESERVED_RATE = 10;
 
-export function remoteMinerBody(reserved: boolean): BodyPartConstant[] {
-    const work = reserved ? 5 : 3;
-    const move = Math.ceil((work + 1) / 2);
-    return [...new Array<BodyPartConstant>(work).fill(WORK), CARRY, ...new Array<BodyPartConstant>(move).fill(MOVE)];
+/** The cheapest body that can actually work a remote source, derived rather than
+ *  configured. This is the ONLY energy condition on adopting a remote: it is a
+ *  capability floor ("can we build the creep at all"), not a wealth policy. */
+export const MIN_REMOTE_CAP = bodyCost(MINER_MIN_BODY) + bodyCost(HAULER_MIN_BODY);
+
+/** Remote miners are ordinary miners, sized to the home's capacity like every
+ *  other miner. The only remote-specific input is the WORK ceiling: one miner
+ *  works a remote source alone, and an unreserved source yields 5 e/t (3 WORK) vs
+ *  a reserved one's 10 (5 WORK), so WORK beyond that is bought and wasted. */
+export function remoteMinerBody(reserved: boolean, homeCap: number): BodyPartConstant[] {
+    return minerBody(homeCap, { maxWork: reserved ? 5 : 3 });
 }
 
 export function reserverBody(homeCap: number, config: RemotesConfig): BodyPartConstant[] {
     return homeCap >= config.reserveSlackCap ? [CLAIM, CLAIM, MOVE, MOVE] : [CLAIM, MOVE];
 }
 
-/** [C,M] pairs from the round-trip throughput math at travelTiles. */
-export function remoteHaulerBody(rate: number, travelTiles: number): { body: BodyPartConstant[]; count: number } {
-    const pairs = 10; // 500 carry, full speed
-    const carry = pairs * 50;
+/** Remote haulers are ordinary haulers. Only the COUNT is remote-specific — it
+ *  comes from the round-trip throughput math at this remote's travel distance. */
+export function remoteHaulerBody(
+    rate: number,
+    travelTiles: number,
+    homeCap: number
+): { body: BodyPartConstant[]; count: number } {
+    const carry = haulerCarryCapacity(homeCap);
     const roundTrip = 2 * travelTiles + 10;
-    const count = Math.max(1, Math.ceil((rate * roundTrip) / carry));
-    return {
-        body: [...new Array<BodyPartConstant>(pairs).fill(CARRY), ...new Array<BodyPartConstant>(pairs).fill(MOVE)],
-        count
-    };
+    return { body: haulerBody(homeCap), count: Math.max(1, Math.ceil((rate * roundTrip) / carry)) };
 }
 
 /**
@@ -102,10 +110,10 @@ export function remoteHaulerBody(rate: number, travelTiles: number): { body: Bod
  * on the ground for a hauler loses ceil(amount/1000) per tick, which for one
  * standing pile per source is about 1 e/t of pure loss.
  */
-export function remoteProfit(sources: number, reserved: boolean, travelTiles: number): number {
+export function remoteProfit(sources: number, reserved: boolean, travelTiles: number, homeCap: number): number {
     const rate = sources * (reserved ? RESERVED_RATE : UNRESERVED_RATE);
     const minerCost = (sources * ((reserved ? 5 : 3) * 100 + 50 + Math.ceil(((reserved ? 5 : 3) + 1) / 2) * 50)) / 1500;
-    const hauler = remoteHaulerBody(rate, travelTiles);
+    const hauler = remoteHaulerBody(rate, travelTiles, homeCap);
     const haulerCost = (hauler.count * hauler.body.length * 50) / 1500;
     const reserverCost = reserved ? 650 / 600 : 0;
     // One standing pile per source between hauler visits: ~1 e/t each (ceil/1000).
@@ -142,10 +150,15 @@ export function rejectionReason(c: RemoteCandidate, homeCap: number, config: Rem
     if (c.intel.sources.length === 0) {
         return "no sources";
     }
-    if (homeCap < config.minHomeCap) {
-        return `home capacity ${homeCap} < ${config.minHomeCap}`;
+    // Capability, not policy: a remote miner body costs MIN_REMOTE_CAP, so below
+    // that the home physically cannot field one and adopting would only emit
+    // demands the spawn can never fund. There is deliberately NO energy-level
+    // *policy* gate above this — remotes are simply worth doing once home mining
+    // is staffed, and the count is capped by CPU (budget.md), not by wealth.
+    if (homeCap < MIN_REMOTE_CAP) {
+        return `home capacity ${homeCap} < ${MIN_REMOTE_CAP} (cannot field a remote miner)`;
     }
-    const profit = remoteProfit(c.intel.sources.length, false, c.travelTiles);
+    const profit = remoteProfit(c.intel.sources.length, false, c.travelTiles, homeCap);
     if (profit < config.minProfit) {
         return `profit ${profit.toFixed(1)} e/t < ${config.minProfit}`;
     }
@@ -175,10 +188,10 @@ export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" |
     }
 
     const kept = Object.keys(slice.rooms).filter(n => !drop.includes(n));
-    if (homeCap >= config.minHomeCap) {
+    {
         const pool = candidates
             .filter(c => eligible(c, config, homeCap) && !kept.includes(c.roomName))
-            .map(c => ({ c, profit: remoteProfit(c.intel.sources.length, false, c.travelTiles) }))
+            .map(c => ({ c, profit: remoteProfit(c.intel.sources.length, false, c.travelTiles, homeCap) }))
             .filter(x => x.profit >= config.minProfit)
             .sort((a, b) => b.profit - a.profit || (a.c.roomName < b.c.roomName ? -1 : 1));
         for (const { c } of pool) {
@@ -206,7 +219,11 @@ export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" |
 export function planRemoteDemands(input: RemotePlanInput): SpawnDemand[] {
     const { home, homeCap, candidates, slice, roster, homeHealthy, config } = input;
     const demands: SpawnDemand[] = [];
-    if (!homeHealthy || homeCap < config.minHomeCap) {
+    // Home first, always — but "home first" means home MINING is staffed, not
+    // that home is rich. Once every home source has its miners and the haulers to
+    // move what they produce, more energy is strictly better and a remote is the
+    // cheapest source of it, so there is no reason to wait.
+    if (!homeHealthy || homeCap < MIN_REMOTE_CAP) {
         return demands;
     }
     for (const [remoteName, state] of Object.entries(slice.rooms)) {
@@ -237,13 +254,14 @@ export function planRemoteDemands(input: RemotePlanInput): SpawnDemand[] {
                     home: home.name,
                     owner: SubsystemId.Remotes,
                     assignment: { kind: AssignmentKind.Mine, room: remoteName, sourceId: sid as Id<Source> },
-                    body: remoteMinerBody(reserved)
+                    body: remoteMinerBody(reserved, homeCap),
+                    minBody: MINER_MIN_BODY
                 });
             }
             slot++;
         }
         // Haulers: throughput count at travel distance, delivering home.
-        const hauler = remoteHaulerBody(rate, cand.travelTiles);
+        const hauler = remoteHaulerBody(rate, cand.travelTiles, homeCap);
         const haulersStaffed = roster.filter(c => {
             const a = (c.memory as { assignment?: { kind?: string; room?: string } }).assignment;
             return a?.kind === AssignmentKind.Haul && a.room === remoteName;
@@ -260,7 +278,8 @@ export function planRemoteDemands(input: RemotePlanInput): SpawnDemand[] {
                     sourceId: (cand.intel.sourceIds?.[h % (cand.intel.sourceIds.length || 1)] ?? "") as Id<Source>,
                     to: home.name
                 },
-                body: hauler.body
+                body: hauler.body,
+                minBody: HAULER_MIN_BODY
             });
         }
         // Reserver.
