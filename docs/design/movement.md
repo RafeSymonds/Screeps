@@ -30,6 +30,7 @@ export function _clearForTest(): void;
 export const MOVEMENT_CONFIG = {
     opsPoolPerTick: 4000,       // shared PathFinder ops budget per tick (the real limiter)
     maxOpsPerSearch: 600,       // per-search cap for in-room targets (min'd with pool remainder)
+
     maxSearchesPerTick: 10,     // secondary guard on search count
     stuckTicks: 2,              // unmoved-and-unfatigued this many ticks → repath around blockers
     plainCost: 2, swampCost: 10 // 1 MOVE per other part baseline; road preference is M3+
@@ -92,6 +93,67 @@ structures (everything except roads, containers, and my/no ramparts — at M2 th
 enumerated set is walls, spawn, extensions, controller-adjacent blockers; **hostile
 ramparts block and are an explicit M4 dependency** when foreign structures appear in
 scenario worlds). Rooms without snapshot views → undefined (PathFinder defaults).
+
+## Cross-room travel (Aug 2026)
+
+Driven by scouting and remotes reaching past the rooms next door
+([intel.md](intel.md) "Reach", [remotes.md](remotes.md) "How far"):
+
+1. **Source-keeper rooms are impassable**: `roomCallback` returns `false` for them,
+   except for the room the creep is standing in, so a creep that somehow ends up in
+   one can still walk out. Their guards are permanent, respawning and lethal, and
+   the shortest line from a home to a room two out will sometimes clip one. The
+   hazard is *created* by this change — a keeper block needs both room coordinates
+   in 4–6, which is unreachable at depth 1 and reachable at depth 2 — so the guard
+   ships with it. Reach cuts SK rooms from the room graph for the same reason; this
+   is the same rule at the tile layer.
+
+### A bigger cross-room ops cap: tried, reverted, and why
+
+`maxOpsPerSearch: 600` buys a fraction of a 125-tile path, so a cross-room search
+returns `incomplete` and the creep walks a guess and pays again a few tiles later.
+Raising it to 2000 for cross-room goals only is the obvious repair. It **broke the
+`raid-early` gate**: defenders stopped clearing a two-raider attack on a towerless
+RCL2 room, hostiles never dropping from 2 across 400 ticks.
+
+The mechanism is the shared pool. `opsPoolPerTick` is 4000 for the whole bot, so a
+single 2000-op search takes half of it and two exhaust it; every creep resolved
+after that is deferred with "walking late beats blowing the budget" — including the
+defender walking at an attacker. A scout wandering the (now much larger)
+neighbourhood is exactly the creep that issues long searches, and nothing orders
+requests, so it can go first.
+
+Bisected: 600 passes, 2000 fails, nothing else changed. Both directions confirmed
+against the same scenario.
+
+**The fix worth building is not a bigger number.** Either cap any one search's share
+of the pool, or order requests so combat outranks scouting. Until then the small cap
+holds, and incomplete-paths-used-anyway is what makes it survivable over distance.
+
+### Route-first pathing: tried, reverted, and why
+
+The textbook way to cut ops on a long path is to ask `Game.map.findRoute` which
+ROOMS lie on the way, then return `false` from `roomCallback` for every room that
+does not, turning the tile search from a disc into a corridor. It was implemented
+here — with a heap route cache, SK rooms at `Infinity` in the route callback, and
+`maxRooms` set to the route length — and it **broke cross-room travel outright**.
+
+Symptom: the scout in the long-standing `remote-mining` gate could no longer reach
+the neighbour it had always reached. It oscillated between two rooms *adjacent* to
+the target for 1500 ticks, so intel never recorded the room, remotes never adopted
+it, and the whole remote arc silently produced nothing. Bisected by returning
+`undefined` from `computeRoute` and re-running the same scenario: the scout arrived
+at t=287.
+
+Mechanism not established — the leading suspect is `maxRooms` being set to the
+route length, since PathFinder counts rooms it *touches*, not rooms it accepts, so
+a tight cap can abort the search early and yield exactly this partial-path wander.
+Recorded as unproven rather than asserted.
+
+Worth revisiting deliberately (measure ops before and after, keep `maxRooms: 16`,
+and re-run the remote gates). It is not worth trading working travel for a CPU
+optimisation, and the safety half of what it bought — never routing through a
+keeper room — is delivered above without it.
 
 ## Memory Schema
 

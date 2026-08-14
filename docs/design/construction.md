@@ -85,11 +85,25 @@ investment above.
    progress trumps plan drift), and never remove a site with ≥ 50% build progress
    (site removal refunds nothing; finishing a half-paid structure beats torching sunk
    energy — layout incorporates it on the next replan).
-2. `budget = maxOpenSites − (my open sites − sites being removed this run)` — **all**
-   my sites count against the budget, on-plan or not (review: counting only on-plan
-   sites let the spawn exception hold a third site open, violating the gate's own
-   ≤ 2 invariant); if ≤ 0, done. **maxOpenSites = 2**: one site being finished plus
-   one staged keeps builders always busy without ever spreading them.
+2. **Two budgets**, `maxOpenSites − (my open INVESTMENT sites − removals)` and
+   `maxOpenMaintenanceSites − (my open MAINTENANCE sites − removals)`. **All** my
+   sites count, on-plan or not (review: counting only on-plan sites let the spawn
+   exception hold a third site open, violating the gate's own ≤ 2 invariant).
+
+   **maxOpenSites = 2**: one site being finished plus one staged keeps builders
+   always busy without ever spreading them. **maxOpenMaintenanceSites = 6** because
+   roads want the opposite: a road is worth nothing until the whole path exists, and
+   one site at a time builds it end-to-end at walking pace (field-reported as "1
+   piece of road at a time to a source"). Opening the path lets the maintenance seat
+   build whichever piece it is beside instead of commuting to a designated one — the
+   same worker and the same total work, better ordered.
+
+   Producers still come first: maintenance types are considered **only when the
+   investment queue is idle** — nothing placed this run and nothing already in
+   flight. So roads never compete with the extensions that make everything else
+   affordable, and the separate budget is not a second ladder that could starve the
+   first (economy.md's regenerating-work rule — roads are legal 2500-at-a-time at
+   every RCL, so they must never be able to outrank anything).
 3. Walk `BUILD_PRIORITY`, placements in array order. For each type: `allowed =
    CONTROLLER_STRUCTURES[type][rcl] ?? 0`, and `total` = existing structures of that
    type anywhere + open sites of that type, **incremented as creates are emitted** (a

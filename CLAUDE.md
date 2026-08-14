@@ -151,7 +151,8 @@ changes; keep `npm run test` for pure logic. Full details and rationale:
 -   Scenarios (starting world states) live in `sim/scenarios/` and are picked with
     `--scenario <name>`: `default` (fresh RCL1), `growth` (RCL3, empty footprint), `full-base`
     (mature RCL8 + workforce), `wiped-base` (intact base, zero creeps), `under-attack` (defended
-    base + hostile wave), `remote-mining` / `remote-invader` (home room + adoptable neighbor).
+    base + hostile wave), `remote-mining` / `remote-invader` (home room + adoptable neighbor),
+    `remote-far` (home + barren neighbor + a 2-source room one border beyond it).
     Build new ones with the `sim/scenarios/_world.js` helpers; to author one, use the
     **`/build-scenario`** skill.
 -   Node-24 reality, don't "simplify" away: the harness installs the mockup's **git master** +

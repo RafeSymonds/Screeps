@@ -25,7 +25,7 @@
  * with nothing. Getting this wrong produces silent per-tick failures rather than
  * an error, which is why the occupancy check is explicit here.
  */
-import { BUILD_PRIORITY } from "shared/build";
+import { BUILD_PRIORITY, isInvestmentSite } from "shared/build";
 import { ConstructionSiteView, Pos } from "shared/views";
 import { BasePlan } from "layout/plan";
 import { ConstructionConfig } from "construction/config";
@@ -78,13 +78,23 @@ export function sequenceBuilds(input: ConstructionInput): ConstructionIntents {
         removed.add(site.id);
     }
 
-    // --- Budget: ALL my open sites count, minus the ones removed this run ---------
+    // --- Budgets: ALL my open sites count, minus the ones removed this run --------
+    // Two budgets, because the two kinds of site want opposite things. Investment
+    // sites (extensions, towers, storage) want the crew CONVERGING so they finish;
+    // maintenance sites (roads) want the whole path open so the one worker on them
+    // can build the piece it is next to. They cannot share a budget without one
+    // starving the other — and it was roads that starved, one tile at a time.
     const openSites = mySites.filter(s => !removed.has(s.id));
-    let budget = config.maxOpenSites - openSites.length;
+    const budgets: Record<"investment" | "maintenance", number> = {
+        investment: config.maxOpenSites - openSites.filter(s => isInvestmentSite(s.type)).length,
+        maintenance: config.maxOpenMaintenanceSites - openSites.filter(s => !isInvestmentSite(s.type)).length
+    };
+    const classOf = (type: StructureConstant): "investment" | "maintenance" =>
+        isInvestmentSite(type) ? "investment" : "maintenance";
 
     // --- Priority walk ------------------------------------------------------------
     const create: ConstructionIntents["create"] = [];
-    if (budget <= 0) {
+    if (budgets.investment <= 0 && budgets.maintenance <= 0) {
         return { create, removeSiteIds };
     }
 
@@ -110,8 +120,16 @@ export function sequenceBuilds(input: ConstructionInput): ConstructionIntents {
     }
 
     const belowRcl2 = rcl < 2;
+    // Producers first, still. Maintenance types are considered only once the
+    // investment queue is genuinely idle — nothing placed this run and nothing
+    // already in flight — so roads never compete with the extensions that make
+    // everything else affordable. Once it IS roads' turn, they go down as a path
+    // rather than a tile at a time.
+    const investmentIdle = (): boolean => create.length === 0 && budgets.investment === config.maxOpenSites;
     for (const type of BUILD_PRIORITY) {
-        if (budget <= 0) break;
+        const kind = classOf(type);
+        if (budgets[kind] <= 0) continue;
+        if (kind === "maintenance" && !investmentIdle()) continue;
         // Below RCL2 the only permitted create is the recovery spawn. A fresh or
         // wiped room has one job — get a spawn up — and every other site would
         // compete for the tiny amount of labor it has.
@@ -122,7 +140,7 @@ export function sequenceBuilds(input: ConstructionInput): ConstructionIntents {
         if (allowed <= 0) continue;
         let total = (structureCount.get(type) ?? 0) + (siteCount.get(type) ?? 0);
         for (const pos of plan.places[type] ?? []) {
-            if (budget <= 0 || total >= allowed) break;
+            if (budgets[kind] <= 0 || total >= allowed) break;
             const k = key(pos);
             if (structuresAt.get(k)?.has(type) || sitesAt.get(k)?.has(type)) continue;
             // Blocked: an obstacle structure of another type on the tile — unless the
@@ -130,7 +148,7 @@ export function sequenceBuilds(input: ConstructionInput): ConstructionIntents {
             if (!STACKABLE.has(type) && occupiedObstacle.has(k)) continue;
             create.push({ pos, type });
             total += 1;
-            budget -= 1;
+            budgets[kind] -= 1;
         }
     }
     return { create, removeSiteIds };

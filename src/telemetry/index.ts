@@ -78,6 +78,10 @@ export interface WindowStats {
     avgCpu: number;
     maxCpu: number;
     minBucket: number;
+    /** Mean live creep count over the window. Paired with avgCpu this is the ONLY
+     *  way to learn what a creep actually costs — see shared/budget.ts, which
+     *  shipped a guessed 0.35 for want of exactly this measurement. */
+    avgCreeps: number;
     entries: Record<string, WindowEntryStats>;
 }
 
@@ -96,12 +100,13 @@ interface HeapWindow {
     totalCpu: number;
     maxCpu: number;
     minBucket: number;
+    totalCreeps: number;
     errors: number;
     entries: Record<string, EntryStats>;
 }
 
 function emptyWindow(): HeapWindow {
-    return { ticks: 0, totalCpu: 0, maxCpu: 0, minBucket: Infinity, errors: 0, entries: {} };
+    return { ticks: 0, totalCpu: 0, maxCpu: 0, minBucket: Infinity, totalCreeps: 0, errors: 0, entries: {} };
 }
 
 let window = emptyWindow();
@@ -166,10 +171,11 @@ export function beginTick(time: number): void {
  * once the window has enough ticks to mean something — a single expensive tick
  * during a base rebuild is normal, a sustained average at the ceiling is not.
  */
-export function endTick(cpuUsed: number, limit: number, bucket: number): void {
+export function endTick(cpuUsed: number, limit: number, bucket: number, creeps = 0): void {
     guard("endTick", () => {
         window.ticks += 1;
         window.totalCpu += cpuUsed;
+        window.totalCreeps += creeps;
         window.maxCpu = Math.max(window.maxCpu, cpuUsed);
         window.minBucket = Math.min(window.minBucket, bucket);
         if (window.ticks >= CFG.ALERT_MIN_WINDOW_TICKS) {
@@ -204,6 +210,7 @@ export function flush(): void {
             ticks: window.ticks,
             avgCpu: round2(window.totalCpu / window.ticks),
             maxCpu: round2(window.maxCpu),
+            avgCreeps: round2(window.totalCreeps / window.ticks),
             minBucket: window.minBucket === Infinity ? 0 : window.minBucket,
             entries
         };
@@ -212,6 +219,48 @@ export function flush(): void {
         stats.counters.errors += window.errors;
         window = emptyWindow();
     });
+}
+
+/**
+ * §6-blessed read: the empirical cost of a creep, in CPU per tick, averaged over
+ * every window in the ring that had creeps in it.
+ *
+ * `budget.ts` shipped a **guessed** 0.35 for this, marked PROVISIONAL, because the
+ * sim measures isolate execution time rather than the game's intent charge and so
+ * cannot supply it. A live shard can: it has both numbers already, and the ring
+ * spans thousands of ticks.
+ *
+ * Overheads are subtracted before dividing, because they do not scale with creeps.
+ * They are themselves modelled numbers, so the result is only as good as they are —
+ * but being wrong about a couple of CPU spread over dozens of creeps is a far
+ * smaller error than being wrong about the per-creep rate itself, which multiplies.
+ *
+ * Returns undefined until there is enough evidence to beat a guess.
+ */
+export function measuredCpuPerCreep(nonCreepOverhead: number, minWindows = 3): number | undefined {
+    const stats = Memory.stats;
+    if (!stats?.ring) {
+        return undefined;
+    }
+    let cpu = 0;
+    let creeps = 0;
+    let windows = 0;
+    for (const w of stats.ring) {
+        // avgCreeps is absent on windows written before this shipped; those are
+        // unusable rather than zero-creep, and treating them as zero would divide
+        // real CPU by nothing.
+        if (!w || typeof w.avgCreeps !== "number" || w.avgCreeps <= 0) {
+            continue;
+        }
+        cpu += w.avgCpu;
+        creeps += w.avgCreeps;
+        windows += 1;
+    }
+    if (windows < minWindows || creeps <= 0) {
+        return undefined;
+    }
+    const creepCpu = cpu - nonCreepOverhead * windows;
+    return creepCpu > 0 ? creepCpu / creeps : undefined;
 }
 
 /** §6-blessed read of the stats slice — expansion's CPU-headroom gate needs the

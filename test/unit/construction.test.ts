@@ -120,16 +120,19 @@ describe("construction sequencer", () => {
     });
 
     it("lets ramparts and roads stack on occupied tiles", () => {
-        // Ramparts are gated to RCL4 by config.minRcl (build ORDER, not legality),
-        // so this stacking case is exercised at RCL4.
+        // Ramparts are gated to RCL6 by config.minRcl (build ORDER, not legality),
+        // and — being maintenance — only considered once the investment queue is
+        // idle, so everything else this plan wants is built first.
         const p = plan();
         const structures = [
             { type: STRUCTURE_SPAWN, pos: pos(25, 25) },
-            ...p.places[STRUCTURE_EXTENSION]!.slice(0, 5).map(q => ({ type: STRUCTURE_EXTENSION, pos: q })),
+            ...p.places[STRUCTURE_EXTENSION]!.map(q => ({ type: STRUCTURE_EXTENSION, pos: q })),
             ...p.places[STRUCTURE_CONTAINER]!.map(q => ({ type: STRUCTURE_CONTAINER, pos: q })),
+            ...p.places[STRUCTURE_TOWER]!.map(q => ({ type: STRUCTURE_TOWER, pos: q })),
+            ...p.places[STRUCTURE_STORAGE]!.map(q => ({ type: STRUCTURE_STORAGE, pos: q })),
             ...p.places[STRUCTURE_ROAD]!.map(q => ({ type: STRUCTURE_ROAD, pos: q }))
         ];
-        const { create } = sequenceBuilds(input({ rcl: 4, structures, config: { ...CONSTRUCTION_CONFIG, maxOpenSites: 12 } }));
+        const { create } = sequenceBuilds(input({ rcl: 6, structures, config: { ...CONSTRUCTION_CONFIG, maxOpenSites: 12 } }));
         // The property under test: a rampart on the OCCUPIED spawn tile is not
         // skipped (ramparts stack). The exact list varies with what else is
         // eligible at this RCL, so assert the stacking, not the whole queue.

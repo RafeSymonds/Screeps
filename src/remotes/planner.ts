@@ -43,7 +43,11 @@ import { PRIORITY_REMOTE_BASE, PRIORITY_RESERVER, RemotesConfig } from "remotes/
 export interface RemoteCandidate {
     roomName: string;
     intel: RoomIntel;
-    /** approxTravelTiles: linearRoomDistance × 50 + 25 (adapter-computed, tiles). */
+    /** Room transitions from home over the exit graph (intel/reach.ts). NOT
+     *  linear distance, which calls a diagonal neighbour 1 room away when getting
+     *  there means crossing two borders. */
+    depth: number;
+    /** approxTravelTiles: depth × 50 + 25 (adapter-computed, tiles). */
     travelTiles: number;
     unsafe: boolean;
     /** Reserved by someone who isn't us (adapter compares usernames) — OUR
@@ -71,6 +75,9 @@ export interface RemotePlanInput {
     /** How many remotes this home's CPU share affords (shared/budget.ts). Was a
      *  hardcoded 1, because nothing computed what was actually affordable. */
     remotesAllowed: number;
+    /** How many remote creeps that same share affords, all remotes together —
+     *  the constraint that makes distance cost something (shared/budget.ts). */
+    remoteCreepsAllowed: number;
     time: number;
     config: RemotesConfig;
 }
@@ -88,8 +95,12 @@ export const MIN_REMOTE_CAP = bodyCost(MINER_MIN_BODY) + bodyCost(HAULER_MIN_BOD
  *  other miner. The only remote-specific input is the WORK ceiling: one miner
  *  works a remote source alone, and an unreserved source yields 5 e/t (3 WORK) vs
  *  a reserved one's 10 (5 WORK), so WORK beyond that is bought and wasted. */
-export function remoteMinerBody(reserved: boolean, homeCap: number): BodyPartConstant[] {
-    return minerBody(homeCap, { maxWork: reserved ? 5 : 3 });
+export function remoteMinerBody(reserved: boolean, homeCap: number, travelTiles: number): BodyPartConstant[] {
+    // travelTiles is what stops this being an ordinary miner in the one way that
+    // matters: the home ratio of 1 MOVE per 5 WORK is chosen for a creep that walks
+    // ten tiles once, and it makes a remote miner take 625 ticks to reach a room two
+    // borders out (economy/bodies.ts).
+    return minerBody(homeCap, { maxWork: reserved ? 5 : 3, travelTiles });
 }
 
 export function reserverBody(homeCap: number, config: RemotesConfig): BodyPartConstant[] {
@@ -134,6 +145,28 @@ export function remoteProfit(sources: number, reserved: boolean, travelTiles: nu
     return rate - minerCost - haulerCost - reserverCost - pileDecay;
 }
 
+/** Would we reserve this remote? Extracted because the answer is needed twice —
+ *  once to record the decision, once to size the crew that decision implies. */
+export function willReserve(c: RemoteCandidate, homeCap: number, config: RemotesConfig): boolean {
+    return c.intel.sources.length >= 2 && homeCap >= config.reserveFloorCap;
+}
+
+/**
+ * How many creeps this remote will keep alive: one miner per source, the haulers
+ * its round trip demands, and a reserver if it earns one.
+ *
+ * This is where distance turns into cost. Income is a property of the room —
+ * two sources pay the same whether they are next door or three rooms out — but
+ * the haulers needed to move that income scale with the round trip, so a far
+ * remote buys the same energy with substantially more creeps. Creeps are what CPU
+ * is spent on, so pricing remotes in creeps is what makes the budget notice.
+ */
+export function remoteCrewSize(c: RemoteCandidate, reserved: boolean, homeCap: number): number {
+    const sources = c.intel.sources.length;
+    const rate = sources * (reserved ? RESERVED_RATE : UNRESERVED_RATE);
+    return sources + remoteHaulerBody(rate, c.travelTiles, homeCap).count + (reserved ? 1 : 0);
+}
+
 export interface RemotePlan {
     adopt: string[];
     drop: string[];
@@ -150,6 +183,12 @@ export function rejectionReason(c: RemoteCandidate, homeCap: number, config: Rem
     const type = roomType(c.roomName);
     if (type !== RoomType.Normal) {
         return `${type} room`;
+    }
+    // Normally unreachable — the adapter only builds candidates within maxDepth —
+    // but the gate is the one place that explains a rejection, so the reason has
+    // to exist here or "why isn't that room a remote?" has no printable answer.
+    if (c.depth > config.maxDepth) {
+        return `${c.depth} rooms out (max ${config.maxDepth})`;
     }
     if (c.intel.owner !== undefined) {
         return `owned by ${c.intel.owner}`;
@@ -188,7 +227,7 @@ function eligible(c: RemoteCandidate, config: RemotesConfig, homeCap: number): b
  * ineligible frees its slot in the same tick something better can take it.
  */
 export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" | "drop" | "reserve"> {
-    const { candidates, slice, homeCap, remotesAllowed, config } = input;
+    const { candidates, slice, homeCap, remotesAllowed, remoteCreepsAllowed, config } = input;
     const adopt: string[] = [];
     const drop: string[] = [];
     const reserve: Record<string, boolean> = {};
@@ -201,7 +240,15 @@ export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" |
     }
 
     const kept = Object.keys(slice.rooms).filter(n => !drop.includes(n));
+    const crewOf = (c: RemoteCandidate): number => remoteCrewSize(c, willReserve(c, homeCap, config), homeCap);
     {
+        // Already-adopted remotes have first call on the crew budget: dropping a
+        // working remote to make room for a speculative one throws away every
+        // creep already walking there.
+        let crew = kept.reduce((sum, name) => {
+            const cand = candidates.find(c => c.roomName === name);
+            return sum + (cand ? crewOf(cand) : 0);
+        }, 0);
         const pool = candidates
             .filter(c => eligible(c, config, homeCap) && !kept.includes(c.roomName))
             .map(c => ({ c, profit: remoteProfit(c.intel.sources.length, false, c.travelTiles, homeCap) }))
@@ -211,14 +258,23 @@ export function planAdoption(input: RemotePlanInput): Pick<RemotePlan, "adopt" |
             if (kept.length + adopt.length >= remotesAllowed) {
                 break;
             }
+            const size = crewOf(c);
+            // The crew cap governs how many MORE remotes, never whether to have
+            // one at all: `remotesAllowed ≥ 1` is the budget table already saying
+            // a remote is affordable, and letting a second, finer reading of the
+            // same share overrule it would produce a home that is allowed a remote
+            // and adopts none. First one in is exempt; everything after pays.
+            if (kept.length + adopt.length > 0 && crew + size > remoteCreepsAllowed) {
+                continue;
+            }
             adopt.push(c.roomName);
+            crew += size;
         }
     }
 
     for (const name of [...kept, ...adopt]) {
         const cand = candidates.find(c => c.roomName === name);
-        const sources = cand?.intel.sources.length ?? 0;
-        reserve[name] = sources >= 2 && homeCap >= config.reserveFloorCap;
+        reserve[name] = cand !== undefined && willReserve(cand, homeCap, config);
     }
     return { adopt, drop, reserve };
 }
@@ -267,19 +323,38 @@ export function planRemoteDemands(input: RemotePlanInput): SpawnDemand[] {
                     home: home.name,
                     owner: SubsystemId.Remotes,
                     assignment: { kind: AssignmentKind.Mine, room: remoteName, sourceId: sid as Id<Source> },
-                    body: remoteMinerBody(reserved, homeCap),
+                    body: remoteMinerBody(reserved, homeCap, cand.travelTiles),
                     minBody: MINER_MIN_BODY
                 });
             }
             slot++;
         }
-        // Haulers: throughput count at travel distance, delivering home.
+        // Haulers: throughput count at travel distance, delivering home — but
+        // scaled to the miners that have ARRIVED, not to the miners we intend to
+        // have. The full fleet is sized for the room's theoretical rate, and that
+        // rate is zero until someone is standing on a source: sizing off intent
+        // sent eight haulers to a remote with no miner in it, where they shuttled
+        // nothing for hundreds of ticks and then came home with a few dozen energy
+        // each (sim-observed, and field-reported as "8 haulers in one remote" and
+        // "haulers bring back a small percentage of their capacity").
+        //
+        // Haulers travel at full speed and miners do not, so they would arrive
+        // first and wait regardless; ramping with arrivals costs nothing real.
+        const minersOnStation = roster.filter(c => {
+            const a = (c.memory as { assignment?: { kind?: string; room?: string } }).assignment;
+            return a?.kind === AssignmentKind.Mine && a.room === remoteName && c.pos.roomName === remoteName;
+        }).length;
         const hauler = remoteHaulerBody(rate, cand.travelTiles, homeCap);
+        const sourceCount = Math.max(1, sourceIds.length);
+        const haulersWanted = Math.min(
+            hauler.count,
+            Math.ceil((hauler.count * Math.min(minersOnStation, sourceCount)) / sourceCount)
+        );
         const haulersStaffed = roster.filter(c => {
             const a = (c.memory as { assignment?: { kind?: string; room?: string } }).assignment;
             return a?.kind === AssignmentKind.Haul && a.room === remoteName;
         }).length;
-        for (let h = haulersStaffed; h < hauler.count; h++) {
+        for (let h = haulersStaffed; h < haulersWanted; h++) {
             demands.push({
                 id: `rhaul:${remoteName}:${h}`,
                 priority: PRIORITY_REMOTE_BASE + 1 + h * 2,

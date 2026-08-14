@@ -194,6 +194,74 @@ describe("movement", () => {
         expect(blocker.move.firstCall.args[0]).to.equal(LEFT); // the swap: toward the mover's tile
     });
 
+    describe("cross-room routing", () => {
+        /** Capture the opts PathFinder was called with, and answer the goal. */
+        function captureSearch(result: Partial<{ ops: number; incomplete: boolean; path: any[] }> = {}): {
+            opts: () => any;
+            all: () => any[];
+            calls: () => number;
+        } {
+            const seen: any[] = [];
+            sinon.stub(g().PathFinder, "search").callsFake((_o: any, _g: any, opts: any) => {
+                seen.push(opts);
+                return {
+                    path: result.path ?? eastPath(10, 10, 3),
+                    ops: result.ops ?? 100,
+                    cost: 5,
+                    incomplete: result.incomplete ?? false
+                };
+            });
+            return { opts: () => seen[seen.length - 1], all: () => seen, calls: () => seen.length };
+        }
+
+        it("never paths through a source-keeper room", () => {
+            // Their guards are permanent, respawning and lethal. The shortest line
+            // from a home to a room two out will sometimes clip one, and the first
+            // creep to take that shortcut dies there. The hazard is CREATED by
+            // pathing further than next door: a keeper block needs both room
+            // coordinates in 4-6, unreachable at depth 1 and reachable at depth 2.
+            installCreep("c1", 10, 10);
+            const search = captureSearch();
+            requestMove("c1", { x: 25, y: 25, roomName: "W3N1" }, 20);
+            resolveMoves(ctx());
+            const cb = search.opts().roomCallback;
+            expect(cb("W14N14")).to.equal(false); // source keeper
+            expect(cb("W3N1")).to.not.equal(false);
+            expect(cb("W1N2")).to.not.equal(false); // an ordinary detour stays open
+        });
+
+        it("still lets a creep walk OUT of a keeper room it somehow ended up in", () => {
+            const creep = installCreep("c1", 10, 10);
+            creep.pos.roomName = "W14N14";
+            const search = captureSearch();
+            requestMove("c1", { x: 25, y: 25, roomName: "W13N14" }, 20);
+            resolveMoves(ctx());
+            expect(search.opts().roomCallback("W14N14")).to.not.equal(false);
+        });
+
+        it("holds cross-room searches to the same ops cap as in-room ones", () => {
+            // Raising it for cross-room goals only is the obvious repair — 600 ops
+            // buys a fraction of a 125-tile path — and it broke the raid-early
+            // gate: one 2000-op search takes half the shared 4000-op pool, so
+            // every creep resolved after it stands, including the defender walking
+            // at an attacker. See movement/config.ts.
+            installCreep("far", 10, 10);
+            installCreep("near", 12, 12);
+            const search = captureSearch();
+            requestMove("far", { x: 25, y: 25, roomName: "W3N1" }, 20);
+            requestMove("near", { x: 40, y: 10, roomName: "W1N1" }, 1);
+            resolveMoves(ctx());
+
+            const [cross, inRoom] = search.all();
+            expect(cross.maxOps).to.equal(CFG.maxOpsPerSearch);
+            expect(cross.maxRooms).to.equal(16);
+            // Same-room goals stay pinned to one room: without it PathFinder will
+            // route out through a neighbour and back.
+            expect(inRoom.maxOps).to.equal(CFG.maxOpsPerSearch);
+            expect(inRoom.maxRooms).to.equal(1);
+        });
+    });
+
     it("never shoves a creep with its own plans, on fatigue, or on a container seat", () => {
         installCreep("mover", 10, 10);
         const busy = installCreep("busy", 11, 10);

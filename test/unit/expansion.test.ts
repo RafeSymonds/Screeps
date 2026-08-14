@@ -22,7 +22,16 @@ function intelOf(sources: number, extra: Partial<RoomIntel> = {}): RoomIntel {
 }
 
 function candidate(name: string, sources: number, extra: Partial<ExpansionCandidate> = {}): ExpansionCandidate {
-    return { roomName: name, intel: intelOf(sources), travelTiles: 75, unsafe: false, foreignReserved: false, ...extra };
+    const depth = extra.depth ?? 1;
+    return {
+        roomName: name,
+        intel: intelOf(sources),
+        depth,
+        travelTiles: depth * 50 + 25,
+        unsafe: false,
+        foreignReserved: false,
+        ...extra
+    };
 }
 
 function creep(kind: AssignmentKind, room: string, name = `c-${kind}-${room}`): CreepView {

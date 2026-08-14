@@ -14,7 +14,7 @@ import { AssignmentKind } from "shared/assignments";
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
 import { CreepView } from "shared/views";
-import { getIntel, isUnsafe } from "intel/index";
+import { getIntel, isUnsafe, reachableRooms } from "intel/index";
 import { alert, AlertKind, log } from "telemetry/index";
 import { EXPANSION_CONFIG } from "expansion/config";
 import { ClaimPhase, ExpansionMemory, planExpansionDecision, planExpansionDemands } from "expansion/plan";
@@ -53,13 +53,18 @@ export function runDecision(ctx: TickContext, wanted: boolean): void {
     const time = ctx.snapshot.time;
     const me = Object.values(Game.spawns)[0]?.owner.username;
 
-    // Candidates: neighbors of every owned room we have intel on.
+    // Candidates: rooms within `maxRange` border crossings of an owned room that
+    // we have intel on. The horizon is now a real, movable number rather than an
+    // artifact of how far a scout happened to walk — intel reaches further than
+    // this (scoutDepth 3), so raising maxRange is a one-line strategic decision
+    // rather than a blocked one. It stays at 1 deliberately: a claimed room is a
+    // room we must defend, supply and rebuild, and distance costs far more there
+    // than it does for a remote we can simply abandon.
     const candidates: ExpansionCandidate[] = [];
     const seen = new Set<string>();
     for (const room of ctx.snapshot.myRooms) {
-        const exits = Game.map.describeExits(room.name);
-        for (const name of exits ? Object.values(exits).filter((n): n is string => typeof n === "string") : []) {
-            if (seen.has(name)) {
+        for (const [name, depth] of reachableRooms(room.name, EXPANSION_CONFIG.maxRange)) {
+            if (depth === 0 || seen.has(name)) {
                 continue;
             }
             seen.add(name);
@@ -70,7 +75,10 @@ export function runDecision(ctx: TickContext, wanted: boolean): void {
             candidates.push({
                 roomName: name,
                 intel,
-                travelTiles: Game.map.getRoomLinearDistance(room.name, name) * 50 + 25,
+                depth,
+                // Border crossings, not linear distance — chebyshev calls a
+                // diagonal neighbour 1 room away when reaching it costs two.
+                travelTiles: depth * 50 + 25,
                 unsafe: isUnsafe(name, time),
                 foreignReserved: intel.reservedBy !== undefined && intel.reservedBy !== me
             });

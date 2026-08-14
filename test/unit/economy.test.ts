@@ -1,8 +1,9 @@
 import { expect } from "../helpers/chai";
 import { AssignmentKind } from "shared/assignments";
 import { CreepView, Pos, RoomSnapshot } from "shared/views";
-import { MINER_MIN_BODY, haulerBody, minerBody, workerBody } from "economy/bodies";
+import { MINER_MIN_BODY, bodyCost, haulerBody, minerBody, workerBody } from "economy/bodies";
 import { ECONOMY_CONFIG } from "economy/config";
+import { LimitReason } from "economy/limits";
 import { planRoom, RoomPlanInput } from "economy/planner";
 import { chooseUpgradeSpot, countAdjacentSpots } from "economy/spots";
 import { TerrainGrid } from "snapshot/terrain";
@@ -128,10 +129,23 @@ describe("economy bodies", () => {
         expect(MINER_MIN_BODY).to.deep.equal([WORK, MOVE]);
     });
 
-    it("gives a miner exactly one CARRY when a link serves its source", () => {
+    it("sizes a link miner's CARRY to about ten ticks of harvest, not to one part", () => {
         // Somebody has to put energy INTO a source link, and it is the miner
-        // standing beside it (economy.md "Links") — the sole exception.
-        expect(counts(minerBody(550, { withLink: true }))).to.deep.equal({ [WORK]: 4, [CARRY]: 1, [MOVE]: 1 });
+        // standing beside it (economy.md "Links") — the sole exception to no-CARRY.
+        //
+        // One CARRY makes the transfer possible and much too expensive: a 10-WORK
+        // miner harvests 20 energy a tick, so a 50-capacity store fills in 2.5
+        // ticks and the miner spends an intent — a flat 0.2 CPU — every third tick
+        // for its whole life. Buying store cuts that ~4× at 50 energy a part.
+        const small = counts(minerBody(550, { withLink: true }));
+        expect(small[WORK]).to.be.at.least(3);
+        expect(small[CARRY]).to.be.at.least(1);
+
+        const big = minerBody(1800, { withLink: true });
+        const work = big.filter(p => p === WORK).length;
+        const carry = big.filter(p => p === CARRY).length;
+        const ticksPerTransfer = (carry * CARRY_CAPACITY) / (work * HARVEST_POWER);
+        expect(ticksPerTransfer, `work ${work} carry ${carry}`).to.be.at.least(8);
     });
 
     it("scales hauler pairs with capacity", () => {
@@ -146,16 +160,47 @@ describe("economy bodies", () => {
         // Scales with capacity, bounded by the 50-part limit.
         expect(workerBody(100_000)).to.have.length(48);
     });
+
+    it("leaves the unit remainder unspent — headroom to spawn the next creep", () => {
+        // Spending it looks free (+50% throughput at RCL2 for the same creep slot).
+        // The argument against is that unspent CAPACITY is not unspent energy: a
+        // worker sized to the whole 550 empties the spawn and every extension, so
+        // whatever the room needs next is delayed or built small. That argument is
+        // untested — see the note in bodies.ts — and this test pins today's
+        // behaviour so changing it has to be deliberate.
+        expect(bodyCost(workerBody(550))).to.equal(400);
+        expect(counts(workerBody(550))).to.deep.equal({ [WORK]: 2, [CARRY]: 2, [MOVE]: 2 });
+    });
 });
 
 describe("economy planner", () => {
-    it("demands the gate-map steady state: 6 miners, 7 haulers, 7 upgraders", () => {
+    it("demands the gate-map income roles in full, and workers a STEP at a time", () => {
+        // Income roles are demanded to their full target — an unstaffed source
+        // produces nothing and the room cannot wait. Workers are a ramp: the plan
+        // is a step, not a jump, because a queue that always holds something
+        // affordable keeps the spawn permanently empty (see the note in planner.ts,
+        // sim-caught in three gates at once).
         const { demands } = planRoom(input());
         const byKind = Object.groupBy(demands, d => d.assignment.kind);
         expect(byKind[AssignmentKind.Mine]).to.have.length(6);
         expect(byKind[AssignmentKind.Haul]).to.have.length(7);
-        expect(byKind[AssignmentKind.Work]).to.have.length(7);
-        expect(demands).to.have.length(ALLOWED);
+        expect(byKind[AssignmentKind.Work]).to.have.length(ECONOMY_CONFIG.workerGrowthStep);
+    });
+
+    it("ramps workers only while the room is holding energy to spare", () => {
+        // The brake. A room that just spent its pool gets no growth offer, so the
+        // queue runs dry and the pool refills — which is what leaves headroom for
+        // a defender, and what stops the spawn sitting at zero forever.
+        const alive = [worker(AssignmentKind.Work, undefined), worker(AssignmentKind.Work, undefined)];
+        const workDemands = (energyAvailable: number): number => {
+            const room = gateRoom();
+            room.energyAvailable = energyAvailable;
+            return planRoom({ ...input(alive), room }).demands.filter(
+                d => d.assignment.kind === AssignmentKind.Work
+            ).length;
+        };
+        expect(workDemands(300)).to.equal(ECONOMY_CONFIG.workerGrowthStep); // holding energy → grow
+        expect(workDemands(0)).to.equal(0); // just spent it → let the pool refill
     });
 
     it("interleaves miners and haulers pairwise; upgraders last", () => {
@@ -331,24 +376,24 @@ describe("economy planner", () => {
             worker(AssignmentKind.Haul, "srcA"),
             worker(AssignmentKind.Haul, "srcB")
         ];
-        const plan = (room: RoomSnapshot) => planRoom({ ...input(staffed), room, creepsAllowed: 40 });
-        const workOf = (room: RoomSnapshot): number =>
-            plan(room)
-                .demands.filter(d => d.assignment.kind === AssignmentKind.Work)
-                .reduce((sum, d) => sum + d.body.filter(p => p === WORK).length, 0);
-        // A rich room fields enough WORK to consume its whole 20 e/t.
-        expect(workOf(rich)).to.be.at.least(20);
-        // A poor room cannot: at capacity 300 a worker is 1 WORK, so consuming
-        // 20 e/t would take 20 creeps, which is CPU-absurd and is what the
-        // maxWorkers rail exists to refuse. Early surplus is real and it is
-        // self-correcting — it funds the extensions that raise the cap, which
-        // makes each worker bigger. What matters is that it now asks for as much
-        // consumption as it is allowed, instead of an unrelated leftover.
-        expect(workOf(poor)).to.equal(ECONOMY_CONFIG.maxWorkers);
+        // The CEILING is what "sized to consume production" means; the ramp governs
+        // only how fast the room walks toward it (its own test, above), so a single
+        // plan cannot show the target — the plan reports it instead.
+        const demandCeiling = (room: RoomSnapshot): number => {
+            const p = planRoom({ ...input(staffed), room, creepsAllowed: 40 });
+            return p.ceiling!.limits[LimitReason.Demand];
+        };
+        // A rich room consumes its whole 20 e/t with FEW big workers: at capacity
+        // 1300 a worker is 6 WORK and eats 6 e/t, so four of them suffice.
+        expect(demandCeiling(rich)).to.equal(4);
+        // A poor room needs MANY: at capacity 300 a worker is 1 WORK and eats
+        // 1 e/t, so consuming 20 e/t takes 20 of them. It asks for exactly that
+        // now — bounded by real ceilings (economy/limits.ts), not by a hand-picked
+        // `maxWorkers` rail. The early surplus is self-correcting anyway: it funds
+        // the extensions that raise the cap, which makes each worker bigger.
+        expect(demandCeiling(poor)).to.equal(20);
         // ...and the rich room does it with far fewer creeps.
-        const count = (room: RoomSnapshot): number =>
-            plan(room).demands.filter(d => d.assignment.kind === AssignmentKind.Work).length;
-        expect(count(rich)).to.be.lessThan(count(poor));
+        expect(demandCeiling(rich)).to.be.lessThan(demandCeiling(poor));
     });
 
     it("needs no reassignment pass at all — workers self-allocate", () => {
@@ -391,7 +436,7 @@ describe("economy planner", () => {
         expect(plan.adoptions).to.have.length(1);
         expect(plan.adoptions[0].name).to.equal("seed0");
         expect(plan.adoptions[0].assignment.kind).to.equal(AssignmentKind.Mine);
-        expect(plan.demands).to.have.length(ALLOWED - 1);
+        expect(plan.demands.filter(d => d.assignment.kind === AssignmentKind.Mine)).to.have.length(5);
 
         // A CARRY-only body can't mine — it takes the first hauler gap instead.
         const ferry = planRoom({ ...input(), orphans: [orphan("boxcar", { [CARRY]: 1, [MOVE]: 1 })] });
@@ -400,7 +445,7 @@ describe("economy planner", () => {
         // A MOVE-only body fits nothing: no adoption, full demand list.
         const legs = planRoom({ ...input(), orphans: [orphan("legs", { [MOVE]: 1 })] });
         expect(legs.adoptions).to.have.length(0);
-        expect(legs.demands).to.have.length(ALLOWED);
+        expect(legs.demands.filter(d => d.assignment.kind === AssignmentKind.Mine)).to.have.length(6);
     });
 });
 

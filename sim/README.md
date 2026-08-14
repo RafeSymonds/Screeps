@@ -73,6 +73,7 @@ A scenario is a starting world state. They live in `scenarios/` and are selected
 | `default`      | fresh RCL1 room (controller, 2 sources, owned spawn) — bootstrap from zero |
 | `full-base`    | RCL8 room: 3 spawns, 60 extensions, 6 towers, storage, terminal, links, labs, all energy filled, + 10 creeps |
 | `under-attack` | defended RCL7 base (3 towers, safe mode off) + a wave of hostile melee creeps owned by an enemy player |
+| `remote-far`   | RCL4 home, a **barren** neighbour, and a 2-source room one border beyond it — the case depth-1 candidate selection cannot do at all |
 
 ## Regression tests (`bin/sim test`)
 

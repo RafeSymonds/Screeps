@@ -42,12 +42,14 @@ import { EconomyConfig } from "economy/config";
 import {
     HAULER_MIN_BODY,
     MINER_MIN_BODY,
+    bodyCost,
     haulerBody,
     haulerBodyForCarry,
     haulerCarryCapacity,
     minerBody,
     workerBody
 } from "economy/bodies";
+import { LimitReason, workerCeiling } from "economy/limits";
 
 export interface RoomPlanInput {
     room: RoomSnapshot;
@@ -58,9 +60,9 @@ export interface RoomPlanInput {
     /** Walkable tiles adjacent to each source id. */
     sourceSpots: Record<string, number>;
     upgradeSpot: Pos;
-    /** This room's CPU-derived workforce cap (shared/budget.ts, principle 8).
-     *  Replaces the old fixed `config.maxCreepsPerRoom`, which was sized for a
-     *  world with exactly one room and did not tighten when M6 added a second. */
+    /** This room's CPU-derived workforce cap (shared/budget.ts, principle 8) — the
+     *  CPU one of the four ceilings in economy/limits.ts, not the answer by
+     *  itself. It tightens as the empire grows. */
     creepsAllowed: number;
     /** Emit the rebuild skeleton for a spawnless room? FALSE while expansion is
      *  pioneering it — that bootstrap already has an owner, and running both
@@ -78,6 +80,10 @@ export interface RoomPlan {
     /** Owner rewrites of its own creeps (surplus upgraders → Build while sites are
      *  open — economy.md rule 3); the adapter writes assignment only. */
     reassignments: { name: string; assignment: Assignment }[];
+    /** Which ceiling decided the worker count, and every candidate. Reported so
+     *  "why is this room stuck at N creeps?" names a mechanism instead of a
+     *  constant — the whole reason the flat cap was removed. */
+    ceiling?: { reason: LimitReason; limits: Record<LimitReason, number> };
 }
 
 const SOURCE_RATE = 10; // 3000 energy / 300-tick regen
@@ -295,17 +301,57 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     // Deriving it cuts both ways, which is the point: at capacity 1300 a worker is
     // 6 WORK, so the same 20 e/t needs four workers, not eight — and the slots go
     // back to the CPU budget instead of crowding the controller.
-    const workPerWorker = Math.max(1, workerBody(cap).filter(part => part === WORK).length);
+    const worker = workerBody(cap);
+    const workPerWorker = Math.max(1, worker.filter(part => part === WORK).length);
     const production = room.sources.length * SOURCE_RATE;
     const workersForProduction = Math.ceil(production / (workPerWorker * UPGRADE_ENERGY_PER_WORK));
 
     // Income first is the invariant — a room can build more workers later, but
-    // workers cannot fix an unstaffed source.
-    let workersDesired = Math.min(
-        workersForProduction,
-        creepsAllowed - minersDesiredTotal - haulersDesiredTotal,
-        config.maxWorkers
-    );
+    // workers cannot fix an unstaffed source. What the room may add on top of its
+    // income roles is the LEAST of the real ceilings (economy/limits.ts), not a
+    // flat headcount: a creep is 4 parts and 250 energy at RCL1 and 40 parts and
+    // 3000 at RCL8, so one number cannot be right for both ends of the game.
+    const minerCost = sources.reduce((sum, s) => sum + bodyCost(bodyFor(s)), 0);
+    const minerParts = sources.reduce((sum, s) => sum + bodyFor(s).length, 0);
+    const haulerSample = haulerBodyForCarry(carryPerHauler, cap);
+    const ceiling = workerCeiling({
+        wantedByDemand: workersForProduction,
+        cpuHeadroom: creepsAllowed - minersDesiredTotal - haulersDesiredTotal,
+        spawns: room.structures[STRUCTURE_SPAWN]?.length ?? 1,
+        incomeParts: minerParts + haulersDesiredTotal * haulerSample.length,
+        incomeCost: minerCost + haulersDesiredTotal * bodyCost(haulerSample),
+        workerParts: worker.length,
+        workerCost: bodyCost(worker),
+        production,
+        spawnDutyCeiling: config.spawnDutyCeiling,
+        upkeepFraction: config.upkeepFraction
+    });
+    // No `maxWorkers` constant any more. It was the last hand-picked headcount in
+    // the room planner, described as a guard against "a pathological input asking
+    // for a hundred creeps" — but the real guards are physical and now computed:
+    // production cannot feed workers it does not have energy for, the spawn cannot
+    // replace creeps faster than 3 ticks a part, and CPU is charged per intent.
+    let workersDesired = ceiling.workers;
+
+    // A RAMP, not a target — and the energy condition is the load-bearing half.
+    //
+    // The ceilings above say what the room can ultimately sustain. Demanding all
+    // of it at once is a different question, and answering it wrong drained the
+    // spawn permanently: an RCL1 room whose ceiling is 20 workers emits 20 cheap
+    // demands, the resolver ALWAYS has something affordable in the queue, and
+    // spawn energy never climbs off the floor. Sim-caught in three gates at once
+    // (bootstrap, raid-early, remote-invader) — measured at 100-250 of a 300 cap,
+    // forever. An empty spawn cannot fund the defender a raid needs, and the room
+    // grows a workforce while losing the game.
+    //
+    // So the queue is allowed to run DRY. Growth is offered only while the room
+    // is holding energy to spare, which lets the pool refill between creeps and
+    // leaves headroom for anything higher-priority that shows up.
+    const workersAlive = roster.filter(c => assignmentOf(c)?.kind === AssignmentKind.Work).length;
+    const energySlack = room.energyAvailable >= room.energyCapacityAvailable * config.growthEnergyFraction;
+    workersDesired = Math.min(workersDesired, workersAlive + (energySlack ? config.workerGrowthStep : 0));
+
+    const reported = { reason: ceiling.reason, limits: ceiling.limits };
 
     // When the allowance cannot cover income either, the squeeze order is
     // investment-before-income: workers yield first, haulers only after workers
@@ -423,7 +469,7 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
                 unused.splice(i, 1);
             }
         }
-        return { demands: remaining, adoptions, reassignments: [] };
+        return { demands: remaining, adoptions, reassignments: [], ceiling: reported };
     }
-    return { demands, adoptions, reassignments: [] };
+    return { demands, adoptions, reassignments: [], ceiling: reported };
 }

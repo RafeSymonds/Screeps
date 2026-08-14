@@ -106,7 +106,7 @@ nuisance.
    unaffordable, head-of-line blocking parks the queue, which is correct — nothing
    the economy could spawn matters more. Two accepted M4 limits, stated: no spawn
    preemption (a defender demand waits out an in-flight spawn — cancel-in-progress
-   is a future seam), and defenders sit **outside** `maxCreepsPerRoom` (principle
+   is a future seam), and defenders sit **outside** the room workforce ceiling (principle
    8's CPU allowance is deliberately exceeded during a raid).
 3. **Safe mode (last rung) — keyed on damage evidence, not tower state**: requested
    when `level ≥ Raid` AND any spawn is below 50% hits. (The old "towers exhausted"

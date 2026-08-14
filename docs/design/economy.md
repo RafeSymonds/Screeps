@@ -111,8 +111,13 @@ energy upgrades the controller. That is the whole sizing policy:
    can spend it. Container upkeep moves to the builder crew, which has enormous
    slack — a container decays 10 hits/tick against 250k, i.e. ~25,000 ticks, far
    beyond a miner's 1500-tick life. **The one exception**: a source served by a
-   link gets a one-CARRY miner, because somebody must put energy INTO the link
-   and that is the creep standing beside it (see Links). Min body `[W,M]` = 100. Per source: miners until summed WORK ≥ 5
+   link gets a CARRYing miner, because somebody must put energy INTO the link and
+   that is the creep standing beside it (see Links). Its store is sized to ~10
+   ticks of harvest, not to one part: one CARRY makes the transfer possible and
+   much too expensive, since a 10-WORK miner fills a 50-capacity store in 2.5 ticks
+   and then spends an intent — a flat 0.2 CPU — every third tick for its whole
+   life. Ten ticks of store cuts that ~4× for 50 energy a part.
+   Min body `[W,M]` = 100. Per source: miners until summed WORK ≥ 5
    or adjacent walkable tiles run out. Seat: the container adjacent to the source when
    one exists — found in the room view by position (creeps.md); executors never read
    the layout slice — else any adjacent tile.
@@ -380,10 +385,68 @@ One consequence worth stating: **`Pioneer` no longer exists**. A freshly claimed
 ordinary workers, which self-supply by harvesting because that room has no containers,
 piles or storage to draw from. The behavior is identical; the role is not special.
 
-### Sizing and the squeeze order
+### Workforce ceilings — grow to the least limit (Aug 2026)
 
-Workers are the **residual**: `creepsAllowed − miners − haulers`, capped by `maxWorkers`.
-When the CPU allowance cannot cover everything, the squeeze order is
+Worker count is `min` of four ceilings, each computed from what it actually depends
+on ([`economy/limits.ts`](../../src/economy/limits.ts)), and the binding one is
+**logged by name** — "why is this room stuck at N creeps?" should answer with a
+mechanism, not a constant:
+
+| ceiling | formula | what it means |
+| --- | --- | --- |
+| **Demand** | `production ÷ (WORK per worker × 1)` | workers the room's income can keep busy. The healthy binding case. |
+| **CPU** | `creepsPerRoom − miners − haulers` ([budget.md](budget.md)) | intents cost a flat 0.2 and creep execution cannot be shed. |
+| **Spawn throughput** | `spawns × 1500 × dutyCeiling ÷ (3 × parts)` | a creep costs 3 ticks per part to build and lives 1500. Ask for more and they die faster than they are replaced. |
+| **Upkeep** | `(production × upkeepFraction − income upkeep) × 1500 ÷ bodyCost` | replacing a creep costs `bodyCost ÷ 1500` e/t forever. |
+
+**This replaced `maxWorkers: 16`** outright, and it *demoted* `maxCreepsPerRoom: 20`
+from "the answer" to one term among four.
+
+### Removing the room clamp entirely: tried, reverted, evidence recorded
+
+The clamp looks indefensible — one headcount for a quantity that varies by an order
+of magnitude (a creep is 4 parts and 250 energy at RCL1, 40 parts and 3000 at RCL8),
+and it is invisible besides: on a 20-CPU shard it happens to equal what the CPU
+arithmetic already gives, so it changes nothing there while capping every richer
+shard at a fraction of its budget. Removing it is measured as a no-op at 20 CPU and
+takes an RCL1 room from 20 creeps to 33 at 100 CPU.
+
+It also **broke three gates**, and the reason is worth more than the change was.
+Uncapped, an RCL1 room demands the 20 one-WORK workers its production can
+theoretically feed. Those workers are cheap, so the spawn queue *always* holds
+something affordable, so the resolver always spends — and spawn energy never leaves
+the floor. Measured: `100,100,100,200,50,100,100,249,198,127,112,127` against a 300
+cap. A room that cannot bank energy cannot fund a defender, and `raid-early` stopped
+clearing raiders; `remote-invader` could not fund a remote crew either.
+
+Adding the growth ramp (below) recovered `remote-invader` and got the spawn peak
+from 200 to 244 — still under the gate's 250 bar. So the clamp stays, relabelled: it
+is **not a CPU limit** (a live shard runs dozens of creeps at ~12 CPU) but a
+stand-in for early-game spawn economics.
+
+**What has to happen before it can go**: the demand ceiling assumes every worker
+upgrades every tick (`UPGRADE_CONTROLLER_POWER = 1`, duty cycle 1.0). Real workers
+spend much of their life fetching energy, so the ceiling over-asks, and uncapping
+multiplies that error. Measure the duty cycle — energy actually delivered to the
+controller per tick against WORK parts assigned — and the demand ceiling becomes
+honest enough to trust without a rail behind it.
+
+### Growth is a ramp, not a jump
+
+A plan may add at most `workerGrowthStep` workers, and only while the room holds
+`growthEnergyFraction` of its spawn+extension energy. The queue is *allowed to run
+dry*: that is what lets the pool refill between creeps and leaves headroom for
+anything higher-priority — a defender, an income replacement — to be funded at once.
+Income roles are exempt; an unstaffed source produces nothing and cannot wait.
+
+`upkeepFraction` is **1.0 on purpose** — the physical limit, past which the room
+cannot sustain its roster at all. Anything lower would be a taste about
+workforce-versus-work, and that preference is already expressed properly by sizing
+workers to what production can feed.
+
+### The squeeze order
+
+When the ceilings cannot cover everything, the squeeze order is
 **investment-before-income** — workers yield first, haulers only after workers are at their
 floor.
 

@@ -13,15 +13,17 @@
  * once and persisting it is free correctness; everything else is recomputed from
  * the snapshot each run so it cannot go stale.
  */
-import { computeAllowance } from "shared/budget";
+import { BUDGET_CONFIG, computeAllowance, nonCreepOverhead } from "shared/budget";
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
 import { Pos, RoomSnapshot } from "shared/views";
 import { getClaimTarget } from "expansion/index";
 import { getControllerContainerPos } from "layout/index";
 import { getTerrain } from "snapshot/terrain";
+import { log, measuredCpuPerCreep } from "telemetry/index";
 import { ECONOMY_CONFIG } from "economy/config";
 import { planLinkTransfers } from "economy/links";
+import { LimitReason } from "economy/limits";
 import { planRoom } from "economy/planner";
 import { chooseUpgradeSpot, countAdjacentSpots } from "economy/spots";
 
@@ -94,10 +96,31 @@ export function runRoom(ctx: TickContext, room: RoomSnapshot): void {
         upgradeSpot: { x: econ.upgradeSpot.x, y: econ.upgradeSpot.y, roomName: room.name },
         // Principle 8: the workforce cap is this room's CPU share, not a constant.
         // It tightens automatically as the empire grows (budget.md).
-        creepsAllowed: computeAllowance(Game.cpu.limit, ctx.snapshot.myRooms.length).creepsPerRoom,
+        creepsAllowed: computeAllowance(
+            Game.cpu.limit,
+            ctx.snapshot.myRooms.length,
+            BUDGET_CONFIG,
+            measuredCpuPerCreep(nonCreepOverhead(ctx.snapshot.myRooms.length))
+        ).creepsPerRoom,
         allowRebuild: getClaimTarget() !== room.name,
         config: ECONOMY_CONFIG
     });
+    // Which ceiling is holding the workforce down, named rather than guessed. The
+    // healthy answer is "demand" — the room has as many creeps as it can use — and
+    // that one is not worth a log line; any other means a limit is biting and the
+    // operator wants to know WHICH, since the fix differs completely (more spawns,
+    // more income, more CPU). Throttled to the plan's own cadence.
+    if (plan.ceiling && plan.ceiling.reason !== LimitReason.Demand && ctx.snapshot.time % 100 === 0) {
+        const { reason, limits } = plan.ceiling;
+        log.info(
+            SubsystemId.Economy,
+            () =>
+                `${room.name}: workers capped by ${reason} — ` +
+                Object.entries(limits)
+                    .map(([name, n]) => `${name}=${n}`)
+                    .join(" ")
+        );
+    }
     // Adoption: the §6 claim-by-successor path — home set once, owner recorded.
     for (const adoption of plan.adoptions) {
         const creep = Game.creeps[adoption.name];

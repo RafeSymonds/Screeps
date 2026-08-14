@@ -8,6 +8,7 @@ const g = global as unknown as Record<string, unknown>;
 // Return codes
 g.OK = 0;
 g.ERR_NOT_OWNER = -1;
+g.ERR_NO_PATH = -2;
 g.ERR_BUSY = -4;
 g.ERR_NOT_ENOUGH_ENERGY = -6;
 g.ERR_NOT_ENOUGH_RESOURCES = -6;

@@ -91,5 +91,5 @@ export function tick(): void {
         }
     }
 
-    telemetry.endTick(Game.cpu.getUsed(), Game.cpu.limit, Game.cpu.bucket);
+    telemetry.endTick(Game.cpu.getUsed(), Game.cpu.limit, Game.cpu.bucket, Object.keys(Game.creeps).length);
 }

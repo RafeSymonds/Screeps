@@ -81,7 +81,6 @@ export interface BudgetConfig {
     minCreepsPerRoom: number;
     /** Hard ceilings, so a large CPU subscription cannot produce absurd rosters
      *  that other limits (energy, seats) would reject anyway. */
-    maxCreepsPerRoom: number;
     maxRemotesPerHome: number;
 }
 
@@ -90,6 +89,8 @@ export interface CpuAllowance {
     creepsPerRoom: number;
     /** Cap on remotes a single home may adopt. */
     remotesPerHome: number;
+    /** Cap on the total creeps all of a home's remotes may field. */
+    remoteCreepsAllowed: number;
     /** For telemetry/diagnostics: the room's modeled share in CPU. */
     roomShareCpu: number;
 }
@@ -118,10 +119,25 @@ roomCpu     = perRoom × perRoomShare   / (perRoomShare + perRemotesShare)   // 
 remotesCpu  = perRoom × perRemotesShare/ (perRoomShare + perRemotesShare)   // 4.0 × 1.5/4 = 1.5
 
 creepsPerRoom  = clamp( floor((roomCpu − roomPlannerCost) / cpuPerCreep),
-                        minCreepsPerRoom, maxCreepsPerRoom )
+                        minCreepsPerRoom, +inf )     // no upper clamp — see below
 remotesPerHome = clamp( floor(remotesCpu / (creepsPerRemote × cpuPerCreep)),
                         0, maxRemotesPerHome )
+remoteCreepsAllowed = floor(remotesCpu / cpuPerCreep)
 ```
+
+**Why the remote share is expressed twice** (Aug 2026). `remotesPerHome` prices
+every remote at `creepsPerRemote` — the average — and remotes are not average: the
+fleet a remote needs is set by its hauler round trip, so one two borders out costs
+roughly double one next door for the same income. Counting rooms therefore charges
+the far one nothing for being far.
+
+`remoteCreepsAllowed` is the identical share with the per-remote averaging removed
+— `remotesPerHome × creepsPerRemote` without the rounding — so
+[remotes.md](remotes.md) can spend it against each candidate's actual modelled crew.
+It is **not a second, independent budget**, and it is not a licence to overspend:
+both are floors of the same `remotesCpu`, so a home can never satisfy one by
+violating the other. What it buys is that "further is worth less" falls out of the
+arithmetic instead of needing a policy to assert it.
 
 **Floors beat budgets.** `minCreepsPerRoom` is applied last and unconditionally. A room
 that cannot fund miners and haulers produces nothing and then dies, which costs more CPU
@@ -150,7 +166,8 @@ point they need it:
   already treats that number as its residual budget (upgraders are what is left over), so
   this is a one-field substitution, not a restructure.
 - **`remotes/index.ts` (`runPlan`, class C)** — computes the allowance and passes
-  `remotesPerHome` into `planAdoption`, replacing `config.maxRemotesPerHome`.
+  both `remotesPerHome` and `remoteCreepsAllowed` into `planAdoption`, replacing
+  `config.maxRemotesPerHome`.
 
 Both call sites already have the snapshot (for `myRooms.length`) and may read `Game.cpu.limit`
 directly — reading `Game.cpu` is the scheduler-meter's declared surface and is a scalar, not
@@ -165,7 +182,7 @@ Cost: two multiplications and a division per room per run. It is not worth cachi
 - **Very low `cpuLimit`** (a new account is 20; a shard with a low subscription can be less)
   — `shareable` can go to zero or negative. The clamp to `minCreepsPerRoom` handles it, and
   `remotesPerHome` correctly floors at 0.
-- **Very high `cpuLimit`** (CPU subscription) — `maxCreepsPerRoom` / `maxRemotesPerHome`
+- **Very high `cpuLimit`** (CPU subscription) — `maxRemotesPerHome`
   ceilings bind. Those exist so the allowance never outruns the *other* real limits (source
   seats, spawn throughput, energy), which would produce demands nothing can fill.
 - **Room count changes mid-claim** — expansion's target is not owned until the claim lands,
@@ -185,10 +202,16 @@ Unit (`test/unit/budget.test.ts`), all pure:
 - Monotonic in CPU limit: higher limit → allowance non-decreasing.
 - Floor binds: at a CPU limit too small to fund a workforce, `creepsPerRoom` still equals
   `minCreepsPerRoom` and never 0.
-- Ceiling binds: at an absurd CPU limit, results equal the configured maxima.
+- **No** room-workforce ceiling: at an absurd CPU limit `creepsPerRoom` keeps rising,
+  because what a room can physically sustain is spawn throughput and energy upkeep and
+  those are computed per room from that room's bodies (economy.md "Workforce
+  ceilings"). The remote ceiling stays — a remote count is a strategic choice.
 - `ownedRooms === 0` does not divide by zero.
 - Remotes floor at 0 when `remotesCpu` cannot fund one, and rise above 1 when it can —
   the specific thing the hardcoded constant could never do.
+- `remoteCreepsAllowed` is the same share un-averaged: at least
+  `remotesPerHome × creepsPerRemote`, and shrinking with the empire like everything
+  else.
 
 Sim: no new scenario. Single-room scenarios are unaffected by design (one room gets the
 whole shareable budget, so the allowance exceeds today's hardcoded 20 and nothing changes);

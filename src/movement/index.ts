@@ -38,6 +38,7 @@
 import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
 import { Pos } from "shared/views";
+import { RoomType, roomType } from "intel/index";
 import { log } from "telemetry/index";
 import { MOVEMENT_CONFIG as CFG } from "movement/config";
 
@@ -68,6 +69,31 @@ const SEARCH_COOLDOWN = 5;
 const goalKey = (req: MoveRequest): string => `${req.to.x},${req.to.y},${req.to.roomName},${req.range}`;
 let matrixTick = -1;
 const matrices = new Map<string, CostMatrix>();
+
+/**
+ * Source-keeper rooms are impassable to pathing.
+ *
+ * Their guards are permanent, respawning and lethal, and nothing this bot fields
+ * survives one. The shortest line from a home to a room two out will sometimes
+ * clip an SK room, and the first creep to take that shortcut dies in it. The
+ * hazard is *created* by pathing further than next door — at depth 1 it cannot
+ * happen (a keeper block needs both coordinates in 4–6) and at depth 2 it can —
+ * so it arrives with the same change that widened scouting and remotes.
+ *
+ * Refusing them per room in the cost callback is the whole mechanism. A **route**
+ * ([`Game.map.findRoute`] first, then a tile search confined to the rooms on the
+ * way) was implemented and reverted: it is the textbook way to cut ops on long
+ * paths, and in this engine it broke cross-room travel outright — the scout in the
+ * `remote-mining` gate stopped being able to reach the neighbour it had always
+ * reached, oscillating between two rooms instead. Bisected against exactly this
+ * code (docs/design/movement.md "Routing"). The ops win is worth revisiting; it is
+ * not worth trading working travel for.
+ *
+ * The creep's OWN room is always passable, so a creep that somehow ends up in a
+ * keeper room can still walk out of it.
+ */
+const impassableRoom = (roomName: string, standingIn: string): boolean =>
+    roomName !== standingIn && roomType(roomName) === RoomType.SourceKeeper;
 
 /**
  * Ask for a step toward `to`, stopping within `range` tiles (chebyshev). Called
@@ -253,7 +279,8 @@ export function resolveMoves(ctx: TickContext): void {
         }
         // Same-room goals are pinned to maxRooms:1 — without it PathFinder will
         // happily route out through a neighbor and back, which is both slower to
-        // search and slower to walk.
+        // search and slower to walk. Cross-room goals get the full 16 and the same
+        // ops cap (a bigger one starves the shared pool — see movement/config.ts).
         const sameRoom = pos.roomName === req.to.roomName;
         const maxOps = Math.min(CFG.maxOpsPerSearch, opsPool);
         let result: PathFinderPath;
@@ -264,10 +291,14 @@ export function resolveMoves(ctx: TickContext): void {
                 plainCost: CFG.plainCost,
                 swampCost: CFG.swampCost,
                 maxRooms: sameRoom ? 1 : 16,
-                roomCallback: roomName =>
-                    stamped && roomName === pos.roomName
+                roomCallback: roomName => {
+                    if (impassableRoom(roomName, pos.roomName)) {
+                        return false; // lethal permanent guards; never route through
+                    }
+                    return stamped && roomName === pos.roomName
                         ? stuckMatrix(ctx, roomName, name)
-                        : roomMatrix(ctx, roomName) ?? new PathFinder.CostMatrix()
+                        : roomMatrix(ctx, roomName) ?? new PathFinder.CostMatrix();
+                }
             });
         } catch (err) {
             blockedUntil.set(name, ctx.snapshot.time + 100);

@@ -40,18 +40,64 @@ function repeat(part: BodyPartConstant, count: number): BodyPartConstant[] {
  * put energy INTO it, and that is the miner standing beside it (economy.md
  * "Links"). Exactly one CARRY, only there.
  */
-export function minerBody(capacity: number, opts: { withLink?: boolean; maxWork?: number } = {}): BodyPartConstant[] {
-    const carry = opts.withLink ? 1 : 0;
+export function minerBody(
+    capacity: number,
+    opts: { withLink?: boolean; maxWork?: number; travelTiles?: number } = {}
+): BodyPartConstant[] {
     const ceiling = opts.maxWork ?? Infinity;
-    let best = { work: 1, move: 1 };
+    let best = { work: 1, carry: linkCarryFor(1, opts.withLink), move: 1 };
     for (let work = 1; work <= ceiling; work++) {
-        const move = Math.ceil(work / 5);
+        const carry = linkCarryFor(work, opts.withLink);
+        const move = minerMoveFor(work + carry, opts.travelTiles);
         if (work + move + carry > MAX_BODY_PARTS || work * 100 + carry * 50 + move * 50 > capacity) {
             break;
         }
-        best = { work, move };
+        best = { work, carry, move };
     }
-    return [...repeat(WORK, best.work), ...repeat(CARRY, carry), ...repeat(MOVE, best.move)];
+    return [...repeat(WORK, best.work), ...repeat(CARRY, best.carry), ...repeat(MOVE, best.move)];
+}
+
+/**
+ * A miner walks once and then sits for the rest of its life, so it takes 1 MOVE
+ * per 5 other parts and spends the savings on WORK — right up until the walk is
+ * long, at which point that ratio is a disaster.
+ *
+ * Fatigue is 2 per non-MOVE part per tile (plains) against 2 removed per MOVE
+ * part per tick, so speed is `move / nonMove` tiles per tick. A [W×5, M×1] remote
+ * miner therefore moves one tile every five ticks: **625 ticks to reach a room two
+ * borders away**, 42% of its life, and — the reason this was found — its haulers
+ * arrive in 125 and then shuttle nothing for five hundred ticks (sim-observed:
+ * eight haulers, zero miners, source untouched).
+ *
+ * So MOVE is bought against the trip rather than fixed: enough that travel is a
+ * small slice of a creep's life, never fewer than the sit-still ratio, never more
+ * than full speed. The energy is trivially repaid — 200 extra energy of MOVE buys
+ * ~500 extra ticks of mining at 10 e/t.
+ */
+const MINER_TRAVEL_BUDGET_TICKS = 150;
+
+function minerMoveFor(nonMoveParts: number, travelTiles?: number): number {
+    const parked = Math.ceil(nonMoveParts / 5);
+    if (travelTiles === undefined || travelTiles <= 0) {
+        return parked;
+    }
+    const forTravel = Math.ceil((nonMoveParts * travelTiles) / MINER_TRAVEL_BUDGET_TICKS);
+    return Math.min(nonMoveParts, Math.max(parked, forTravel));
+}
+
+/**
+ * CARRY for a miner feeding a link. One is enough to make the transfer *possible*
+ * and much too little to make it cheap: a 10-WORK miner harvests 20 energy a tick,
+ * so a 50-capacity store fills in 2.5 ticks and the miner spends an intent — a
+ * flat 0.2 CPU — every third tick for its whole life. Sizing the store to about ten
+ * ticks of harvest cuts that by 4×, for 50 energy a part.
+ */
+function linkCarryFor(work: number, withLink?: boolean): number {
+    if (withLink !== true) {
+        return 0;
+    }
+    const perTick = work * HARVEST_POWER;
+    return Math.max(1, Math.ceil((perTick * 10) / CARRY_CAPACITY));
 }
 
 export const MINER_MIN_BODY: BodyPartConstant[] = [WORK, MOVE];
@@ -106,5 +152,27 @@ export function workerBody(capacity: number): BodyPartConstant[] {
     const units = Math.min(16, Math.max(1, Math.floor(capacity / 200)));
     return [...repeat(WORK, units), ...repeat(CARRY, units), ...repeat(MOVE, units)];
 }
+
+/**
+ * ## Leftover capacity: spending it is UNVERIFIED, not disproven (Aug 2026)
+ *
+ * The 200-energy unit leaves a remainder at most capacities — 150 of 550 at RCL2 —
+ * and spending it on a [WORK, MOVE] pair looks free: +50% throughput, same MOVE
+ * ratio, same creep slot. It was implemented and then backed out during a
+ * regression hunt on the `raid-early` gate. **It was not the cause** — bisection
+ * pinned that on movement's cross-room ops cap (movement/config.ts) — so the honest
+ * status is untested, not rejected.
+ *
+ * The reason it stays out for now is an argument, not a measurement: unspent
+ * CAPACITY is not unspent energy. It is the room's ability to spawn the NEXT thing
+ * soon, and a worker sized to the whole 550 empties the spawn and every extension.
+ * Whether that costs more than the throughput gains is exactly the kind of question
+ * the sim can answer, and nobody has asked it yet.
+ *
+ * Early under-consumption — the thing this was reaching for — is mostly a
+ * creep-slot problem regardless: at RCL1 small bodies mean ~14 of 20 slots go to
+ * miners and haulers, leaving ~6 WORK against 20 e/t of production. It resolves as
+ * capacity grows and logistics consolidates into fewer, bigger creeps.
+ */
 
 export const WORKER_MIN_BODY: BodyPartConstant[] = [WORK, CARRY, MOVE];

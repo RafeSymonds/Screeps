@@ -229,7 +229,12 @@ state, owner, hostile sightings, invader-core sightings, expansion-relevant scor
 `lastSeen` tick on everything. Consumers must handle staleness *and absence* — every
 consumer contract in this doc tolerates empty intel (that's what makes the build order in
 §8 executable). Intel **owns the scout rotation** (which rooms need visits, scout creep
-assignments via the normal spawn-demand contract); scouts avoid source-keeper rooms.
+assignments via the normal spawn-demand contract) and the **reach graph** — a
+breadth-first search over the exit graph giving every room within N border crossings
+and its depth, with source-keeper rooms cut out (their guards make a route *through*
+one as fatal as a stay). Depth, not `getRoomLinearDistance`, is what "how far" means
+here: linear distance is chebyshev and calls a diagonal neighbour one room away when
+reaching it costs two crossings. Remotes and movement's route callback consume it.
 Writes from others arrive only through narrow accessors (`reportSighting`,
 `flagRemoteUnsafe`) so the schema keeps one owner.
 
@@ -324,8 +329,14 @@ design doc, not emergent.
 
 ### 5.10 Remotes (`src/remotes/`) — class B/C
 
-Per home room: adopt profitable neighbors from intel scores (source-keeper and highway
-rooms excluded by room type), mine sources, haul home. Produces spawn demand and
+Per home room: adopt profitable rooms within `maxDepth` border crossings from intel
+scores (source-keeper and highway rooms excluded by room type), mine sources, haul
+home. **Not just the four rooms next door** — that was the query `describeExits`
+happens to answer, and it leaves a home whose neighbours are two highways and a barren
+room mining nothing. Distance is priced rather than merely capped: hauler fleets are
+sized by round trip, and remotes are charged against a **creep** budget
+([budget.md](budget.md)) rather than a room count, so a far remote costs what it
+actually costs. Produces spawn demand and
 assignments through the same contracts as the home economy (a remote miner's assignment
 looks like a home miner's, with a room field). Reacts to invaders by flagging the remote
 unsafe (via intel's accessor), retreating creeps, and letting defense decide whether to

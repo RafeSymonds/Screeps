@@ -13,7 +13,9 @@ import { RoomIntel, RoomType, roomType } from "intel/index";
 export interface ExpansionCandidate {
     roomName: string;
     intel: RoomIntel;
-    /** linearRoomDistance × 50 + 25 (tiles) — the same named proxy remotes uses. */
+    /** Border crossings from the owned room (intel's reach graph). */
+    depth: number;
+    /** depth × 50 + 25 (tiles) — the same named proxy remotes uses. */
     travelTiles: number;
     unsafe: boolean;
     foreignReserved: boolean;
@@ -30,10 +32,14 @@ export function eligible(c: ExpansionCandidate): boolean {
 }
 
 /**
- * Sources dominate, a novel mineral is a tiebreaker, distance barely matters at
- * M6's range-1 horizon — stated rather than implied: with travelTiles = 75 for
- * every adjacent room, the distance term is constant and inert until M7 widens
- * scouting.
+ * Sources dominate, a novel mineral is a tiebreaker, distance discounts.
+ *
+ * The distance term is inert while `EXPANSION_CONFIG.maxRange` is 1 — every
+ * candidate is 75 tiles out, so it subtracts the same 15 from everything. It is
+ * written anyway because the horizon is now a movable number (the adapter takes
+ * candidates from intel's reach graph, which goes further than expansion asks it
+ * to), and a scoring function that only works at one range would silently mis-rank
+ * the moment someone widened it.
  */
 export function scoreCandidate(c: ExpansionCandidate, ownedMinerals: MineralConstant[]): number {
     const novelMineral = c.intel.mineral && !ownedMinerals.includes(c.intel.mineral.type) ? 10 : 0;

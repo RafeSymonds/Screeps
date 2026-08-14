@@ -20,17 +20,18 @@ mining resumes when they clear.
 interface RemotePlanInput {
     home: RoomSnapshot;
     homeCap: number;
-    /** approxTravelTiles = Game.map.getRoomLinearDistance(home, remote) × 50 + 25 —
-     *  a named adapter helper with a stated unit (tiles), NOT the roomName-blind
-     *  chebyshev helper, which returns garbage across rooms. */
-    candidates: { roomName: string; intel: RoomIntel; travelTiles: number }[];
+    /** From intel's reach graph: `depth` = border crossings from home,
+     *  `travelTiles` = depth × 50 + 25 (tiles). NOT linear distance, which calls a
+     *  diagonal neighbour 1 room away when getting there costs two crossings. */
+    candidates: { roomName: string; intel: RoomIntel; depth: number; travelTiles: number }[];
     slice: RemotesMemory;
     /** Filter: memory.owner === SubsystemId.Remotes — NOT "assignment.room is a
      *  remote", which would claim intel's scouts (§6 one-writer). */
     roster: CreepView[];
-    remotesAllowed: number;  // CPU allowance from budget.md — replaces the old
-                             // hardcoded maxRemotesPerHome: 1
-    config: RemotesConfig;   // { unsafeMemory: 300, reserveFloorCap: 650, ... }
+    remotesAllowed: number;      // CPU allowance from budget.md — replaces the old
+                                 // hardcoded maxRemotesPerHome: 1
+    remoteCreepsAllowed: number; // the same share priced in creeps (see How far)
+    config: RemotesConfig;       // { unsafeMemory: 300, maxDepth: 2, ... }
 }
 interface RemotePlan {
     adopt: string[];
@@ -53,13 +54,14 @@ demands for unsafe remotes.
 
 ## The two economic decisions (never assumed)
 
-**Why a scouted neighbour still isn't adopted** — the gates, in one place, because
+**Why a scouted room still isn't adopted** — the gates, in one place, because
 "we aren't using remotes at all" is almost always one of these rather than a bug:
 the room is a **highway** (x or y ≡ 0 mod 10 — two of a typical room's four
-neighbours are), it has **no sources** (every seeded sim neighbour is an empty
-terrain room, so single-room scenarios can never adopt), the home's capacity is
-below `minHomeCap` (550 — an RCL1 room never qualifies), it is owned/reserved by
-someone else, it is unsafe, or **expansion is claiming it** (below).
+neighbours are), it is **further out than `maxDepth`**, it has **no sources**
+(every seeded sim neighbour is an empty terrain room, so single-room scenarios can
+never adopt), the home's capacity is below the capability floor, it is
+owned/reserved by someone else, it is unsafe, or **expansion is claiming it**
+(below).
 
 1. **Adopt?** — candidate gate: not the active expansion claim target (funding
    miners, haulers and a reserver for a room we are about to own wastes all of
@@ -94,12 +96,38 @@ someone else, it is unsafe, or **expansion is claiming it** (below).
 Remote bodies are NOT the home formulas (review-caught: `minerBody(1300)` = 15 parts
 with 3 MOVE walks 1 tile/4 ticks and burns 10% of its life in transit):
 
-- **Remote miner**: `WORK = reserved ? 5 : 3` (unreserved sources yield 5 e/t — 3
-  WORK saturates; the home's WORK_TO_SATURATE=5 is the reserved/owned number),
-  1 CARRY, MOVE for full speed on plains (`ceil((WORK+1)/2)`). Unreserved:
-  [W3,C1,M2] = 450; reserved: [W5,C1,M3] = 750.
+- **Remote miner**: an ordinary miner with two remote-specific inputs — a WORK
+  ceiling (`reserved ? 5 : 3`; unreserved sources yield 5 e/t, which 3 WORK
+  saturates) and **`travelTiles`**, which buys the MOVE.
+
+    The MOVE half was lost when remote creeps became "ordinary" miners, and it cost
+    the whole subsystem. The home ratio is 1 MOVE per 5 WORK — correct for a creep
+    that walks ten tiles once and then sits for 1500. Fatigue is 2 per non-MOVE part
+    per tile against 2 cleared per MOVE per tick, so [W×5,M×1] moves **one tile
+    every five ticks**: 625 ticks to reach a room two borders out, 42% of its life.
+    Meanwhile its haulers — 1:1 CARRY:MOVE, full speed — arrived in 125 and shuttled
+    nothing. Sim-observed as `{hauler: 8, miner: 0}` with the source untouched, and
+    field-reported as "8 haulers in the same remote".
+
+    MOVE is now priced against the trip (`MINER_TRAVEL_BUDGET_TICKS`), never below
+    the parked ratio and never above full speed. The energy is trivially repaid:
+    ~200 extra energy of MOVE buys ~500 extra ticks of mining at 10 e/t.
+
 - **Remote hauler**: [C,M] pairs from the round-trip formula at `travelTiles`
-  (existing throughput math, correct unit in).
+  (existing throughput math, correct unit in), and the COUNT **ramps with miners
+  that have arrived** — not with miners the plan intends to have.
+
+    The fleet is sized for the room's theoretical rate, and that rate is zero until
+    somebody is standing on a source. Sizing off intent is what put eight haulers in
+    an unmined room; it also explains "remote haulers bring back a small percentage
+    of their capacity", since a fleet sized for 20 e/t splits whatever little is
+    actually there. Haulers travel at full speed and miners do not, so they would
+    arrive first and wait regardless — ramping with arrivals costs nothing real.
+
+    The same observable fixes the stranded-hauler case: "is this remote dry" now
+    asks whether a miner is *standing in it*, not whether one is assigned. Intent
+    read exactly like production and kept haulers parked in an empty room for the
+    length of a miner's walk.
 - **Reserver**: per the reserve decision above; `CREEP_CLAIM_LIFE_TIME = 600`
   (engine), continuously replaced via the normal gap diff.
 
@@ -117,6 +145,46 @@ reserved 2-source remote) and by `remotesAllowed`. Stated, not hidden. Note the 
 allowances are computed from the same §9 split, so remote creeps are budgeted — just in
 the `perRemotesShare` line rather than the room's own.
 
+### How far (Aug 2026)
+
+Candidates come from intel's **reach graph** out to `maxDepth` (2) border
+crossings, not from `describeExits`. Depth 1 was never a policy — it was the query
+that happened to be easy — and it means a home whose four neighbours are two
+highways and a barren room mines nothing, however good the room one border further
+is.
+
+**Distance is priced, not merely capped.** Three mechanisms, in the order they
+bite:
+
+1. **The profit model already charges for it.** A remote's income is a property of
+   the room — two sources pay 10 e/t reserved whether they are next door or three
+   rooms out — but hauler carry is sized by round trip, so the fleet grows roughly
+   linearly with distance. `remoteProfit` subtracts that, and ranking by profit
+   therefore prefers near rooms without any rule saying so.
+2. **`travelTiles` is now honest.** It was `getRoomLinearDistance × 50 + 25`, and
+   linear distance is chebyshev: a *diagonal* neighbour reports 1 when reaching it
+   costs two border crossings. Every diagonal candidate was sized against half its
+   real round trip — under-haulered, and over-rated on profit. It is now
+   `depth × 50 + 25` from the reach graph.
+3. **A crew budget, because CPU is spent per creep, not per room.** The old cap
+   counted *rooms* against `remotesAllowed`, which prices a 15-creep remote three
+   rooms out exactly like an 8-creep one next door. `remoteCreepsAllowed`
+   ([budget.md](budget.md)) is the same §9 share expressed in creeps, and
+   `remoteCrewSize` (miners per source + haulers from the round trip + reserver)
+   is what each candidate spends from it. So the further ones simply buy less.
+
+    The first adoption is **exempt** from the crew cap. `remotesAllowed ≥ 1` is the
+    budget table already saying a remote is affordable; letting a second, finer
+    reading of the same share overrule it would produce a home that is allowed a
+    remote and adopts none. The cap governs how many *more*.
+
+**And then a hard stop at `maxDepth` anyway.** The profit model keeps clearing
+`minProfit` well past where a remote is a good idea, because what actually breaks
+down over distance is mostly not in it: spawn throughput (twice the haulers is
+twice the spawn-ticks, every generation, from one spawn), and the extra rooms of
+route where an invader ends a trip. `maxDepth: 2` is that unmodelled cost, stated
+as a number rather than pretended away.
+
 ### When to adopt (revised Aug 2026)
 
 **There is no energy-wealth gate.** A remote is simply worth doing once home mining is
@@ -131,8 +199,10 @@ What remains, and why each is not a wealth policy:
 2. **Capability floor** (`MIN_REMOTE_CAP`, *derived* as `bodyCost(remoteMinerBody(false))`
    = 450). Below this the home cannot physically build a remote miner, so adopting would
    only emit demands the spawn can never fund and head-of-line block the queue.
-3. **Count cap** — the CPU allowance ([budget.md](budget.md)), not a constant.
+3. **Count cap** — the CPU allowance ([budget.md](budget.md)), not a constant, now
+   in both rooms and creeps (see How far).
 4. **Profit** ≥ `minProfit`, unchanged.
+5. **Depth** ≤ `maxDepth` (see How far).
 
 **"Not ahead of internal improvements" is handled by priority, not by a gate.** Spawn
 priorities are: home income 1–20, **home builders 50, remotes 60**, reserver 90, upgraders
@@ -180,11 +250,18 @@ only report via `flagUnsafe`).
 
 ## Test plan
 
-Unit: adoption gate (type/owner/foreign-reservation/unsafe/profit); profit model
-includes pile decay; reserve decision at homeCap 550/650/1300 × 1/2-source; body
-formulas (sizes and full-speed MOVE counts); priorities (60-tier below builders,
-above upgraders; reserver 90); unsafe suppression from intel recency; roster filter
-by owner; drop on disqualification; travel-tiles unit (linear×50+25).
+Unit: adoption gate (type/owner/foreign-reservation/unsafe/profit/**depth**); profit
+model includes pile decay; reserve decision at homeCap 550/650/1300 × 1/2-source;
+body formulas (sizes and full-speed MOVE counts); priorities (60-tier below
+builders, above upgraders; reserver 90); unsafe suppression from intel recency;
+roster filter by owner; drop on disqualification; travel-tiles unit
+(**depth**×50+25); `remoteCrewSize` grows with depth; the crew budget prunes the
+second remote but never the first.
+
+Sim (`sim/tests/m5-remote-far.test.js`): `remote-far` — a barren neighbour and a
+two-source room one border beyond it. Asserts intel records the depth-2 room, the
+slice adopts it (and does **not** adopt the barren neighbour), and bot creeps work
+it. This is the case depth-1 candidate selection could not do at all.
 
 Sim (`sim/tests/m5-reach.test.js`):
 

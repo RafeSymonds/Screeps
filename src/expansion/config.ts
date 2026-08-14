@@ -3,8 +3,11 @@
  */
 export interface ExpansionConfig {
     pioneers: number;
-    /** M6 scouts only reach adjacent rooms, so intel only ever holds distance-1
-     *  candidates — a larger range is dead spec until M7's deeper rotation. */
+    /** How many border crossings out we will consider CLAIMING (intel's reach
+     *  graph). No longer limited by how far a scout walks — intel now reaches 3 —
+     *  so this is a real strategic lever. It stays at 1 on purpose: a claimed room
+     *  must be defended, supplied and rebuilt from home, and distance costs
+     *  drastically more there than for a remote we can simply abandon. */
     maxRange: number;
     scoreThreshold: number;
     /** A fresh claim gets 20,001 ticks before level-1 expiry UNCLAIMS the room

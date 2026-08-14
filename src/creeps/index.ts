@@ -242,13 +242,16 @@ function workRoomOf(creep: CreepView, assignment: Assignment, ctx: TickContext):
     if ((scratch.dryUntil ?? 0) > ctx.snapshot.time) {
         return home;
     }
-    // A remote is legitimately empty in the window while its miner is still
-    // walking there, so "no energy right now" is NOT enough to give up on it —
-    // acting on that alone makes the hauler bounce home and back on a loop. Only
-    // a remote with no energy AND nobody mining it is actually dry.
+    // A remote with no energy and no miner STANDING IN IT is dry, whatever the
+    // spawn queue intends. Counting a miner that is merely assigned there kept
+    // haulers parked in an empty room for the length of the miner's walk — which
+    // is hundreds of ticks — because "someone is on the way" reads exactly like
+    // "someone is mining". Presence is the observable; intent is not.
     const minedByUs = ctx.snapshot.myCreeps.some(c => {
         const other = (c.memory as { assignment?: { kind?: string; room?: string } }).assignment;
-        return other?.kind === AssignmentKind.Mine && other.room === assignment.room;
+        return (
+            other?.kind === AssignmentKind.Mine && other.room === assignment.room && c.pos.roomName === assignment.room
+        );
     });
     const view = ctx.snapshot.room(assignment.room);
     if (view && !minedByUs && !hasCollectableEnergy(view)) {

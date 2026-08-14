@@ -17,12 +17,16 @@ home-grown creep spawned.
 ```ts
 // src/expansion/score.ts — pure
 /** Eligible: RoomType.Normal, no owner, no foreign reservation, not unsafe,
- *  sources ≥ 1, within maxRange linear rooms of a Stable room. maxRange = 1 at M6
- *  (review: intel's rotation only ever populates distance-1 rooms, so any larger
- *  range is dead spec until M7's deeper scouting — the distance term is near-inert
- *  and that is stated, not hidden). Score = sources × 40 + (novel mineral ? 10 : 0)
- *  − travelTiles ÷ 5; threshold config.scoreThreshold (20). ownedMinerals is
- *  adapter-computed from owned rooms' snapshots. */
+ *  sources ≥ 1, within maxRange BORDER CROSSINGS of a Stable room — the adapter
+ *  takes candidates from intel's reach graph, so the bound is enforced by
+ *  construction. maxRange = 1 is now a real strategic lever rather than an
+ *  artifact of how far a scout walks (intel reaches 3, see intel.md "Reach"): a
+ *  claimed room must be defended, supplied and rebuilt from home, and distance
+ *  costs far more there than for a remote we can simply abandon. The distance term
+ *  is therefore still near-inert in practice, and written anyway so that widening
+ *  the range does not silently mis-rank. Score = sources × 40 + (novel mineral ?
+ *  10 : 0) − travelTiles ÷ 5; threshold config.scoreThreshold (20). ownedMinerals
+ *  is adapter-computed from owned rooms' snapshots. */
 function scoreCandidate(intel: RoomIntel, travelTiles: number, ownedMinerals: MineralConstant[]): number;
 
 // src/expansion/plan.ts — pure state machine
