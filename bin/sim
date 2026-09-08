@@ -107,6 +107,7 @@ case "$cmd" in
     run_container --rm --init --name "$CONTAINER" "${MOUNTS[@]}" \
       -e TICKS="$ticks" -e SCENARIO="$scenario" -e EVERY="$every" -e VERBOSE="$verbose" \
       -e SIM_NEIGHBOR_RADIUS \
+      -e SIM_SHOW_PILES \
       "$IMAGE"
     ;;
   test)

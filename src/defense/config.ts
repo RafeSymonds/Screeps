@@ -10,8 +10,16 @@ export interface DefenseConfig {
     towerRepairInterval: number;
     /** Siege bar: armedParts > siegeFactor × (1 + towers in the room). */
     siegeFactor: number;
-    /** Defenders demanded at Siege (Raid gets 1). */
+    /** FLOOR on defenders at Siege; the count itself is sized to the damage
+     *  present (defense/response.ts), not to the tier. */
     siegeDefenders: number;
+    /** How much more ATTACK we want than the attackers have. Parity is not enough:
+     *  defenders arrive one at a time into a fight already in progress, and a
+     *  defender that trades evenly still dies. */
+    defenderOvermatch: number;
+    /** Hard cap, so a huge raid cannot consume the whole spawn queue — losing the
+     *  room slowly beats losing it while building an army that arrives too late. */
+    maxDefenders: number;
     /** [MOVE,ATTACK] pair cap — bounds spawn time to ≤ 60 ticks. */
     maxDefenderPairs: number;
     /** Request safe mode when a spawn drops below this fraction of max hits. */
@@ -31,6 +39,8 @@ export const DEFENSE_CONFIG: DefenseConfig = {
     towerRepairInterval: 10,
     siegeFactor: 15,
     siegeDefenders: 3,
+    defenderOvermatch: 1.5,
+    maxDefenders: 6,
     maxDefenderPairs: 10,
     spawnHitsFloor: 0.5,
     emergencyFloor: 3000,

@@ -64,6 +64,10 @@ export interface RoomPlanInput {
      *  CPU one of the four ceilings in economy/limits.ts, not the answer by
      *  itself. It tightens as the empire grows. */
     creepsAllowed: number;
+    /** The utilization loop's standing correction to the modelled counts
+     *  (docs/design/utilization.md). Added to the desired counts and then clamped
+     *  by the physical ceilings — it can ask, never authorise. */
+    adjust?: { haulers: number; workers: number };
     /** Emit the rebuild skeleton for a spawnless room? FALSE while expansion is
      *  pioneering it — that bootstrap already has an owner, and running both
      *  would double-load the sponsor's spawn queue with two uncoordinated
@@ -86,7 +90,7 @@ export interface RoomPlan {
     ceiling?: { reason: LimitReason; limits: Record<LimitReason, number> };
 }
 
-const SOURCE_RATE = 10; // 3000 energy / 300-tick regen
+export const SOURCE_RATE = 10; // 3000 energy / 300-tick regen
 /** UPGRADE_CONTROLLER_POWER: one WORK part spends 1 energy/tick upgrading. This is
  *  the room's steady-state sink — building spends 5×, but only while sites exist. */
 const UPGRADE_ENERGY_PER_WORK = 1;
@@ -105,6 +109,18 @@ const PRIORITY_BOOTSTRAP_HAULER = 2;
 const PRIORITY_WORKER = 50;
 const minerPriority = (slot: number): number => 3 + 2 * slot;
 const haulerPriority = (slot: number): number => 4 + 2 * slot;
+
+/**
+ * Is the room's income still being stood up? Exported because the utilization loop
+ * must not judge a recovering room — idle fractions are meaningless with almost no
+ * creeps, and telling a rebuilding room it has too many workers is how a wipe
+ * becomes permanent.
+ */
+export function isBootstrapping(room: RoomSnapshot, roster: CreepView[]): boolean {
+    const miners = roster.filter(c => assignmentOf(c)?.kind === AssignmentKind.Mine).length;
+    const haulers = roster.filter(c => assignmentOf(c)?.kind === AssignmentKind.Haul).length;
+    return miners < room.sources.length || haulers < Math.min(2, room.sources.length);
+}
 
 /** Can this body do this job? (Adoption viability — economy.md.) */
 function bodyFits(creep: CreepView, kind: AssignmentKind): boolean {
@@ -217,7 +233,7 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     // is below floor, size EVERY body to 300 — a wiped high-cap room's full-cap
     // bodies drain the banked stores once and then wedge the head-of-line queue on
     // the spawn's 300-cap self-regen. Capacity-sized bodies are earned, not assumed.
-    const bootstrapping = minersAlive < room.sources.length || haulersAlive < Math.min(2, room.sources.length);
+    const bootstrapping = isBootstrapping(room, roster);
     const cap = bootstrapping ? Math.min(room.energyCapacityAvailable, 300) : room.energyCapacityAvailable;
 
     const spawnView = room.structures[STRUCTURE_SPAWN]?.[0];
@@ -270,17 +286,19 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     // --- Haulers: global throughput count, distributed round-robin -----------------
     // Required carry CAPACITY (not creep count): rate × round-trip, per source.
     const maxCarry = haulerCarryCapacity(cap);
-    const perSourceCarry = sources.map(s => {
-        const dist = chebyshev(s.pos, upgradeSpot);
-        const roundTrip = 2 * dist * config.plainsFactor + config.tripOverhead;
-        return SOURCE_RATE * roundTrip;
-    });
+    const roundTripOf = (s: { pos: Pos }): number =>
+        2 * chebyshev(s.pos, upgradeSpot) * config.plainsFactor + config.tripOverhead;
+    const perSourceCarry = sources.map(s => SOURCE_RATE * roundTripOf(s));
     const carryNeeded = perSourceCarry.reduce((a, b) => a + b, 0);
     // Fewest creeps that can hold it, then RIGHT-SIZE each one to the share it
     // actually has to carry. Rounding the count up while keeping bodies at max
     // capacity is how a room ends up with a bunch of oversized haulers doing a
     // fraction of their capacity — 2 × 900 carry for a 1050-carry job.
-    let haulersDesiredTotal = Math.max(1, Math.ceil(carryNeeded / maxCarry));
+    // The modelled count, plus whatever the utilization loop has learned. The loop
+    // sees what the formula cannot: creeps waiting, walking further than chebyshev
+    // predicted, and blocking each other (docs/design/utilization.md).
+    const adjust = input.adjust ?? { haulers: 0, workers: 0 };
+    let haulersDesiredTotal = Math.max(1, Math.ceil(carryNeeded / maxCarry) + adjust.haulers);
     const carryPerHauler = carryNeeded / haulersDesiredTotal;
     const perSourceNeed = perSourceCarry.map(c => c / maxCarry);
 
@@ -304,7 +322,26 @@ export function planRoom(input: RoomPlanInput): RoomPlan {
     const worker = workerBody(cap);
     const workPerWorker = Math.max(1, worker.filter(part => part === WORK).length);
     const production = room.sources.length * SOURCE_RATE;
-    const workersForProduction = Math.ceil(production / (workPerWorker * UPGRADE_ENERGY_PER_WORK));
+    // NOTE: sizing workers to DELIVERED energy rather than produced energy was
+    // tried here twice and is still the right idea; both attempts are recorded
+    // because each failed for a reason worth not repeating.
+    //
+    // 1. Deriving delivery from the DESIRED hauler count is circular. That count is
+    //    `rate x roundTrip / carry`, so throughput comes back as `rate` every time
+    //    and the term does nothing at all (measured: zero change).
+    // 2. Deriving it from the LIVE fleet is not circular and is what actually
+    //    bounds delivery — four haulers alive against nine wanted, during a ramp
+    //    that lasts over a thousand ticks. But it couples worker count to a fleet
+    //    that is itself still spawning, and a room recovering from a wipe would
+    //    collapse to one worker exactly when it needs to rebuild.
+    //
+    // The honest version needs a measured DUTY CYCLE (energy actually delivered per
+    // tick against the fleet that delivered it) rather than either proxy. The
+    // energy ledger added in telemetry now records the numerator.
+    const workersForProduction = Math.max(
+        1,
+        Math.ceil(production / (workPerWorker * UPGRADE_ENERGY_PER_WORK)) + adjust.workers
+    );
 
     // Income first is the invariant — a room can build more workers later, but
     // workers cannot fix an unstaffed source. What the room may add on top of its

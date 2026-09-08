@@ -103,6 +103,22 @@ describe("mine executor", () => {
 });
 
 describe("haul executor", () => {
+    it("prefers a pile it can CLEAR over a bigger one it can only skim", () => {
+        // Ground decay is ceil(amount/1000) per PILE per tick — a flat 1 e/t floor
+        // that a 40-energy pile pays as fully as a 900-energy one. Scoring on size
+        // alone meant a hauler skimmed the biggest pile forever and the small ones
+        // were never once chosen, each burning 1 e/t until it evaporated.
+        // Sim-measured: four piles around a single source, eleven in the room.
+        const room = roomWith();
+        room.dropped = [pile("big", pos(11, 40), 900), pile("small", pos(11, 41), 120)];
+        const hauler = creepAt(pos(11, 40), 0);
+        (hauler.store as { free: number }).free = 150;
+        const action = decideHaul(hauler, haul, room, SPOT);
+        // It can carry the small one entirely; the big one it could only skim.
+        expect(action.kind).to.equal(ActionKind.Pickup);
+        expect((action as { targetId: string }).targetId).to.equal("small");
+    });
+
     it("collects the biggest pile at its source, ignoring crumbs", () => {
         const room = roomWith({
             dropped: [pile("small", pos(10, 41), 10), pile("big", pos(11, 40), 300), pile("far", pos(30, 30), 999)]
@@ -141,6 +157,20 @@ describe("haul executor", () => {
 
         const fullRoom = roomWith();
         fullRoom.structures[STRUCTURE_SPAWN]![0].store = { free: 0, used: 300, byResource: { energy: 300 } };
+        // Dropping happens ON the tile, never merely near it. Ground energy decays
+        // ceil(amount/1000) per PILE per tick — a flat 1 e/t floor each, however
+        // small — so a range-1 drop let every hauler start its own pile on one of
+        // nine tiles. Sim-measured at RCL2, where no sink exists and every hauler
+        // takes this path: ten piles burning 10 e/t against a 20 e/t income.
+        expect(decideHaul(creepAt(SPOT, 150), haul, fullRoom, SPOT)).to.deep.equal({
+            kind: ActionKind.Drop,
+            resource: RESOURCE_ENERGY
+        });
+        // Adjacency IS enough, deliberately. Requiring the exact tile merges the
+        // piles and saves ~3 e/t — and deadlocks the room, because the delivery
+        // point is the upgrade spot and workers stand on it: a hauler that can
+        // never arrive never drops, never empties, and never fetches again.
+        // Sim-measured at 1400 → 6678 standing energy. See dropOn in executors.ts.
         expect(decideHaul(creepAt(pos(25, 22), 150), haul, fullRoom, SPOT)).to.deep.equal({
             kind: ActionKind.Drop,
             resource: RESOURCE_ENERGY
@@ -329,7 +359,7 @@ describe("haul executor with containers", () => {
             resource: RESOURCE_ENERGY
         });
         towered.structures[STRUCTURE_CONTAINER] = [container("ctrlCont", SPOT, 2000)]; // full
-        expect(decideHaul(creepAt(pos(25, 22), 150), haul, towered, SPOT)).to.deep.equal({
+        expect(decideHaul(creepAt(SPOT, 150), haul, towered, SPOT)).to.deep.equal({
             kind: ActionKind.Drop,
             resource: RESOURCE_ENERGY
         });
@@ -356,7 +386,7 @@ describe("haul executor with containers", () => {
         });
         // No container yet: a starving spot (no standing pile) wins over the tower too.
         towered.structures[STRUCTURE_CONTAINER] = undefined;
-        expect(decideHaul(creepAt(pos(25, 22), 150), haul, towered, SPOT)).to.deep.equal({
+        expect(decideHaul(creepAt(SPOT, 150), haul, towered, SPOT)).to.deep.equal({
             kind: ActionKind.Drop,
             resource: RESOURCE_ENERGY
         });

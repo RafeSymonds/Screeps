@@ -96,8 +96,24 @@ nuisance.
    spawning holds spawn-side free capacity open forever and haulers never reach the
    tower tier (the review's self-sustaining "towers exhausted" state).
 2. **Defenders (class B).** Demanded when `level ≥ Raid` AND the room's towers
-   cannot carry it: no towers, or every tower's energy < 10. Count: Raid → 1, Siege
-   → `config.siegeDefenders` (3). Body: `MOVE×n then ATTACK×n` (MOVE first — parts
+   cannot carry it: no towers, or every tower's energy < 10.
+
+   **Count is sized to the threat, not to its tier** (Aug 2026). It used to be
+   `Raid → 1, Siege → siegeDefenders (3)`, and the flat 1 was a real defect: two
+   raiders are 4 armed parts against a siege bar of 15, so they read as a Raid, got
+   exactly one defender, and the count was never revisited — the room lost the same
+   fight indefinitely. It is now the largest of three numbers, capped at
+   `maxDefenders`:
+
+   - the tier floor (1, or `siegeDefenders` at Siege);
+   - `armedParts x defenderOvermatch / ATTACK per defender` — overmatch rather than
+     parity, because defenders arrive one at a time into a fight already running and
+     one that trades evenly still dies;
+   - **the number of armed attackers**, because two of them focus one defender and
+     kill it however many ATTACK parts it carries. A big body cannot be in two
+     places.
+
+   Body: `MOVE×n then ATTACK×n` (MOVE first — parts
    die front-to-back, so the weapon dies last), `n = clamp(floor(cap/130), 1,
    config.maxDefenderPairs (10))` — the cap bounds spawn time to ≤ 60 ticks; an
    emergency response that takes 150 ticks to spawn is not one. Demands carry

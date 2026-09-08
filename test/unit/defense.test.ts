@@ -159,10 +159,29 @@ describe("defense response", () => {
         expect(planDefense(towerless, assess(towerless), [], DEFENSE_CONFIG).demands).to.have.length(1);
     });
 
-    it("scales the crew at siege and counts staffed defenders", () => {
+    it("fields MORE THAN ONE defender against a small raid", () => {
+        // The regression this exists for. Two raiders is 4 armed parts, far under
+        // the siege bar of 15, so the old rule read "Raid → 1 defender" and never
+        // revisited it. One defender against two attackers loses, every time, and
+        // the sim showed exactly that: hostiles 2,2,2,... for 400 ticks.
+        const raid = room({
+            hostiles: [
+                hostile("r1", pos(20, 20), { [ATTACK]: 2, [MOVE]: 2, [TOUGH]: 2 }),
+                hostile("r2", pos(21, 20), { [ATTACK]: 2, [MOVE]: 2, [TOUGH]: 2 })
+            ]
+        });
+        const plan = planDefense(raid, assess(raid), [], DEFENSE_CONFIG);
+        expect(plan.demands.length, "one defender never beats two attackers").to.be.greaterThan(1);
+    });
+
+    it("sizes the crew to the DAMAGE PRESENT and counts staffed defenders", () => {
+        // Not a flat count per tier. "One defender unless it is a siege" sent
+        // exactly one creep at two raiders — 4 armed parts against a siege bar of
+        // 15 — and the room lost the same fight for 400 ticks (sim: raid-early).
         const siege = room({ hostiles: [hostile("w1", pos(20, 20), { [ATTACK]: 24, [MOVE]: 24 })] });
         const plan = planDefense(siege, assess(siege), [], DEFENSE_CONFIG);
-        expect(plan.demands).to.have.length(DEFENSE_CONFIG.siegeDefenders);
+        expect(plan.demands.length).to.be.at.least(DEFENSE_CONFIG.siegeDefenders);
+        expect(plan.demands.length).to.be.at.most(DEFENSE_CONFIG.maxDefenders);
         const defender = {
             name: "d1",
             id: "d1" as Id<Creep>,
@@ -176,7 +195,7 @@ describe("defense response", () => {
             memory: { home: "W1N1", assignment: { kind: AssignmentKind.Defend, room: "W1N1" } } as CreepMemory
         };
         expect(planDefense(siege, assess(siege), [defender], DEFENSE_CONFIG).demands).to.have.length(
-            DEFENSE_CONFIG.siegeDefenders - 1
+            plan.demands.length - 1
         );
     });
 

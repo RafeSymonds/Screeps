@@ -122,6 +122,29 @@ it reads as a broken harness rather than "somebody rebuilt".
 The snapshot costs about a megabyte and makes a run immune to whatever else the repo is
 doing, so you can build, deploy, or keep editing while a gate runs.
 
+### Known flake: `raid-early` (Aug 2026, characterised)
+
+`fast: defenders carry the towerless room` is **nondeterministic**. Measured on
+identical code, three consecutive standalone runs: **pass, fail, pass**. A direct
+`bin/sim run` of the same scenario had both raiders dead by t=41; a test run of the
+same build had one alive at t=400.
+
+The scenario is a knife-edge by construction — a small defence against two raiders
+with no towers — so engine-level ordering (which creep acts first, which tile a
+path picks) decides it. It is not measuring what it looks like it measures.
+
+**Do not treat a single failure here as a regression.** It broke under four
+unrelated changes in one afternoon (a movement ops cap, a workforce cap removal, a
+drop-tile change, a utilization loop) and only ONE of those was genuinely at fault
+— confirmed by bisection in that case and disproved by re-running in the others.
+Re-run it two or three times before believing it.
+
+Chasing it did surface a real defect worth keeping: defenders were demanded as a
+flat count per threat tier (`Siege ? 3 : 1`), so two raiders — 4 armed parts against
+a siege bar of 15 — got exactly one defender, forever. They are now sized to the
+damage present AND to the attacker body count, since two attackers focus one
+defender and kill it whatever it carries.
+
 ### Known flake (Aug 2026, unresolved)
 
 `fast: post-infrastructure rate → does not let energy rot on the ground` has failed once

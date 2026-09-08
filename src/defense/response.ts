@@ -46,7 +46,27 @@ export function planDefense(
         const towers = room.structures[STRUCTURE_TOWER] ?? [];
         const towersCanFight = towers.some(t => (t.store?.byResource[RESOURCE_ENERGY] ?? 0) >= SHOT_COST);
         if (!towersCanFight) {
-            const desired = assessment.level === ThreatLevel.Siege ? config.siegeDefenders : 1;
+            // Size the response to the DAMAGE PRESENT, not to a tier. A flat
+            // "one defender unless it is a siege" sent exactly one creep at two
+            // raiders — 4 armed parts against a siege bar of 15, so the count was
+            // never revisited and the room lost the same fight for 400 ticks
+            // (sim: `raid-early`, hostiles 2,2,2,... for the whole run).
+            //
+            // Overmatch rather than parity, because the defence arrives one creep
+            // at a time into a fight the attackers are already having, and a
+            // defender that trades evenly still dies.
+            const attackParts = assessment.armedParts;
+            const perDefender = Math.max(
+                1,
+                defenderBody(room.energyCapacityAvailable, config).filter(p => p === ATTACK).length
+            );
+            const sized = Math.ceil((attackParts * config.defenderOvermatch) / perDefender);
+            const floor = assessment.level === ThreatLevel.Siege ? config.siegeDefenders : 1;
+            // ...and never fewer BODIES than they have. Damage parity is not the
+            // only thing that matters: two attackers focus one defender and kill it
+            // before it kills either of them, however many ATTACK parts it carries.
+            // A big body cannot be in two places.
+            const desired = Math.min(config.maxDefenders, Math.max(floor, sized, assessment.armed.length));
             const staffed = roster.filter(
                 c => (c.memory as { assignment?: { kind?: AssignmentKind } }).assignment?.kind === AssignmentKind.Defend
             ).length;

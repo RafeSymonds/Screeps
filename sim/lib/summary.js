@@ -39,7 +39,18 @@ function summarize(objects, botId) {
   const controller = of("controller")[0];
   const dropped = of("energy"); // drop-mined ground piles
 
+  // Where the piles ARE, not just how many. Ground energy decays ceil(amount/1000)
+  // per PILE per tick — a flat 1 e/t floor each — so the count and the LOCATIONS
+  // are the diagnostic: two at the sources are inherent to drop-mining, anything
+  // else is a logistics leak with an address.
+  const pilesAt = dropped
+    .map((d) => `${d.x},${d.y}:${Math.round(d.energy || 0)}`)
+    .sort();
+  const sourcesAt = sources.map((s) => `${s.x},${s.y}`).sort();
+
   return {
+    pilesAt,
+    sourcesAt,
     creeps: creeps.length,
     roles,
     hostiles: hostiles.length,
@@ -76,6 +87,8 @@ function fmtLine(s) {
     `ext=${s.extensions}/${s.extEnergy} cont=${s.containers}/${s.contEnergy} ` +
     `stor=${s.storageEnergy} towers=${s.towers}/${s.towerEnergy} sites=${s.sites} src=${s.sourceEnergy} ` +
     `drop=${s.droppedPiles || 0}/${s.droppedEnergy || 0}` +
+    (process.env.SIM_SHOW_PILES && s.pilesAt && s.pilesAt.length ? ` piles=[${s.pilesAt.join(" ")}]` : "") +
+    (process.env.SIM_SHOW_PILES && s.sourcesAt ? ` src@[${s.sourcesAt.join(" ")}]` : "") +
     cpu
   );
 }

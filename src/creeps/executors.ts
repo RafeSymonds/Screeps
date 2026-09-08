@@ -61,18 +61,34 @@ import { EnergyLedger, NULL_LEDGER } from "creeps/ledger";
  * The +1 keeps a pile underfoot (distance 0) from dividing by zero, and ties break
  * on id so every creep evaluating the same room reaches the same answer.
  */
-function bestPile(from: Pos, piles: DroppedView[], ledger: EnergyLedger = NULL_LEDGER): DroppedView | undefined {
+function bestPile(
+    from: Pos,
+    piles: DroppedView[],
+    ledger: EnergyLedger = NULL_LEDGER,
+    capacity = Infinity
+): DroppedView | undefined {
     let best: DroppedView | undefined;
     let bestScore = -1;
+    let bestClears = false;
     for (const pile of piles) {
         // Score the UNCLAIMED remainder: a pile another creep already committed to
         // this tick is not worth walking to.
         const free = ledger.remaining(pile.id, pile.amount);
         if (free <= 0) continue;
+        // Clearing a pile OUTRIGHT is worth more than its energy, because ground
+        // decay is `ceil(amount/1000)` per PILE per tick — a flat 1 e/t floor that
+        // a 19-energy pile pays just as fully as a 900-energy one. Scoring on size
+        // alone meant a hauler skimmed the biggest pile forever (150 capacity off a
+        // 489 pile) while the small ones were never once chosen and burned 1 e/t
+        // each until they evaporated. Sim-measured: four piles round a single
+        // source, seven in the room, 1400 energy standing.
+        const clears = free <= capacity;
         const score = free / (chebyshev(from, pile.pos) + 1);
-        if (score > bestScore || (score === bestScore && best !== undefined && pile.id < best.id)) {
+        const better = clears !== bestClears ? clears : score > bestScore;
+        if (better || (score === bestScore && clears === bestClears && best !== undefined && pile.id < best.id)) {
             best = pile;
             bestScore = score;
+            bestClears = clears;
         }
     }
     return best;
@@ -184,6 +200,35 @@ export function focusSite(room: RoomSnapshot): ConstructionSiteView | undefined 
  * Structures still win over the ground wherever they exist (the caller checks
  * containers and storage first); this only decides where a *dropped* pile goes.
  */
+/**
+ * Drop at the delivery point — adjacency is deliberately enough.
+ *
+ * ## Landing on the exact tile: tried, measured, reverted
+ *
+ * Ground energy decays `ceil(amount/1000)` per PILE per tick — a flat 1 e/t floor
+ * for every distinct pile, however small — so a `range <= 1` drop lets each hauler
+ * start its own pile on one of nine tiles. Measured at RCL2, where no tower,
+ * container or storage exists and every hauler takes this path: ten piles holding
+ * 1655 energy, ~10 e/t against a 20 e/t income. Requiring `range 0` merged them and
+ * did recover ~3 e/t.
+ *
+ * It also deadlocked the room. The delivery point IS the upgrade spot, which is
+ * where workers stand, so a hauler asked for that exact tile can simply never
+ * arrive — and a hauler that never arrives never drops, never empties, and never
+ * goes back for more. Measured: ground energy climbed 1400 → 6678 and still
+ * rising, ten haulers frozen holding their loads, construction stopped dead.
+ *
+ * A few e/t of decay is much cheaper than a stalled logistics chain. Merging piles
+ * needs a drop tile nothing stands on — a reserved tile beside the spot, or a
+ * container — not a tile the workers are already occupying.
+ */
+function dropOn(creep: CreepView, tile: Pos): Action {
+    if (chebyshev(creep.pos, tile) <= 1) {
+        return { kind: ActionKind.Drop, resource: RESOURCE_ENERGY };
+    }
+    return { kind: ActionKind.MoveTo, pos: tile, range: 1 };
+}
+
 export function deliveryPoint(room: RoomSnapshot, upgradeSpot: Pos | undefined): Pos | undefined {
     // INVESTMENT sites only. Road sites never run out, so following them would
     // park the room's energy on a permanent maintenance queue and starve the
@@ -290,7 +335,7 @@ export function decideHaul(
                 source !== undefined &&
                 chebyshev(d.pos, source.pos) <= 2
         );
-        const pile = bestPile(creep.pos, piles, ledger);
+        const pile = bestPile(creep.pos, piles, ledger, creep.store.free);
         if (pile) {
             ledger.claim(pile.id, creep.store.free);
             if (chebyshev(creep.pos, pile.pos) <= 1) {
@@ -326,7 +371,7 @@ export function decideHaul(
                 d.amount >= ECONOMY_CONFIG.minPickup &&
                 (spawnSideNeedy || upgradeSpot === undefined || chebyshev(d.pos, upgradeSpot) > 1)
         );
-        const stray = bestPile(creep.pos, strays, ledger);
+        const stray = bestPile(creep.pos, strays, ledger, creep.store.free);
         if (stray) {
             ledger.claim(stray.id, creep.store.free);
             if (chebyshev(creep.pos, stray.pos) <= 1) {
@@ -406,10 +451,7 @@ export function decideHaul(
                 return { kind: ActionKind.MoveTo, pos: ctrlContainer.pos, range: 1 };
             }
             if (!ctrlContainer) {
-                if (chebyshev(creep.pos, upgradeSpot) <= 1) {
-                    return { kind: ActionKind.Drop, resource: RESOURCE_ENERGY };
-                }
-                return { kind: ActionKind.MoveTo, pos: upgradeSpot, range: 1 };
+                return dropOn(creep, upgradeSpot);
             }
         }
     }
@@ -430,10 +472,7 @@ export function decideHaul(
     if (!drop) {
         return { kind: ActionKind.Idle, reason: "no-spot" };
     }
-    if (chebyshev(creep.pos, drop) <= 1) {
-        return { kind: ActionKind.Drop, resource: RESOURCE_ENERGY };
-    }
-    return { kind: ActionKind.MoveTo, pos: drop, range: 1 };
+    return dropOn(creep, drop);
 }
 
 /**
@@ -498,7 +537,7 @@ function decideUpgradeWork(
         return { kind: ActionKind.MoveTo, pos: pool.pos, range: 1 };
     }
     const piles = room.dropped.filter(d => d.resource === RESOURCE_ENERGY && chebyshev(d.pos, anchor) <= 4);
-    const pile = bestPile(creep.pos, piles, ledger);
+    const pile = bestPile(creep.pos, piles, ledger, creep.store.free);
     if (!pile) {
         // Nothing to collect anywhere: self-supply by harvesting rather than idle.
         // This is what lets a single worker bootstrap a freshly claimed or wiped

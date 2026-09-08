@@ -20,17 +20,78 @@ import { Pos, RoomSnapshot } from "shared/views";
 import { getClaimTarget } from "expansion/index";
 import { getControllerContainerPos } from "layout/index";
 import { getTerrain } from "snapshot/terrain";
+import { takeWorkerUtilization } from "creeps/utilization";
 import { log, measuredCpuPerCreep } from "telemetry/index";
 import { ECONOMY_CONFIG } from "economy/config";
 import { planLinkTransfers } from "economy/links";
 import { LimitReason } from "economy/limits";
-import { planRoom } from "economy/planner";
+import { SOURCE_RATE, isBootstrapping, planRoom } from "economy/planner";
+import { UtilAdjust, adjustWorkforce } from "economy/utilization";
 import { chooseUpgradeSpot, countAdjacentSpots } from "economy/spots";
 
 export interface EconMemory {
     v: 1;
     upgradeSpot: { x: number; y: number };
     sourceSpots: Record<string, number>;
+    /** The utilization loop's standing correction to the modelled counts, and when
+     *  it last ran. Absent means {0,0} — the loop is an adjustment to the model,
+     *  never a replacement, so losing it degrades to the modelled behaviour rather
+     *  than to nothing. See docs/design/utilization.md. */
+    util?: { v: 1; haulers: number; workers: number; at: number };
+}
+
+/** How often the loop looks: one telemetry window, ~1/15 of a creep lifetime.
+ *  Slow on purpose — a correction that outruns the spawn queue realising it is
+ *  how a control loop turns into an oscillation. */
+const UTIL_INTERVAL = 100;
+
+function readAdjust(econ: EconMemory): UtilAdjust {
+    return econ.util?.v === 1 ? { haulers: econ.util.haulers, workers: econ.util.workers } : { haulers: 0, workers: 0 };
+}
+
+/**
+ * The utilization pass: observe, diagnose, nudge. See docs/design/utilization.md
+ * for why this reads IDLENESS as well as backlog — ground energy alone cannot tell
+ * a room that needs haulers from one that needs consumers, and guessing wrong made
+ * it measurably worse.
+ */
+function runUtilization(ctx: TickContext, room: RoomSnapshot, econ: EconMemory, bootstrapping: boolean): void {
+    if (ctx.snapshot.time - (econ.util?.at ?? 0) < UTIL_INTERVAL) {
+        return; // let the tally ACCUMULATE — draining it every tick made the
+        // "window" one tick wide, which is noise, not a duty cycle.
+    }
+    const seen = takeWorkerUtilization(room.name);
+    // Nothing measured during a raid means anything: creeps are retreating, and the
+    // room's priorities are not economic.
+    if (room.hostiles.length > 0) {
+        econ.util = { v: 1, ...readAdjust(econ), at: ctx.snapshot.time };
+        return;
+    }
+    // Idle fractions are meaningless with almost no creeps, and a recovering room
+    // must not be told it has too many workers while it is rebuilding.
+    if (bootstrapping || seen.total === 0) {
+        econ.util = { v: 1, ...readAdjust(econ), at: ctx.snapshot.time };
+        return;
+    }
+    const production = Math.max(1, room.sources.length * SOURCE_RATE);
+    const ground = room.dropped.filter(d => d.resource === RESOURCE_ENERGY).reduce((sum, d) => sum + d.amount, 0);
+    const next = adjustWorkforce({
+        backlogRatio: ground / production,
+        workerDuty: seen.working / seen.total,
+        current: readAdjust(econ)
+    });
+    const before = readAdjust(econ);
+    econ.util = { v: 1, ...next, at: ctx.snapshot.time };
+    if (next.haulers !== before.haulers || next.workers !== before.workers) {
+        log.info(
+            SubsystemId.Economy,
+            () =>
+                `${room.name}: utilization — backlog ${Math.round(ground / production)}t/prod, ` +
+                `workers working ${Math.round((seen.working / seen.total) * 100)}% of ticks → ` +
+                `haulers ${next.haulers >= 0 ? "+" : ""}${next.haulers}, ` +
+                `workers ${next.workers >= 0 ? "+" : ""}${next.workers}`
+        );
+    }
 }
 
 function roomMemoryOf(roomName: string): { econ?: EconMemory } {
@@ -88,6 +149,8 @@ export function runRoom(ctx: TickContext, room: RoomSnapshot): void {
     const orphans = ctx.snapshot.myCreeps.filter(
         c => (c.memory as { home?: string }).home === undefined && !c.spawning && c.pos.roomName === room.name
     );
+    // Observe before planning: the loop's correction is read by planRoom below.
+    runUtilization(ctx, room, econ, isBootstrapping(room, roster));
     const plan = planRoom({
         room,
         roster,
@@ -102,6 +165,15 @@ export function runRoom(ctx: TickContext, room: RoomSnapshot): void {
             BUDGET_CONFIG,
             measuredCpuPerCreep(nonCreepOverhead(ctx.snapshot.myRooms.length))
         ).creepsPerRoom,
+        // A room under attack spends its spawn on defence, not on economy tuning.
+        // The loop's correction is suspended while hostiles are present — the
+        // creeps it already bought stay, but no new ones are demanded, so the
+        // queue frees up for the defender. `raid-early` is the gate that keeps
+        // finding this: at RCL2 anything holding the spawn queue non-empty means
+        // the defender is either delayed or built small.
+        // A room under attack spends its spawn on defence, not on economy tuning:
+        // the creeps the loop already bought stay, but no new ones are demanded.
+        adjust: room.hostiles.length > 0 ? { haulers: 0, workers: 0 } : readAdjust(econ),
         allowRebuild: getClaimTarget() !== room.name,
         config: ECONOMY_CONFIG
     });

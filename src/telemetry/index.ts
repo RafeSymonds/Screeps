@@ -82,7 +82,33 @@ export interface WindowStats {
      *  way to learn what a creep actually costs — see shared/budget.ts, which
      *  shipped a guessed 0.35 for want of exactly this measurement. */
     avgCreeps: number;
+    /** Energy accounting for the window, in raw energy (not per tick).
+     *
+     *  The room's whole purpose is turning `harvested` into `upgraded`, and until
+     *  this existed nobody could say what fraction actually made it: a measured
+     *  RCL4 room delivered 5.4 e/t to its controller out of ~30 e/t of income, and
+     *  the difference could not be attributed. Every other term here is a claim on
+     *  the same energy, so `harvested − (upgraded + built + repaired + spawned)` is
+     *  what leaked — decay, overflow, or creeps that died holding it. */
+    energy: EnergyLedgerStats;
     entries: Record<string, WindowEntryStats>;
+}
+
+/** Raw energy moved during a window, by what moved it. */
+export interface EnergyLedgerStats {
+    harvested: number;
+    upgraded: number;
+    built: number;
+    repaired: number;
+    spawned: number;
+}
+
+export enum EnergyFlow {
+    Harvested = "harvested",
+    Upgraded = "upgraded",
+    Built = "built",
+    Repaired = "repaired",
+    Spawned = "spawned"
 }
 
 export interface StatsMemory {
@@ -102,14 +128,47 @@ interface HeapWindow {
     minBucket: number;
     totalCreeps: number;
     errors: number;
+    energy: EnergyLedgerStats;
     entries: Record<string, EntryStats>;
 }
 
+const emptyEnergy = (): EnergyLedgerStats => ({
+    harvested: 0,
+    upgraded: 0,
+    built: 0,
+    repaired: 0,
+    spawned: 0
+});
+
 function emptyWindow(): HeapWindow {
-    return { ticks: 0, totalCpu: 0, maxCpu: 0, minBucket: Infinity, totalCreeps: 0, errors: 0, entries: {} };
+    return {
+        ticks: 0,
+        totalCpu: 0,
+        maxCpu: 0,
+        minBucket: Infinity,
+        totalCreeps: 0,
+        errors: 0,
+        energy: emptyEnergy(),
+        entries: {}
+    };
 }
 
 let window = emptyWindow();
+
+/**
+ * Record energy moved by one intent. Called from the creep executor's `perform`
+ * and from the spawn adapter — the two places energy actually changes hands.
+ *
+ * Amounts are computed from body parts and the engine's power constants rather
+ * than read back from the world, because intents resolve after our code runs:
+ * there is nothing to read at the time we know it happened.
+ */
+export function countEnergy(flow: EnergyFlow, amount: number): void {
+    if (amount > 0) {
+        window.energy[flow] += amount;
+    }
+}
+
 let currentTime = 0;
 
 const deps = {
@@ -211,6 +270,7 @@ export function flush(): void {
             avgCpu: round2(window.totalCpu / window.ticks),
             maxCpu: round2(window.maxCpu),
             avgCreeps: round2(window.totalCreeps / window.ticks),
+            energy: { ...window.energy },
             minBucket: window.minBucket === Infinity ? 0 : window.minBucket,
             entries
         };

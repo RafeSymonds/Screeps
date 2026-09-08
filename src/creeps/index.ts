@@ -35,16 +35,26 @@ import { isUnsafe } from "intel/index";
 import { requestMove } from "movement/index";
 import { resolve } from "snapshot/handles";
 import { getTerrain } from "snapshot/terrain";
-import { log } from "telemetry/index";
+import { EnergyFlow, countEnergy, log } from "telemetry/index";
 import { Action, ActionKind } from "creeps/actions";
 import { decideDefend, decideHaul, decideMine, decideWork } from "creeps/executors";
 import { EnergyLedger, createLedger } from "creeps/ledger";
 import { assignSeats, seatTiles } from "creeps/seats";
+import { recordWorkerTick } from "creeps/utilization";
 
 /** Why creeps did nothing, tallied by reason and logged periodically. Idleness is
  *  the symptom every economy bug shows up as first, so the reason string is the
  *  cheapest diagnostic in the bot — "no-pile=12" says more than a CPU graph. */
 const idleTally: Record<string, number> = {};
+
+/** Reasons a creep did nothing that headcount cannot fix — these ticks are dropped
+ *  from the sample entirely, so a raid or a vision gap never reads as "this room
+ *  has too many workers". */
+const NOT_A_SHORTAGE = new Set(["retreated", "no-vision", "no-controller", "scouting", "unknown-kind"]);
+
+/** Actions that put a worker's WORK parts to use. Fetching and walking are
+ *  necessary, but they are not the thing the creep was bought for. */
+const PRODUCTIVE: ReadonlySet<ActionKind> = new Set([ActionKind.Build, ActionKind.Upgrade, ActionKind.Repair]);
 
 /** Per-tick memo: the fortify accessor scans room walls once per room, not per creep. */
 let fortifyTick = -1;
@@ -373,7 +383,10 @@ function decide(creep: CreepView, assignment: Assignment, ctx: TickContext, ledg
  * error: the object died between snapshot and intent, which is ordinary, and next
  * tick's decision will simply pick something else.
  */
-function perform(creepName: string, action: Action): void {
+function perform(creepName: string, action: Action, util?: { room: string; worker: boolean }): void {
+    if (util?.worker === true && !(action.kind === ActionKind.Idle && NOT_A_SHORTAGE.has(action.reason))) {
+        recordWorkerTick(util.room, PRODUCTIVE.has(action.kind));
+    }
     if (action.kind === ActionKind.Idle) {
         idleTally[action.reason] = (idleTally[action.reason] ?? 0) + 1;
         return;
@@ -386,6 +399,11 @@ function perform(creepName: string, action: Action): void {
     if (!creep) {
         return;
     }
+    // Energy accounting: what this creep is about to move, by body power. Intents
+    // resolve after our code runs, so the amount cannot be read back — it is
+    // computed from parts and the engine's power constants, and only counted when
+    // the engine accepted the intent. See telemetry's EnergyLedgerStats.
+    const work = creep.getActiveBodyparts(WORK);
     let rc: number = OK;
     switch (action.kind) {
         case ActionKind.Harvest: {
@@ -442,6 +460,22 @@ function perform(creepName: string, action: Action): void {
             break;
         }
     }
+    if (rc === OK) {
+        switch (action.kind) {
+            case ActionKind.Harvest:
+                countEnergy(EnergyFlow.Harvested, work * HARVEST_POWER);
+                break;
+            case ActionKind.Upgrade:
+                countEnergy(EnergyFlow.Upgraded, work * UPGRADE_CONTROLLER_POWER);
+                break;
+            case ActionKind.Build:
+                countEnergy(EnergyFlow.Built, work * BUILD_POWER);
+                break;
+            case ActionKind.Repair:
+                countEnergy(EnergyFlow.Repaired, work * REPAIR_POWER * REPAIR_COST);
+                break;
+        }
+    }
     if (rc !== OK && rc !== ERR_TIRED) {
         log.debug(SubsystemId.CreepExecution, () => `${creepName} ${action.kind} → ${rc}`);
     }
@@ -461,7 +495,11 @@ export function runAll(ctx: TickContext): void {
             idleTally.unassigned = (idleTally.unassigned ?? 0) + 1;
             continue;
         }
-        perform(creep.name, decide(creep, assignment, ctx, ledger));
+        const home = (creep.memory as { home?: string }).home;
+        perform(creep.name, decide(creep, assignment, ctx, ledger), {
+            room: home ?? creep.pos.roomName,
+            worker: assignment.kind === AssignmentKind.Work
+        });
     }
     if (ctx.snapshot.time % 100 === 0) {
         const entries = Object.entries(idleTally);

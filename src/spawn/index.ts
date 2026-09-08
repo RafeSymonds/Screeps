@@ -21,7 +21,8 @@ import { SubsystemId } from "shared/subsystems";
 import { TickContext } from "shared/tick";
 import { RoomSnapshot } from "shared/views";
 import { resolve } from "snapshot/handles";
-import { log } from "telemetry/index";
+import { bodyCost } from "economy/bodies";
+import { EnergyFlow, countEnergy, log } from "telemetry/index";
 import { resolveSpawns, SpawnState } from "spawn/resolver";
 
 /** Owner of Memory.rooms[name].spawn — the queue's wait record, which is the one
@@ -58,7 +59,12 @@ export function runRoom(ctx: TickContext, room: RoomSnapshot): void {
                 assignment: decision.demand.assignment
             }
         });
-        if (rc !== OK) {
+        if (rc === OK) {
+            // Replacement is a permanent claim on income — a workforce costs its
+            // own body every creep-lifetime, forever — so it belongs in the same
+            // ledger as everything else that spends energy.
+            countEnergy(EnergyFlow.Spawned, bodyCost(decision.body));
+        } else {
             log.warn(SubsystemId.Spawn, () => `spawnCreep ${decision.name} failed: ${rc}`);
         }
     }
