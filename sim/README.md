@@ -88,8 +88,7 @@ bin/sim test -- --grep defense  # only matching
 ```
 
 **Two tiers.** `bin/sim test` runs the FAST suite (`tests/`): staged scenarios that
-seed each era's starting state (`rcl2-base`, `infra-built`, …) so every suite proves
-one behavior in ≤ 900 ticks — the whole thing is a few minutes of wall clock and is
+seed each stage's starting state so every suite proves one behavior in ≤ 900 ticks — the whole thing is a few minutes of wall clock and is
 the iteration loop. `bin/sim test --full` adds the FULL-ARC suites (`tests-full/`):
 the same behaviors proven end-to-end from scratch over thousands of ticks (~40 min)
 — run before every milestone commit. Staged gates prove stages; only the full arc
@@ -122,52 +121,6 @@ it reads as a broken harness rather than "somebody rebuilt".
 The snapshot costs about a megabyte and makes a run immune to whatever else the repo is
 doing, so you can build, deploy, or keep editing while a gate runs.
 
-### Known flake: `raid-early` (Aug 2026, characterised)
-
-`fast: defenders carry the towerless room` is **nondeterministic**. Measured on
-identical code, three consecutive standalone runs: **pass, fail, pass**. A direct
-`bin/sim run` of the same scenario had both raiders dead by t=41; a test run of the
-same build had one alive at t=400.
-
-The scenario is a knife-edge by construction — a small defence against two raiders
-with no towers — so engine-level ordering (which creep acts first, which tile a
-path picks) decides it. It is not measuring what it looks like it measures.
-
-**Do not treat a single failure here as a regression.** It broke under four
-unrelated changes in one afternoon (a movement ops cap, a workforce cap removal, a
-drop-tile change, a utilization loop) and only ONE of those was genuinely at fault
-— confirmed by bisection in that case and disproved by re-running in the others.
-Re-run it two or three times before believing it.
-
-Chasing it did surface a real defect worth keeping: defenders were demanded as a
-flat count per threat tier (`Siege ? 3 : 1`), so two raiders — 4 armed parts against
-a siege bar of 15 — got exactly one defender, forever. They are now sized to the
-damage present AND to the attacker body count, since two attackers focus one
-defender and kill it whatever it carries.
-
-### Known flake (Aug 2026, unresolved)
-
-`fast: post-infrastructure rate → does not let energy rot on the ground` has failed once
-in two full parallel runs while passing standalone (2/2, settling at 1 pile / <200 energy
-against a 1500 bound). In the failing run the room never staffed up — ground energy was a
-symptom, not the fault.
-
-**Mechanism unknown. CPU shedding is ruled out**, despite being the obvious guess: a clean
-run's telemetry shows `s: 0` on every entry in every window, `minBucket: 10000`, and
-`avgCpu ≈ 2.5`. The bot never sheds anything at these levels, so host contention is not
-reaching the scheduler's gates.
-
-The leading remaining suspect is a **runtime-killed tick** under `SIM_JOBS` contention.
-That was previously invisible here: the driver writes such a kill to the console without
-ErrorMapper's red span and raises no notification, so it looked exactly like a quiet,
-successful tick while the bot did a fraction of its work. `runScenario` now returns
-`runtimeKills` (console lines matching terminated/timed-out/interrupted/CPU-limit) and
-**every suite asserts it is empty**, so if that is the cause the next failure will name it.
-
-If a gate fails once, re-run it standalone or with `SIM_JOBS=1` before treating it as a
-regression — and if the flake reappears with `runtimeKills` still empty, the hypothesis is
-wrong and the next place to look is engine-side nondeterminism, not the bot.
-
 Tests use the shared `lib/harness.js`:
 
 ```js
@@ -177,14 +130,14 @@ const res = await runScenario({ scenario: "default", ticks: 180, every: 10 });
 // res.notifications: every engine notification (incl. game events like "controller upgraded")
 // res.engineErrors : error-shaped notifications only (script errors, module load failures)
 // res.botErrors    : exceptions the bot caught (ErrorMapper red-span console lines)
+// res.runtimeKills : ticks the runtime killed (CPU limit, isolate timeout) — otherwise invisible
 // seriesOf(res.timeline, "W1N1", "bot", "creeps") -> [1,1,2,3,...]
 // finalOf(res.timeline, "W1N1", "bot")            -> last snapshot's stats
 ```
 
 Each `runScenario` uses a fresh storage port + dir, so suites run back-to-back safely. Add a
 test by dropping `tests/<name>.test.js` (mocha + chai); it's bind-mounted, no rebuild needed.
-Current suites: `economy` (bootstrap grows + harvests + CPU-bounded), `defense` (towers clear
-a hostile wave, spawns survive), `full-base` (RCL8 stays intact, CPU-bounded at scale).
+Current suites: `smoke` only (the bot loads and ticks without errors). `tests-full/` is empty.
 
 ## Authoring scenarios
 

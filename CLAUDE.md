@@ -1,8 +1,8 @@
 # AGENTS.md
 
-This repository is a Screeps AI written in TypeScript, **being rebuilt from scratch (July 2026)**.
-The previous bot and its design docs live on the `backup/pre-rebuild-2026-07-19` branch (pushed to
-origin); [src/main.ts](src/main.ts) on `main` is reset to the starter kit's default loop, with the
+This repository is a Screeps AI written in TypeScript, **being rebuilt from scratch (October 2026)**.
+The previous bot and its design docs live on the `backup/pre-rebuild-2026-10-12` branch (the one
+before it on `backup/pre-rebuild-2026-07-19`); [src/main.ts](src/main.ts) on `main` is reset to the starter kit's default loop, with the
 starter's `utils/ErrorMapper.ts` for source-mapped stack traces. The build/deploy/test/sim
 infrastructure is fully working.
 
@@ -139,7 +139,7 @@ changes; keep `npm run test` for pure logic. Full details and rationale:
     room state, exit. Flags: `--every N` (state cadence), `--scenario NAME`, `--verbose`
     (bot console each tick + final Memory dump). It is a batch tool, not a daemon.
 -   `bin/sim test`: behavioral **regression tests** in two tiers, run in **parallel**
-    (`SIM_JOBS` workers, default 4). The default FAST suite (`sim/tests/`, staged scenarios,
+    (`SIM_JOBS` workers, default 4). The default FAST suite (`sim/tests/`, short staged runs,
     a few minutes) is the iteration loop; `bin/sim test --full` adds the full-arc suites
     (`sim/tests-full/`, ~40 min) and is required before every milestone commit. Iterate on one
     suite with `bin/sim test -- --grep <name>`. Add cases with `sim/lib/harness.js`
@@ -151,10 +151,12 @@ changes; keep `npm run test` for pure logic. Full details and rationale:
 -   Scenarios (starting world states) live in `sim/scenarios/` and are picked with
     `--scenario <name>`: `default` (fresh RCL1), `growth` (RCL3, empty footprint), `full-base`
     (mature RCL8 + workforce), `wiped-base` (intact base, zero creeps), `under-attack` (defended
-    base + hostile wave), `remote-mining` / `remote-invader` (home room + adoptable neighbor),
+    base + hostile wave), `raid-early` (towerless RCL2 base + two raiders), `expand` (RCL5 home +
+    claimable neighbor, GCL banked), `remote-mining` / `remote-invader` (home room + adoptable neighbor),
     `remote-far` (home + barren neighbor + a 2-source room one border beyond it).
     Build new ones with the `sim/scenarios/_world.js` helpers; to author one, use the
-    **`/build-scenario`** skill.
+    **`/build-scenario`** skill. The sim suites are reset to a single smoke test; add suites as
+    the new bot gains capabilities.
 -   Node-24 reality, don't "simplify" away: the harness installs the mockup's **git master** +
     `@screeps/driver@5.3.0` (`feat-node24`) and applies a `localhost`→IPv4 fix in `sim/run.js`
     (storage binds `::1`, the driver dials `127.0.0.1`). Removing either re-breaks the engine.

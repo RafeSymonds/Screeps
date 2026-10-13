@@ -13,8 +13,7 @@
  * a small and arbitrary sample, and two of them are typically highways. Proving
  * the bot reaches past a dud neighbour is proving it can mine a real map.
  *
- * Watch for: intel recording W3N1 (the scout walked two rooms), W1N1's remotes
- * slice adopting it, and bot creeps working in W3N1.
+ * Watch for: the bot discovering W3N1 (two rooms out) and its creeps working there.
  */
 const W = require("./_world");
 

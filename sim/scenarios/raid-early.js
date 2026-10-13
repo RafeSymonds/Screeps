@@ -2,12 +2,10 @@
 /*
  * The tower-less raid: a small RCL2 base (5 full extensions, a few generalists)
  * with two weak-but-armed raiders camped nearby. There are no towers at RCL2, so
- * the ONLY thing standing between the raiders and the base is defense's rung 2 —
- * spawned [MOVE,ATTACK] defenders. Exercises the ladder end-to-end where
- * under-attack (RCL7, 3 towers) never reaches past rung 1.
+ * the only defense is creeps the bot spawns. Complements under-attack (RCL7,
+ * 3 towers), where towers alone can carry the fight.
  *
- * The raiders are static (no driver code) — they exist to be killed; the gate
- * asserts a defender spawns, the hostiles die, and the economy resumes.
+ * The raiders are static (no driver code) — they exist to be killed.
  */
 const W = require("./_world");
 

@@ -2,9 +2,9 @@
 
 A Screeps AI in TypeScript, built on `screeps-typescript-starter`.
 
-**The bot is being rebuilt from scratch (July 2026).** [src/main.ts](src/main.ts) is reset to the
+**The bot is being rebuilt from scratch (October 2026).** [src/main.ts](src/main.ts) is reset to the
 starter kit's default loop (error-mapped, cleans dead-creep memory); the previous bot is preserved
-on the `backup/pre-rebuild-2026-07-19` branch. What remains on `main` is the infrastructure: build +
+on the `backup/pre-rebuild-2026-10-12` branch. What remains on `main` is the infrastructure: build +
 deploy pipeline, unit/integration test harness, and a headless real-engine simulator.
 
 ## Infrastructure

@@ -39,7 +39,7 @@ function readBotModules(botMain, botMap) {
  * @param {number} [opts.every=1]   snapshot cadence
  * @returns {Promise<{timeline, consoleLines, notifications, engineErrors, botErrors, memories}>}
  *          memories = each bot's final parsed Memory (null if unreadable), so
- *          tests can assert on persisted state (versioning, telemetry ring, …).
+ *          tests can assert on persisted state (e.g. schema version).
  */
 async function runScenario(opts = {}) {
   const { scenario, setup, ticks = 100, every = 1 } = opts;
